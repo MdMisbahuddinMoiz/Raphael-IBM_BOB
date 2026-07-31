@@ -1,0 +1,35 @@
+# Consolidated from pyproject.toml [project.dependencies] + sub-directory requirements.txt (SENTINEL Step 2 authorization)
+# Python >=3.11,<3.13 frozen per v2.1 remediation.
+
+# --- pyproject.toml core ---
+torch>=2.3.0
+transformers>=4.41.0
+numpy>=1.26.0
+pandas>=2.2.0
+requests>=2.32.0
+aiohttp>=3.9.0
+sqlalchemy>=2.0.30
+pydantic>=2.7.0
+pyyaml>=6.0.1
+click>=8.1.0
+rich>=13.7.0
+psutil>=5.9.0
+docker>=7.0.0
+paramiko>=3.4.0
+cryptography>=42.0.0
+
+# --- consolidated service deps (src/*/requirements.txt, configs, telegram mcp) ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+httpx>=0.28.0
+mcp>=1.27.0
+python-multipart
+dnspython>=2.6.0
+neo4j
+pywinrm
+aiofiles
+jinja2
+
+# --- tests ---
+pytest
+pytest-asyncio

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field, asdict
 from enum import Enum
 from typing import Any, Optional
 
-from orchestrator.brain.evidence import EvidenceGraph, EvidenceRelationType
+from orchestrator.brain.evidence import Evidence, EvidenceGraph, EvidenceRelationType
 from orchestrator.brain.hypothesis import HypothesisManager, HypothesisStatus
 from orchestrator.brain.world import WorldModel, Entity, Relationship, RelationshipType
 

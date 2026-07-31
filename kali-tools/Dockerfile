@@ -34,8 +34,10 @@ RUN curl -sL https://github.com/projectdiscovery/nuclei/releases/latest/download
     chmod +x /usr/local/bin/nuclei /usr/local/bin/httpx /usr/local/bin/ffuf /usr/local/bin/gobuster 2>/dev/null || true && \
     rm -rf /tmp/nuclei* /tmp/httpx* /tmp/ffuf* /tmp/gobuster*
 
-# Install Python tools
-RUN pip3 install --no-cache-dir cmsmap droopescan fastapi uvicorn httpx pydantic
+# Install Python tools (cmsmap no longer on PyPI; install from source)
+RUN git clone --depth 1 https://github.com/Dionach/CMSmap /opt/cmsmap && \
+    ln -s /opt/cmsmap/cmsmap.py /usr/local/bin/cmsmap && \
+    pip3 install --no-cache-dir droopescan fastapi uvicorn httpx pydantic
 
 WORKDIR /app
 COPY server.py /app/server.py

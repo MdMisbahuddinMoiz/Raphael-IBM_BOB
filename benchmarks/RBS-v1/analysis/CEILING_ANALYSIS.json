@@ -1,0 +1,169 @@
+{
+  "description": "Ceiling/discrimination analysis for RBS-v1 benchmarks. Identifies saturated cells and template discriminative power.",
+  "generated": "2026-08-01T15:20:00Z",
+  "total_cells": 12,
+  "saturated_cells": [
+    {
+      "experiment": "exp2_ablation",
+      "config": "FULL_RAPHAEL",
+      "template": "T4_WORLD_MODEL_IDENTITY",
+      "level": null,
+      "mean_score": 1.0,
+      "n": 10
+    },
+    {
+      "experiment": "exp2_ablation",
+      "config": "NO_WORLD_MODEL",
+      "template": "T4_WORLD_MODEL_IDENTITY",
+      "level": null,
+      "mean_score": 1.0,
+      "n": 10
+    },
+    {
+      "experiment": "exp2_ablation",
+      "config": "NO_HYPOTHESIS",
+      "template": "T4_WORLD_MODEL_IDENTITY",
+      "level": null,
+      "mean_score": 1.0,
+      "n": 10
+    },
+    {
+      "experiment": "exp2_ablation",
+      "config": "NO_PLANNER",
+      "template": "T4_WORLD_MODEL_IDENTITY",
+      "level": null,
+      "mean_score": 1.0,
+      "n": 10
+    },
+    {
+      "experiment": "exp2_ablation",
+      "config": "NO_FALSIFICATION",
+      "template": "T4_WORLD_MODEL_IDENTITY",
+      "level": null,
+      "mean_score": 1.0,
+      "n": 10
+    },
+    {
+      "experiment": "exp2_ablation",
+      "config": "NO_LLM",
+      "template": "T4_WORLD_MODEL_IDENTITY",
+      "level": null,
+      "mean_score": 1.0,
+      "n": 10
+    },
+    {
+      "experiment": "exp3_difficulty",
+      "config": "FULL_RAPHAEL",
+      "template": "T3_FALSIFICATION_SENSITIVE",
+      "level": "Level_1",
+      "mean_score": 0.95,
+      "n": 10
+    },
+    {
+      "experiment": "exp3_difficulty",
+      "config": "FULL_RAPHAEL",
+      "template": "T4_WORLD_MODEL_IDENTITY",
+      "level": "Level_2",
+      "mean_score": 1.0,
+      "n": 10
+    },
+    {
+      "experiment": "exp3_difficulty",
+      "config": "FULL_RAPHAEL",
+      "template": "T6_SEMANTIC_LLM",
+      "level": "Level_3",
+      "mean_score": 1.0,
+      "n": 10
+    }
+  ],
+  "saturated_cell_count": 9,
+  "template_discrimination": {
+    "T3_FALSIFICATION_SENSITIVE": {
+      "configs_tested": 4,
+      "mean_of_means": 0.5875,
+      "max_mean": 0.95,
+      "min_mean": 0.0,
+      "saturated_configs": [
+        "FULL_RAPHAEL"
+      ],
+      "saturated_count": 1,
+      "discriminative": true
+    },
+    "T4_WORLD_MODEL_IDENTITY": {
+      "configs_tested": 7,
+      "mean_of_means": 1.0,
+      "max_mean": 1.0,
+      "min_mean": 1.0,
+      "saturated_configs": [
+        "FULL_RAPHAEL",
+        "NO_WORLD_MODEL",
+        "NO_HYPOTHESIS",
+        "NO_PLANNER",
+        "NO_FALSIFICATION",
+        "NO_LLM",
+        "FULL_RAPHAEL"
+      ],
+      "saturated_count": 7,
+      "discriminative": false
+    },
+    "T6_SEMANTIC_LLM": {
+      "configs_tested": 1,
+      "mean_of_means": 1.0,
+      "max_mean": 1.0,
+      "min_mean": 1.0,
+      "saturated_configs": [
+        "FULL_RAPHAEL"
+      ],
+      "saturated_count": 1,
+      "discriminative": false
+    }
+  },
+  "experiment_discrimination": {
+    "exp1_architecture": {
+      "configs_tested": 3,
+      "config_means": {
+        "FULL_RAPHAEL": 0.9,
+        "LLM_ONLY": 0.0,
+        "SCRIPTED_BASELINE": 0.5
+      },
+      "max_mean": 0.9,
+      "min_mean": 0.0,
+      "spread": 0.9,
+      "discriminative": true
+    },
+    "exp2_ablation": {
+      "configs_tested": 6,
+      "config_means": {
+        "FULL_RAPHAEL": 1.0,
+        "NO_WORLD_MODEL": 1.0,
+        "NO_HYPOTHESIS": 1.0,
+        "NO_PLANNER": 1.0,
+        "NO_FALSIFICATION": 1.0,
+        "NO_LLM": 1.0
+      },
+      "max_mean": 1.0,
+      "min_mean": 1.0,
+      "spread": 0.0,
+      "discriminative": false
+    },
+    "exp3_difficulty": {
+      "configs_tested": 1,
+      "config_means": {
+        "FULL_RAPHAEL": 0.9833333333333333
+      },
+      "max_mean": 0.9833333333333333,
+      "min_mean": 0.9833333333333333,
+      "spread": 0.0,
+      "discriminative": false
+    }
+  },
+  "classification": {
+    "T4_WORLD_MODEL_IDENTITY": "SATURATED (5/6 configs at 1.0; NO_WORLD_MODEL also 1.0 but SAFETY_FAILURE)",
+    "T3_FALSIFICATION_SENSITIVE": "PARTIALLY_DISCRIMINATIVE (FULL_RAPHAEL=0.90, LLM_ONLY=0.00, SCRIPTED=0.50)",
+    "T6_SEMANTIC_LLM": "SATURATED (1.00)",
+    "T3_FALSIFICATION_SENSITIVE (L1)": "NEAR_SATURATED (0.95)",
+    "T4_WORLD_MODEL_IDENTITY (L2)": "SATURATED (1.00)",
+    "T6_SEMANTIC_LLM (L3)": "SATURATED (1.00)"
+  },
+  "recommendation": "T4 and all L1/L2/L3 are NON_DISCRIMINATING for most configs. Only T3_FALSIFICATION_SENSITIVE with FULL_RAPHAEL shows meaningful variance (0.21 SD). Ceiling effects dominate RBS-v1 under current templates."
+}

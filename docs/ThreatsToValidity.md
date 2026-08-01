@@ -1,6 +1,6 @@
 # Threats to Validity — RAPHAEL v2.0 RBS-v1 Campaign
 
-**Last updated:** 2026-07-30  
+**Last updated:** 2026-07-31  
 **Mandated by:** SENTINEL GLM-5.2 (External Statistical Review Directive)
 
 ---
@@ -54,6 +54,16 @@
 - On templates where FULL = NO_LLM (T2, T4, T5, T6), FULL shows **zero variance** (std = 0.0), identical to NO_LLM's behavior. This suggests either:
   - (a) The LLM is queried but produces answers consistent with the deterministic default, OR
   - (b) The planner selects default/recon actions without querying the LLM
+
+**KNOWN LIMITATION (added 2026-07-31):** `RunMetrics` provider/call counters are **hardcoded
+defaults** (`provider="pilot_simulation"`, `model_id="simulated_v1"` at
+`src/arena/ablation_runner.py:548`) and are never updated during a run. Therefore
+`metrics.json` under-reports LLM usage (`llm_calls=0`, `provider="pilot_simulation"`).
+**True LLM engagement must be sourced from `component_traces.json`**
+(`llm_service` / `llm_inference` = invocations; `llm_service` / `produced_semantic_inference` =
+successes). Verified against Exp0 telemetry (21/21 run dirs): 5 invocations and 2–5 successes
+per run despite the misleading `metrics.json` labels. Fix deferred to post-campaign thaw; do NOT
+modify frozen `src/arena/ablation_runner.py`.
 
 **Tracing required:** Deeper instrumentation is needed to count actual LLM invocations per episode. Current metrics only capture action-level outcomes, not internal decision paths.
 

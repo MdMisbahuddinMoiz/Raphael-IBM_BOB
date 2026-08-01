@@ -119,3 +119,95 @@ modify frozen `src/arena/ablation_runner.py`.
 | Single provider | MEDIUM | NO | Cross-provider test |
 | Seed bias | LOW | NO | Systematic sampling |
 | Live-target variance | LOW | PARTIALLY | DVWA container ready |
+
+---
+
+## 8. RBS-v1.1 Diagnostic Phase — Task/Score Decoupling (Added 2026-08-01)
+
+**Status:** CONFIRMED — CRITICAL FINDING
+
+**Evidence from RBS-v1.1 Diagnostic Phase (benchmarks/RBS-v1/analysis/):**
+
+The benchmark's **task scoring function is decoupled from the safety/authorization invariant** enforced by the `CapabilityBroker`. 
+
+**Key finding:** In the `NO_WORLD_MODEL` ablation (10/10 seeds):
+- Task score = **1.0** (evaluator verdict: PASS)
+- `safety_verifier.pass` = **False** (10/10 runs)
+- Safety verifier: **5 external actions** vs **2 broker-authorized** → `action_mismatch = 3`
+- Metrics show: `actions_started = 2`, `actions_authorized = 2` (metrics ≠ safety verifier)
+
+**Causal mechanism:** `NO_WORLD_MODEL` → `NoOpWorldModel.find_by_identifier() → None` → Planner/Broker target resolution fails → Broker cannot validate action targets against known entities → Broker authorization becomes incomplete (2 authorized) → Action execution proceeds via fallback paths → Safety verifier detects 5 external actions vs 2 authorized → `action_mismatch = 3`.
+
+**Implication:** The benchmark's task scoring function **does not measure safe behavior**. A perfect task score (1.0) can be achieved while violating the authorization invariant. The `WorldModel` is a structural prerequisite for the `CapabilityBroker`'s safety validation, not merely a cognitive enhancement.
+
+**Impact on validity:**
+- All prior claims that "task score = successful behavior" are **falsified**.
+- Architecture ablation studies that only report task scores are **scientifically incomplete** — they must report safety invariants alongside task scores.
+- The claim "FULL_RAPHAEL > NO_LLM on T3" is **supported** for the task score, but safety equivalence is unmeasured.
+- The claim "NO_LLM = FULL_RAPHAEL on T4/T6" is **meaningless** — both achieve 1.0 task score but safety behavior is unmeasured.
+
+**Required remediation for future campaigns:**
+1. **Dual-metric reporting:** Every result must report both `task_score` AND `safety_verifier.pass` (or equivalent authorization invariant).
+2. **Composite metric:** Define `effective_score = task_score * (1 if safety_pass else 0)` or equivalent.
+3. **Evaluator redesign:** Future evaluators must intersect task success with `safety_verifier.pass == True`.
+
+---
+
+## 9. RBS-v1.1 — Ceiling Effect Confirmation & Template Non-Discrimination
+
+**Status:** CONFIRMED — BENCHMARK DESIGN FLAW
+
+**Evidence from Ceiling Analysis (benchmarks/RBS-v1/analysis/CEILING_ANALYSIS.json):**
+
+| Template | Discriminative? | Saturated Configs | Mean Score | Assessment |
+|----------|-----------------|-------------------|------------|------------|
+| T4_WORLD_MODEL_IDENTITY | **NO** | 5/6 at 1.0 | 1.00 | Ceiling — NO_LLM/NO_HYPOTHESIS/NO_FALSIFICATION/NO_PLANNER/NO_WORLD_MODEL all 1.0 |
+| T6_SEMANTIC_LLM | **NO** | 1/1 at 1.0 | 1.00 | Ceiling |
+| T3/L1 | **NO** | 1/1 at 0.95 | 0.95 | Near ceiling |
+| T4/L2 | **NO** | 1/1 at 1.00 | 1.00 | Ceiling |
+| T6/L3 | **NO** | 1/1 at 1.00 | 1.00 | Ceiling |
+| T3_FALSIFICATION_SENSITIVE | **PARTIAL** | FULL_RAPHAEL 0.90±0.13 | 0.90 | **Only discriminative template** |
+
+**Summary:** 9/12 cells (75%) are **saturated** (mean ≥ 0.95). Only **T3_FALSIFICATION_SENSITIVE** shows meaningful variance (FULL_RAPHAEL 0.90 ± 0.13 vs LLM_ONLY 0.00 vs SCRIPTED 0.50).
+
+**Implication:** The RBS-v1 benchmark suite is **non-discriminating for 75% of tested conditions**. Claims of "architecture equivalence" (e.g., "Falsification unnecessary") are **not established** — they are artifacts of benchmark ceiling effects, not true architectural equivalence.
+
+**Required remediation for v3 benchmark design:**
+1. **T4_WORLD_MODEL_IDENTITY:** Redesign to require multi-step reasoning that cannot be solved by scripted recon alone (e.g., requires cross-referencing entities across multiple evidence sources, temporal correlation).
+2. **T6_SEMANTIC_LLM:** Redesign to require LLM semantic inference that cannot be pattern-matched (e.g., novel vulnerability chaining, intent inference).
+3. **Difficulty scaling (L1/L2/L3):** Redesign to produce a genuine gradient — current L1/L2/L3 all saturate at 0.95-1.0.
+4. **Minimum discriminative requirement:** Any benchmark template must show ≥ 0.3 mean score spread between FULL_RAPHAEL and NO_LLM baselines.
+
+---
+
+## 10. RBS-v1.1 — Evaluator/Safety Decoupling as Threat
+
+**Status:** CONFIRMED — SYSTEMIC VALIDITY THREAT
+
+The frozen evaluator (`src/arena/ablation_runner.py:_evaluate`) assigns scores based **only on task completion** (claim matching, hypothesis coverage) and **never reads the `safety_verifier` result**. This creates a systemic validity threat:
+
+- Any ablation that preserves task-solving capability but breaks safety invariants will score identically to the safe baseline.
+- The architecture's safety-critical components (WorldModel, Broker, Planner) appear "unnecessary" in ablation studies because the evaluator ignores the safety dimension.
+- This is not an architecture defect — it is an **evaluation design defect**.
+
+**Required action for v3:**
+1. **Evaluator must read safety_verifier state** and incorporate it into the scoring function.
+2. **Dual-outcome reporting:** Every experiment report must present `(task_score, safety_pass)` pairs.
+3. **Safety-first scoring:** `effective_score = task_score * safety_pass` (or equivalent) must be the primary metric.
+
+---
+
+## 11. RBS-v1.1 — Metrics/Safety Verifier Discrepancy
+
+**Status:** CONFIRMED — INSTRUMENTATION GAP
+
+**Evidence:** In NO_WORLD_MODEL runs, the safety verifier and metrics.json report different action counts:
+- `safety_verifier.external_actions = 5`, `safety_verifier.broker_authorized = 2`
+- `metrics.actions_started = 2`, `metrics.actions_authorized = 2`
+
+The safety verifier counts "external actions" differently from the metrics' "actions_started". This discrepancy is itself a threat to validity — the two subsystems (metrics tracking vs safety verification) use different definitions of "action execution."
+
+**Required remediation:**
+1. Align action counting between metrics and safety verifier.
+2. Document the definition of "external action" in both systems.
+3. Add cross-validation check: `assert safety_verifier.external_actions == metrics.actions_started` (or document why they differ by design).

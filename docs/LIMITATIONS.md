@@ -211,6 +211,96 @@
 
 ---
 
-*Last Updated: 2026-07-30*  
+*Last Updated: 2026-08-01*  
 *Review Cadence: Per engagement (post-mortem) + monthly*  
 *Next Review: Post Tier 2 GitHub Engagement*
+
+---
+
+## L-016: Overall Functional/Validated Percentage (SENTINEL-Adjudicated 2026-08-01)
+
+**Status:** OFFICIAL ASSESSMENT — SENTINEL GLM-5.2 ADJUDICATED
+
+| Metric | Percentage | Basis |
+|--------|------------|-------|
+| **Functional** | **65%** | Core cognitive loop, broker, execution, safety verifier execute; 121/121 tests pass |
+| **Validated** | **40%** | Only 1/7 benchmark templates discriminative; safety/task decoupled; live engagement never completed |
+
+**SENTINEL Adjudication (2026-08-01):** *"The brain works. The hands work. The safety boundary works (when the WorldModel is intact). But 'functional' means 'the code runs and does what it says.' It does not mean 'proven to provide measurable value over a simpler system.' That is the 40% gap."*
+
+**Key Gaps:**
+1. **Benchmark broken** — 9/12 cells saturated (75%); only T3_FALSIFICATION_SENSITIVE discriminates
+2. **Safety/task decoupled** — NO_WORLD_MODEL scores 1.0 while safety_verifier fails (5 ext vs 2 auth)
+3. **Live engagement never completed** — Framework exists, manual gate never exercised
+4. **Evaluator ignores safety** — Scores task completion independently of safety_verifier.pass
+
+---
+
+## L-017: Benchmark Validity Threats (RBS-v1.1 Diagnostic)
+
+**Severity: CRITICAL**
+
+**Evidence from RBS-v1.1 Diagnostic Phase:**
+
+| Threat | Severity | Evidence |
+|--------|----------|----------|
+| Benchmark ceiling | CRITICAL | 9/12 cells saturated (≥0.95); only T3_FALSIFICATION_SENSITIVE discriminates (0.90±0.13) |
+| Task/safety decoupling | CRITICAL | NO_WORLD_MODEL: task=1.0, safety=FAIL (5 ext vs 2 auth); evaluator ignores safety |
+| Evaluator/safety decoupling | CRITICAL | Evaluator reads only task completion, never reads safety_verifier |
+| Metrics/safety discrepancy | HIGH | Safety verifier: 5 ext vs 2 auth; metrics: 2 started vs 2 authorized |
+| Template saturation | HIGH | 9/12 cells ≥0.95 mean; T4/L1/L2/L3/T6 all saturated |
+
+**Required for v3:**
+1. Redesign T4/T6 so NO_LLM < 0.5; T2/T5 so FULL_RAPHAEL > 0.5
+2. Safety-first scoring: `effective_score = task_score * safety_pass`
+3. Evaluator must read safety_verifier state
+4. Align safety_verifier "external" with metrics "started"
+2. Minimum discriminative spread: ≥0.3 between FULL_RAPHAEL and NO_LLM
+
+---
+
+## L-018: Campaign Validation Gap (RBS-v1-R1)
+
+**Severity: HIGH**
+
+**RBS-v1-R1 Campaign Results (120 runs, 12 configs × 10 seeds):**
+
+| Experiment | Finding |
+|------------|---------|
+| Exp1 Architecture (T3) | FULL_RAPHAEL 0.90±0.13 vs LLM_ONLY 0.00 vs SCRIPTED 0.50 — **SUPPORTED** |
+| Exp2 Ablation (T4) | FULL/NO_FALS/NO_HYP/NO_PLANNER/NO_LLM all 1.0; **NO_WORLD_MODEL 1.0 but SAFETY_FAILURE 10/10** |
+| Exp3 Difficulty (L1/L2/L3) | 0.95 / 1.00 / 1.00 — **no gradient, ceiling saturated** |
+
+**Validation Coverage:**
+| Component | Validated? | Evidence |
+|-----------|------------|----------|
+| Cognitive loop (D-Series) | ✅ | Canary A: 6/6 transitions, real LLM |
+| Execution (E-Series) | ✅ | Canary B: real kali-tools nmap |
+| Broker/Adaptation | ✅ | Canary C: DENY→replan |
+| Benchmark discrimination | ❌ | 75% cells saturated |
+| Safety/task coupling | ❌ | Falsified by NO_WORLD_MODEL |
+| Live kill chain | ❌ | Framework ready, never run |
+| Cross-provider | ❌ | nemotron-3-ultra only |
+| N=30 replication | ❌ | N=10 only |
+
+---
+
+## L-019: Live Engagement Gap (ICA: Track C)
+
+**Severity: HIGH**
+
+**Status:** Framework ready (`current-state/reports/ica_live_engagement.py`), kali_run API verified, manual validation gates implemented. **Never executed.**
+
+**Missing to reach 85% validated:**
+1. Execute ICA: 1 Live Engagement with manual validation gate (recon → scan → exploit)
+2. Benchmark redesign (T4/T6, safety-first scoring)
+3. N=30 replication on redesigned benchmark
+4. Cross-provider replication (gemma4, deepseek)
+
+*Estimated to reach 85% validated per SENTINEL directive.*
+
+---
+
+*Last Updated: 2026-08-01*  
+*Review Cadence: Per engagement (post-mortem) + monthly*  
+*Next Review: Post ICA Live Engagement*

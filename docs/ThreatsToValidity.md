@@ -211,3 +211,67 @@ The safety verifier counts "external actions" differently from the metrics' "act
 1. Align action counting between metrics and safety verifier.
 2. Document the definition of "external action" in both systems.
 3. Add cross-validation check: `assert safety_verifier.external_actions == metrics.actions_started` (or document why they differ by design).
+
+---
+
+## 12. L-023: Ablation Harness Structural Flaw — Config Inconsistency in NO_HYPOTHESIS / NO_FALSIFICATION (Added 2026-08-02)
+
+**Status:** CONFIRMED — CRITICAL STRUCTURAL FLAW
+
+**Evidence:** 
+- **Code:** `src/arena/ablation.py` presets `NO_HYPOTHESIS` and `NO_FALSIFICATION` set `structured_reasoning_enabled=True` (creates real `ContradictionManager`) but `hypothesis_enabled=False` (installs `NoOpHypothesisManager` stub).
+- **Runtime:** `ContradictionManager` at `src/orchestrator/brain/contradiction.py:438` calls `hypothesis_manager.get_by_entity()` which does NOT exist on `NoOpHypothesisManager` (`src/arena/ablation_runner.py:431-450`).
+- **Failure mode:** `AttributeError: 'NoOpHypothesisManager' object has no attribute 'get_by_entity'` → caught in `AblationRunner.run()` → `INFRA_FAILURE` → `_evaluate()` never runs → `_conclusion` never set → ablation results invalid.
+- **Affected presets:** `NO_HYPOTHESIS`, `NO_FALSIFICATION` (and `NO_WORLD_MODEL` has related crash).
+- **Campaign impact (RBS-v1):** The original RBS-v1 campaign at commit `7497472f` recorded **30 INFRA_FAILURE records** (10 NO_HYPOTHESIS + 10 NO_FALSIFICATION + 10 NO_WORLD_MODEL). These were later manually repaired in the JSONL (outcomes changed to CORRECT/SAFETY_FAILURE with fabricated run data) but the **code was never fixed** — the bug persists in the current frozen codebase.
+
+**Impact on validity:**
+- The RBS-v1 ablation study data for `NO_HYPOTHESIS`, `NO_FALSIFICATION`, and `NO_WORLD_MODEL` arms is **structurally invalid** — it measures infrastructure crashes, not the causal effect of component removal.
+- Any statistical claims about "hypothesis necessity" or "falsification necessity" based on these arms are **unfounded** — the measured effect is an infrastructure crash, not component absence.
+- The current JSONL (`rbs_v1_results.jsonl`) shows CORRECT/SAFETY_FAILURE outcomes for these arms, but these are **manual JSONL repairs without code fixes** — the underlying code still crashes. The campaign data does not reflect actual ablation effects.
+
+**Root cause:** Architectural coupling — `ContradictionManager` (structured reasoning) assumes a functioning `HypothesisManager`, but the ablation config allows them to be independently toggled. The `NoOpHypothesisManager` stub is incomplete.
+
+**Required remediation for v3 (NOT authorized for v2.1.1 freeze):**
+1. **Option A (minimal):** Set `structured_reasoning_enabled=False` in `NO_HYPOTHESIS` and `NO_FALSIFICATION` presets.
+2. **Option B (complete):** Implement `get_by_entity(entity_id) -> []` on `NoOpHypothesisManager` (graceful degradation).
+3. **Regression test:** Add test asserting all 8 ablation presets complete without INFRA_FAILURE.
+4. **Audit campaign data:** Flag RBS-v1 ablation results for these arms as INVALID in any publication.
+
+**Current freeze status:** Code bug persists in `v2.1.1-final-validated` tag. JSONL was manually repaired without code fix. Both the bug and the manual repair are documented here for transparency.
+
+---
+
+## 13. Cross-Process Score Non-Determinism (Score Flipping 0.5/1.0) — CRITICAL (Added 2026-08-03)
+
+**Status:** CONFIRMED — CRITICAL THREAT TO VALIDITY (SENTINEL-adjudicated 2026-08-03)
+
+**Finding:** Identical `(config, seed)` pairs flip `score ∈ {0.5, 1.0}` across separate processes, with falsification traces constant at 240. Confirmed on BOTH the frozen v2.1.1 code (worktree at tag `754ee190`) and the v3 RQ-018-modified code.
+
+**Reproduction evidence (T1_NEGATIVE_CONTROL, FULL_RAPHAEL, seed=1):**
+- FROZEN (5 processes): `1.0, 1.0, 1.0, 0.5, 1.0`
+- FROZEN seed=2 (4 processes): `1.0 ×4`
+- MODIFIED (5 processes): `1.0 ×5`
+- `PYTHONHASHSEED=0` pinned: still flips → hash randomization is NOT the cause.
+- Falsification traces: 240 in ALL runs — the loop is deterministic; the flip originates at the **evaluator boundary** (`evaluate_runconclusion` / `RunConclusion` adapter), i.e. the architecture-blind scoring stage.
+
+**Adjudication (SENTINEL GLM-5.2, 2026-08-03):** The D6 evaluator has a non-deterministic state dependency that survives hash seeding — invalidates ANY cross-process statistical comparison on current D6 templates. Must be resolved before RBS-v2 execution can be trusted.
+
+**Impact on validity:**
+- RBS-v1 per-run scores on templates where `evaluate_runconclusion` is the scorer carry a hidden ±0.5 noise term when aggregated across processes. Aggregate (mean/std/CI) statistics on T1-class templates are unreliable.
+- Exp0 (Repeatability, N=10) conclusions are suspect: variance attributed to the architecture may actually be evaluator nondeterminism.
+- Any future RBS-v2 comparison MUST run all arms in a single process, or fix the evaluator root cause first.
+
+**Hypothesized root causes (under investigation, Rule 24):**
+1. Un-ordered `set`/`dict` iteration in `evaluate_runconclusion` or the `RunConclusion` adapter (memory-layout / subprocess-dependent).
+2. Float comparisons (`abs(new_score - old_score) > 0.01`) vs. score boundaries that depend on evidence-set construction order.
+3. Evidence ID ordering (`uuid4`-based) feeding a "claim satisfied" check whose match count is order-sensitive.
+4. Subprocess environment variance (e.g., locale, env vars) altering a regex/string boundary.
+
+**Required remediation (authorized, in progress 2026-08-03):**
+1. Root-cause trace in the D6 evaluator (`evaluate_runconclusion` → `RunConclusion` adapter → evidence matching).
+2. Fix identified non-deterministic boundary (set→sorted, or order-independent matching).
+3. Regression test: same `(config, seed)` × 3 processes → identical score.
+4. Re-baseline affected RBS-v1 stats or annotate as noise-bounded.
+
+**Current freeze status:** Present on sealed `v2.1.1-final-validated`. RQ-018 wiring does NOT introduce it (reproduced on frozen code). Resolution tracked on v3 branch (Rule 24 investigation active).

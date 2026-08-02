@@ -11,7 +11,7 @@ x-host-config: &host-config
 services:
   cai-service:
     build:
-      context: ./cai-service
+      context: ./src/cai-service
       dockerfile: Dockerfile
     ports:
       - "3201:3200"
@@ -20,7 +20,7 @@ services:
       - SERVICE_NAME=cai-service
       - RAPHAEL_PATH=/raphael
     volumes:
-      - ./orchestrator:/raphael/orchestrator
+      - ./src/orchestrator:/raphael/orchestrator
 
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
@@ -35,7 +35,7 @@ services:
   mhddos-service:
     <<: *host-config
     build:
-      context: ./mhddos-service
+      context: ./src/mhddos-service
       dockerfile: Dockerfile
     ports:
       - "3301:3300"
@@ -58,7 +58,7 @@ services:
   cloak-service:
     <<: *host-config
     build:
-      context: ./cloak-service
+      context: ./src/cloak-service
       dockerfile: Dockerfile
     ports:
       - "3401:3400"
@@ -71,6 +71,10 @@ services:
       - NET_ADMIN
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
+    volumes:
+      - ./src/cloak-service:/app/app:ro
+    working_dir: /app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3400"]
     depends_on:
       - tor-proxy
     networks:
@@ -81,7 +85,7 @@ services:
   c2-server:
     <<: *host-config
     build:
-      context: ./c2-server
+      context: ./src/c2-server
       dockerfile: Dockerfile
     ports:
       - "3501:3501"
@@ -90,9 +94,12 @@ services:
       - SERVICE_NAME=c2-server
       - RAPHAEL_PATH=/raphael
       - SLIVER_OPERATOR_CONFIG=/sliver-config/operator.cfg
+      - PYTHONPATH=/app:/raphael
     volumes:
-      - ./orchestrator:/raphael/orchestrator
+      - ./src/orchestrator:/raphael/orchestrator
       - sliver-config:/sliver-config:rw
+    working_dir: /
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3501"]
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
     depends_on:
@@ -106,7 +113,7 @@ services:
   phishing:
     <<: *host-config
     build:
-      context: ./phishing
+      context: ./src/phishing
       dockerfile: Dockerfile
     ports:
       - "3502:3502"
@@ -115,7 +122,7 @@ services:
       - SERVICE_NAME=phishing
       - RAPHAEL_PATH=/raphael
     volumes:
-      - ./orchestrator:/raphael/orchestrator
+      - ./src/orchestrator:/raphael/orchestrator
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
     networks:
@@ -126,7 +133,7 @@ services:
   recon-pipeline:
     <<: *host-config
     build:
-      context: ./recon-pipeline
+      context: ./src/recon-pipeline
       dockerfile: Dockerfile
     ports:
       - "3503:3503"
@@ -134,9 +141,12 @@ services:
     environment:
       - SERVICE_NAME=recon-pipeline
       - RAPHAEL_PATH=/raphael
+      - PYTHONPATH=/app/app:/raphael
     volumes:
-      - ./orchestrator:/raphael/orchestrator
+      - ./src/orchestrator:/raphael/orchestrator
       - case-data:/data
+      - ./src/recon-pipeline:/app/app:ro
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3503"]
     cap_add:
       - NET_RAW
     sysctls:
@@ -151,7 +161,7 @@ services:
   sword:
     <<: *host-config
     build:
-      context: .
+      context: ./src
       dockerfile: ./sword/Dockerfile
     ports:
       - "3600:3600"
@@ -159,8 +169,8 @@ services:
     environment:
       - SERVICE_NAME=sword
     volumes:
-      - ./orchestrator:/app/orchestrator
-      - ./sword:/app/sword
+      - ./src/orchestrator:/app/orchestrator
+      - ./src/sword:/app/sword
     cap_add:
       - NET_RAW
       - NET_ADMIN
@@ -179,33 +189,10 @@ services:
     logging: *default-logging
     restart: unless-stopped
 
-  autonomous-brain:
-    <<: *host-config
-    build:
-      context: .
-      dockerfile: ./brain/Dockerfile
-    ports:
-      - "3700:3700"
-    env_file: .env
-    environment:
-      - SERVICE_NAME=autonomous-brain
-      - OPENAI_BASE_URL=http://host.docker.internal:11434/v1
-      - BRAIN_DB=/data/brain.db
-      - TOR_SOCKS=tor-proxy:9050
-      - TOR_CONTROL=tor-proxy:9051
-      - SLIVER_OPERATOR_CONFIG=/sliver-config/operator.cfg
-    volumes:
-      - brain-data:/data
-      - sliver-config:/sliver-config:rw
-    cap_add:
-      - NET_ADMIN
-    depends_on:
-      - tor-proxy
-      - sliver-server
-    networks:
-      - raphael-net
-    logging: *default-logging
-    restart: unless-stopped
+  # NOTE (D-RECOVERY-01): autonomous-brain service removed — phantom definition.
+  # Its Dockerfile (./brain/Dockerfile) never existed in any git revision, no image
+  # was ever built, and no container ever ran. It blocked `docker compose up`.
+  # D-Series Brain runs inside raphael-api (python -m orchestrator.api.main).
 
   tor-proxy:
     # Pin to specific version for stability; update after testing
@@ -269,7 +256,7 @@ services:
 
   kali-tools:
     build:
-      context: ./kali-tools
+      context: ./src/kali-tools
       dockerfile: Dockerfile
     # Pin to a specific tag after building for production; :latest may break on rebuild
     image: raphael/kali-tools:latest
@@ -283,7 +270,7 @@ services:
       - NET_ADMIN
       - SYS_PTRACE
     volumes:
-      - ./orchestrator:/raphael/orchestrator:ro
+      - ./src/orchestrator:/raphael/orchestrator:ro
       - ./data:/raphael/data
     environment:
       - TOOLS_PORT=3800
@@ -339,7 +326,7 @@ services:
       - CI_API_PORT=3900
       - ORCHESTRATOR_API_PORT=3900
     volumes:
-      - ./orchestrator:/raphael/orchestrator
+      - ./src/orchestrator:/raphael/orchestrator
       - ./cli:/raphael/cli
       - ./data:/data
     depends_on:

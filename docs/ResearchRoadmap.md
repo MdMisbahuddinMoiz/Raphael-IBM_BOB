@@ -293,8 +293,8 @@ Benchmark Redesign (2.6) + Safety Alignment (2.7)
 | 2026-08-01 | RBS-v1.1 diagnostic findings appended; v3 priorities reshaped | SENTINEL GLM-5.2 |
 | 2026-08-02 | RQ-015 appended from Track C (Stapler) post-mortem — primary v3 research question | SENTINEL GLM-5.2 |
 | 2026-08-02 | Count audit: 19 distinct research items logged (18 numbered + RQ-015); timeline total corrected | FORGE (independent verification) |
-| — | v3 branch opened | PENDING |
-| — | Pre-registrations filed | PENDING |
+| 2026-08-02 | v3-research branch opened from sealed tag v2.1.1-final-validated (754ee190) | SENTINEL GLM-5.2 |
+| 2026-08-02 | Pre-registrations filed: `benchmarks/RBS-v2/registration.json` + `benchmarks/RQ-015/registration.json` (Rule 51) | FORGE (awaiting SENTINEL seal) |
 
 ---
 

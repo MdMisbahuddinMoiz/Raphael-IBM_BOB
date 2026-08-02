@@ -619,7 +619,8 @@ class AblationRunner:
             self.metrics.component_traces = {
                 comp: self.tracer.count_by_component(comp)
                 for comp in ["hypothesis", "falsification", "world_model",
-                             "planner", "llm", "structured_reasoning"]
+                             "planner", "llm", "structured_reasoning",
+                             "defeater", "student"]
             }
             
             if not self.isolation_result["pass"]:
@@ -842,6 +843,15 @@ class AblationRunner:
             chain_synthesizer=runner.chain_synthesizer if hasattr(runner, 'chain_synthesizer') else None,
         )
         self._active_sessions = []  # Track active shell session IDs for E2
+
+        # ── S1: Student Candidate Generator (RQ-018) ──
+        # Wired when student_enabled; NO_STUDENT ablation disables it and the
+        # IsolationVerifier asserts zero 'student' component traces.
+        if getattr(self.config, 'student_enabled', True):
+            from orchestrator.brain.candidate_generators.student_generator import StudentCandidateGenerator
+            self._student_generator = StudentCandidateGenerator()
+        else:
+            self._student_generator = None
 
         # ── Phase 2: Cognitive Loop ──
         max_iterations = 5  # Budget for pilot
@@ -2086,6 +2096,35 @@ class AblationRunner:
                         candidates.append(c)
             except Exception as e:
                 print(f'[E2-DEBUG] Shell candidate generation error: {e}')
+
+        # ── S1: Student Candidate Generation (RQ-018) ──
+        # S-Series proposes stack-matched exploit techniques (STACK_MAP) from
+        # known services. When the D6 template exposes no matching stack
+        # components (ssh/http only), this is behavior-neutral (0 candidates).
+        if getattr(self, '_student_generator', None) is not None:
+            try:
+                for target_ip in targets:
+                    known_services = getattr(self, '_known_services', {}).get(target_ip, [])
+                    profile = {
+                        "stack_components": [svc.lower() for svc in known_services],
+                    }
+                    student_candidates = self._student_generator.generate_candidates(
+                        target=target_ip,
+                        profile=profile,
+                        max_candidates=8,
+                        min_confidence=0.2,
+                    )
+                    # D8: Filter against engagement scope
+                    for sc in student_candidates:
+                        if self._is_action_allowed(sc, view) and len(candidates) < 15:
+                            candidates.append(sc)
+                            self.tracer.trace(
+                                "student", "proposed_candidate",
+                                input_ids=[f"stack_{target_ip}"],
+                                output_ids=[sc.get("action_id", "")],
+                            )
+            except Exception as e:
+                print(f'[S1-DEBUG] Student candidate generation error: {e}')
 
         # Ensure base candidates have origin marker
         for c in candidates:

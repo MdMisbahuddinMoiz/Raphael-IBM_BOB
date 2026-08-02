@@ -295,6 +295,8 @@ Benchmark Redesign (2.6) + Safety Alignment (2.7)
 | 2026-08-02 | Count audit: 19 distinct research items logged (18 numbered + RQ-015); timeline total corrected | FORGE (independent verification) |
 | 2026-08-02 | v3-research branch opened from sealed tag v2.1.1-final-validated (754ee190) | SENTINEL GLM-5.2 |
 | 2026-08-02 | Pre-registrations filed: `benchmarks/RBS-v2/registration.json` + `benchmarks/RQ-015/registration.json` (Rule 51) | FORGE (awaiting SENTINEL seal) |
+| 2026-08-03 | RQ-018 added: Wire S-Series Student into AblationRunner (S-Series dormancy finding, L-023). FIRST authorized v3 src/ change: `student_enabled` config + NO_STUDENT preset + StudentCandidateGenerator injection. Verified 121/121 tests, smoke PASS, behavior-neutral on D6 templates (0 Student traces). | SENTINEL GLM-5.2 |
+| 2026-08-03 | RBS-v2 registration MOD-001: former RQ-018 renumbered RQ-020 (SENTINEL's RQ-018 now authoritative) | FORGE (governance log) |
 
 ---
 
@@ -320,6 +322,32 @@ Benchmark Redesign (2.6) + Safety Alignment (2.7)
 ### Dependency
 - Blocked by WorldModel integrity + evidence graph maturity (informs A.4 / Items 2.1, 2.2).
 - Pre-registration per Rule 51 before any implementation.
+
+---
+
+## Priority 8: S-Series Student Activation — **RQ-018 (SENTINEL DIRECTIVE 2026-08-03)**
+
+**Source:** L-023 S-Series Student Dormancy finding (forensic trace: module implemented, never runtime-active in AblationRunner).
+**Status:** **AUTHORIZED — IMPLEMENTED in v3 (first authorized src/ change).** Benchmark measurement deferred to RBS-v2 (redesigned templates).
+
+### RQ-018
+> **Does wiring the S-Series Student technique-proposal module into AblationRunner change candidate diversity, task score, or safety on redesigned RBS-v2 templates?**
+
+### Scope of Authorization (as implemented)
+1. `AblationConfig.student_enabled` (default True; `NO_STUDENT` preset for ablation arm).
+2. `StudentCandidateGenerator` instantiated in `_build_traced_runner` when enabled.
+3. Student candidates appended in `_generate_candidates` (post-generation, origin=STUDENT, D8 scope-filtered, ≤15 cap, max_candidates=8/target).
+4. `IsolationVerifier` maps `student_enabled → student` component; NO_STUDENT asserts zero traces.
+5. `metrics.component_traces` extended with `defeater`, `student`.
+
+### Behavior-Neutrality Verification (pre-seal evidence)
+- D6 template stacks (http/ssh only) match no StackMatcher signature → 0 Student candidates/traces on ALL existing templates.
+- Cross-process score flips (0.5/1.0 at fixed seed) reproduced on FROZEN v2.1.1 worktree (tag 754ee190) — pre-existing harness nondeterminism, NOT introduced by RQ-018.
+- Verification harness: `verify_student_wiring.py`, `functional_student_check.py`, `determinism_probe.py` (temp, not committed).
+
+### Dependencies
+- RBS-v2 benchmark redesign (Item 2.6) required to make Student measurable (existing D6 templates are behavior-neutral).
+- RBS-v2 pre-registration (`benchmarks/RBS-v2/registration.json`) is the measurement vehicle; RQ-018 measurement hypotheses to be added at RBS-v2 seal.
 
 ---
 

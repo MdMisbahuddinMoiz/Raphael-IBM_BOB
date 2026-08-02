@@ -250,6 +250,24 @@
 
 ---
 
+## L-023: S-Series Student Dormancy (Implemented but Not Runtime-Active)
+
+**Severity: MEDIUM**
+
+**Status:** Resolved via RQ-018 (SENTINEL directive, 2026-08-03).
+
+> Numbering note: SENTINEL directed this entry as "L-024"; per Rule 47 sequential numbering (renumbered L-001..L-022), the next available slot is **L-023**. Deviation flagged for SENTINEL adjudication.
+
+**Finding (forensic trace, pre-wiring):**
+1. `src/orchestrator/student/` exists and is fully implemented (10 files, 4,394 lines, 121/121 tests green).
+2. S-Series was wired into `CapabilityBroker` (WAF-block mutation path) but **never instantiated by `AblationRunner`** — the benchmark harness.
+3. Zero STUDENT traces across 2,817 run directories, 0 in the 120-row RBS-v1 telemetry, 0 in Stapler live JSONL. `pytest -k student` → 121 deselected.
+4. RBS-v1 campaign measured D-Series (Brain) + E-Series (Hands) only. Student contribution was unmeasured.
+
+**Resolution (v3, RQ-018):** `StudentCandidateGenerator` wired into `AblationRunner._generate_candidates` (post-generation append, origin=STUDENT), guarded by `AblationConfig.student_enabled` (default True; `NO_STUDENT` ablation preset added). IsolationVerifier now asserts zero `student` traces when disabled. Verified behavior-neutral on existing D6 templates (http/ssh-only stacks match no StackMatcher signature → 0 candidates), so RBS-v1 sealed results are unaffected. RBS-v2 benchmark (redesigned templates) is the first measure of Student value.
+
+---
+
 *Last Updated: 2026-08-01*  
 *Review Cadence: Per engagement (post-mortem) + monthly*  
 *Next Review: Post ICA Live Engagement*

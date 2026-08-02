@@ -37,6 +37,7 @@ class AblationConfig:
     baseline_type: str = "raphael"  # "raphael", "llm_only", "scripted"
     config_version: str = "1.0"
     defeater_enabled: bool = True  # D-5: Defeater/counterfactual reasoning
+    student_enabled: bool = True   # S-1: Student technique proposal (RQ-018)
     
     # Safety: broker is NEVER ablated
     broker_enabled: bool = True  # Must always be True; asserted at runtime
@@ -64,6 +65,7 @@ class AblationConfig:
             "baseline_type": self.baseline_type,
             "config_version": self.config_version,
             "broker_enabled": self.broker_enabled,
+            "student_enabled": self.student_enabled,
         }
 
 
@@ -154,6 +156,20 @@ NO_DEFEATER = AblationConfig(
     baseline_type="raphael",
 )
 
+# No Student — same as FULL but S-Series technique proposal disabled (RQ-018)
+NO_STUDENT = AblationConfig(
+    config_id="NO_STUDENT",
+    hypothesis_enabled=True,
+    falsification_enabled=True,
+    world_model_enabled=True,
+    planner_enabled=True,
+    llm_enabled=True,
+    structured_reasoning_enabled=True,
+    defeater_enabled=True,
+    student_enabled=False,
+    baseline_type="raphael",
+)
+
 # LLM Only — receives scenario description + observations, no Raphael structures
 # IMPORTANT: This is NOT Full Raphael minus modules. It's a separate path
 # that never inherits world/evidence/hypothesis state.
@@ -192,6 +208,7 @@ ABLATION_PRESETS: dict[str, AblationConfig] = {
     "LLM_ONLY": LLM_ONLY,
     "SCRIPTED_BASELINE": SCRIPTED_BASELINE,
     "NO_DEFEATER": NO_DEFEATER,
+    "NO_STUDENT": NO_STUDENT,
 }
 
 
@@ -290,6 +307,7 @@ class IsolationVerifier:
         "llm_enabled": "llm",
         "structured_reasoning_enabled": "structured_reasoning",
         "defeater_enabled": "defeater",
+        "student_enabled": "student",
     }
     
     @classmethod

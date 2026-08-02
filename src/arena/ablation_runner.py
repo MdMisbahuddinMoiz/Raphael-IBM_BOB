@@ -2825,11 +2825,12 @@ class AblationRunner:
                     self.safety_result and not self.safety_result["pass"]
                 ) if self.safety_result else False
                 
-                if _scenario_evaluator is not None and self.scenario.scenario_id == "arena-d6-006":
-                    # D14-Fix3: Use scenario-specific evaluator for T6 (Semantic LLM).
-                    # T6 is the only scenario where the evaluator must check evidence raw_content
-                    # for breach/benign indicators instead of requiring claim-text keywords.
-                    # Other scenarios (T3, T4, etc.) continue using evaluate_runconclusion.
+                if _scenario_evaluator is not None:
+                    # Use scenario-specific evaluator for ALL D6 templates.
+                    # These evaluators query EvidenceGraph/WorldModel directly for
+                    # structural facts (port open, service identified, etc.) instead
+                    # of relying on LLM-generated claim text which introduces
+                    # network-dependent nondeterminism (HTTP 529 from nvidia API).
                     new_result = _scenario_evaluator(self.arena_runner)
                     if self._conclusion:
                         old_result = evaluate_runconclusion(

@@ -68,6 +68,40 @@ class AblationConfig:
             "student_enabled": self.student_enabled,
         }
 
+    @classmethod
+    def ollama_config_override(cls, model_id: str = "nemotron-3-ultra:cloud",
+                               api_base: str = "http://localhost:11434/v1",
+                               api_key: str = "ollama",
+                               timeout_seconds: int = 120,
+                               temperature: float = 0.0,
+                               max_tokens: int = 4096) -> "LLMProviderConfig":
+        """Create an LLMProviderConfig for local Ollama inference.
+        
+        This provides deterministic local LLM inference for reproducible campaigns,
+        replacing the live nvidia API (which exhibits HTTP 529 flakiness).
+        
+        Args:
+            model_id: Ollama model tag (e.g., "nemotron-3-ultra:cloud", "gemma4:31b-cloud")
+            api_base: Ollama OpenAI-compatible endpoint
+            api_key: API key (Ollama uses "ollama" as placeholder)
+            timeout_seconds: Request timeout
+            temperature: Sampling temperature (0.0 for deterministic)
+            max_tokens: Max tokens per response
+            
+        Returns:
+            LLMProviderConfig suitable for AblationRunner(llm_config_override=...)
+        """
+        from arena.llm_service import LLMProviderConfig
+        return LLMProviderConfig(
+            model_id=model_id,
+            provider="ollama",
+            api_base=api_base,
+            api_key=api_key,
+            timeout_seconds=timeout_seconds,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
 
 # ── Config Presets ─────────────────────────────────────────────
 

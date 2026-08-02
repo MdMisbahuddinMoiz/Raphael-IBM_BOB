@@ -1,0 +1,95 @@
+{
+  "engagement_id": "stapler-live-001",
+  "target": "10.66.0.159",
+  "web_target": "http://10.66.0.159",
+  "persona": "redteam",
+  "phases": {
+    "exploit": {
+      "phase": "exploit",
+      "success": true,
+      "actions": [
+        {
+          "verdict": "approved",
+          "capability": "smbclient",
+          "args": "//10.66.0.159/kathy -N -c \"recurse; ls\"",
+          "broker": "allow",
+          "executed": true,
+          "success": true,
+          "returncode": 0,
+          "latency": 0.236,
+          "receipt_id": "fd3023c5b4239fd9",
+          "evidence_id": "ev_0828e18d0736",
+          "phase": "exploit"
+        },
+        {
+          "verdict": "approved",
+          "capability": "smbclient",
+          "args": "//10.66.0.159/tmp -N -c \"get ls /tmp/stapler_ls.txt\"",
+          "broker": "allow",
+          "executed": true,
+          "success": true,
+          "returncode": 0,
+          "latency": 0.318,
+          "receipt_id": "d1a1d3d9b484c6a6",
+          "evidence_id": "ev_11da70729046",
+          "phase": "exploit"
+        },
+        {
+          "verdict": "approved",
+          "capability": "curl",
+          "args": "-s -m 15 http://10.66.0.159:12380/ -o /tmp/stapler_web.html",
+          "broker": "allow",
+          "executed": true,
+          "success": true,
+          "returncode": 0,
+          "latency": 0.132,
+          "receipt_id": "2df40850c08c0ac1",
+          "evidence_id": "ev_8078d3fb1360",
+          "phase": "exploit"
+        },
+        {
+          "verdict": "approved",
+          "capability": "gobuster",
+          "args": "dir -u http://10.66.0.159:12380 -w /usr/share/dirb/wordlists/common.txt -t 20 -q -s 200,301,302,403",
+          "broker": "allow",
+          "executed": true,
+          "success": false,
+          "returncode": 1,
+          "latency": 0.065,
+          "receipt_id": "9674174f59e4db39",
+          "evidence_id": "ev_a40832567cf9",
+          "phase": "exploit"
+        },
+        {
+          "verdict": "approved",
+          "capability": "nmap",
+          "args": "-sV -Pn -p 3306 --script mysql-empty-password,mysql-info,mysql-databases 10.66.0.159",
+          "broker": "allow",
+          "executed": true,
+          "success": true,
+          "returncode": 0,
+          "latency": 20.905,
+          "receipt_id": "abe5c16bfda838be",
+          "evidence_id": "ev_924a8ced239a",
+          "phase": "exploit"
+        },
+        {
+          "verdict": "approved",
+          "capability": "python3",
+          "args": "-c \"import socket; s=socket.socket(); s.settimeout(8); s.connect(('10.66.0.159',666)); d=s.recv(65536); open('/tmp/port666.bin','wb').write(d); print('GOT',len(d))\"",
+          "broker": "allow",
+          "executed": true,
+          "success": true,
+          "returncode": 0,
+          "latency": 0.101,
+          "receipt_id": "9a4710c3b335d866",
+          "evidence_id": "ev_95582016ca84",
+          "phase": "exploit"
+        }
+      ]
+    }
+  },
+  "telemetry_path": "/home/yaser/raphael-2.0/evaluations/campaign/stapler_live_1785658405.jsonl",
+  "timestamp": 1785658383.2947257,
+  "mode": "interactive"
+}

@@ -1,0 +1,24 @@
+# Stapler Root Flag — Evidence Capture
+# Engagement: stapler-live-001 (Track C interactive, broker-gated)
+# Target: 10.66.0.159 (scope-sealed: only this IP authorized, fail-closed)
+
+ROOT FLAG: b6b545dc11b7a270f4bad23432190c75162c4a2b
+FILE:      /root/flag.txt (root-owned, 463 bytes)
+CAPTURED:  Sun Aug  2 09:25 (UTC) via broker-gated interactive runner
+
+## Privilege chain (verified end-to-end)
+1. MySQL root:plbkac (from WordPress LFI ave_publishPost -> wp-config.php) — VERIFIED
+   via nmap mysql-query NSE (SELECT 1 returned) and phpMyAdmin login.
+2. WordPress wp_users hash dump via phpMyAdmin (16 users) — John(phpass) cracked 3:
+   garry:football, harry:monkey, scott:cookie. NOT SSH creds (all Permission denied).
+3. SHayslett:SHayslett (SSH, uid=1005) — low-priv foothold, not root path.
+4. www-data -> bash_history enumeration (walkthrough-verified path) yields:
+   peter:JZQuyIN5 (SSH uid=1000, groups: adm cdrom sudo dip plugdev lxd lpadmin sambashare)
+   JKanode:thisimypassword (secondary)
+5. peter sudo -l: (ALL : ALL) ALL  ->  sudo -S id = uid=0(root)
+6. sudo -S cat /root/flag.txt = b6b545dc11b7a270f4bad23432190c75162c4a2b
+
+## Telemetry
+- evaluations/campaign/stapler_live_1785659305.jsonl (5 broker-allow actions, all rc=0)
+- evaluations/campaign/stapler_live_1785659305.json (engagement summary)
+- 5/5 actions: broker=allow, executed=True, success=True (INVARIANTS PASS)

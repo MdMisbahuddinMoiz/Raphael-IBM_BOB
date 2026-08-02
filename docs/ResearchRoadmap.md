@@ -291,8 +291,34 @@ Benchmark Redesign (2.6) + Safety Alignment (2.7)
 |------|--------|-----------|
 | 2026-07-30 | Roadmap created, v2.0 freeze re-affirmed | SENTINEL GLM-5.2 |
 | 2026-08-01 | RBS-v1.1 diagnostic findings appended; v3 priorities reshaped | SENTINEL GLM-5.2 |
+| 2026-08-02 | RQ-015 appended from Track C (Stapler) post-mortem — primary v3 research question | SENTINEL GLM-5.2 |
 | — | v3 branch opened | PENDING |
 | — | Pre-registrations filed | PENDING |
+
+---
+
+## Priority 7: WorldModel Credential Provenance — **RQ-015 (PRIMARY v3 RESEARCH QUESTION)**
+
+**Source:** Track C (Stapler live engagement) post-mortem, SENTINEL adjudication 2026-08-02.
+**Status:** LOGGED — primary research question for Raphael v3. NOT AUTHORIZED for v2.1.1.
+
+### RQ-015
+> **Does implementing a graph-based credential provenance model (tracking source, context, and access level) in the WorldModel enable autonomous post-authentication lateral movement?**
+
+### Motivation (from Track C observed limitations)
+1. **Flat credential namespace:** WorldModel treats all credentials as one unweighted pool. WordPress hashes, MySQL root creds, and OS account passwords were correlated across stores without per-store validation → 100% false positives on SSH password-reuse (garry/harry/scott WP passwords, `plbkac` as root OS password).
+2. **No post-auth loot loop:** the winning credential (`peter:JZQuyIN5`) lived in `/home/*/.bash_history` — reachable only after www-data shell. Cognition never proposes reading dotfiles/`.bash_history`/`.my.cnf`, so post-auth loot is not ingested into the hypothesis space automatically.
+3. **Store-aware validation gap:** credentials should carry `store=` provenance (wordpress/mysql/shadow/ftp) and reuse hypotheses require per-store independent verification before action.
+
+### Proposed Design (v3, pre-registration required)
+- Add `store=` + `access_level=` + `source=` (which evidence produced it) to credential entities.
+- Password-reuse hypothesis gets a prior probability (reuse is exception, not rule) and per-store verification step.
+- Post-auth "loot sweep" capability template (bash_history, .my.cnf, configs) that Planner can propose after any shell is obtained.
+- **Success metric:** autonomous lateral movement from post-auth loot → next user → root on Stapler-class target, without operator-provided credential hints.
+
+### Dependency
+- Blocked by WorldModel integrity + evidence graph maturity (informs A.4 / Items 2.1, 2.2).
+- Pre-registration per Rule 51 before any implementation.
 
 ---
 

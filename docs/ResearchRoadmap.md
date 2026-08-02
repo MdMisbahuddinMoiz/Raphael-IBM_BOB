@@ -187,7 +187,7 @@ Benchmark Redesign (2.6)
 | v3.2 CI/CD & Cloud | 3.1, 3.2 | 2–3 weeks |
 | v3.3 C2 & Container | 4.1, 5.1 | 2–3 weeks |
 | v3.4 Safety | 6.1, 6.2, 6.3 | 2 weeks |
-| **Total** | **13 research items** | **~13–18 weeks** |
+| **Total (timeline only)** | **14 items (excludes 2.4, 2.5, 2.7, RQ-015)** | **~13–18 weeks** |
 
 ---
 
@@ -292,6 +292,7 @@ Benchmark Redesign (2.6) + Safety Alignment (2.7)
 | 2026-07-30 | Roadmap created, v2.0 freeze re-affirmed | SENTINEL GLM-5.2 |
 | 2026-08-01 | RBS-v1.1 diagnostic findings appended; v3 priorities reshaped | SENTINEL GLM-5.2 |
 | 2026-08-02 | RQ-015 appended from Track C (Stapler) post-mortem — primary v3 research question | SENTINEL GLM-5.2 |
+| 2026-08-02 | Count audit: 19 distinct research items logged (18 numbered + RQ-015); timeline total corrected | FORGE (independent verification) |
 | — | v3 branch opened | PENDING |
 | — | Pre-registrations filed | PENDING |
 

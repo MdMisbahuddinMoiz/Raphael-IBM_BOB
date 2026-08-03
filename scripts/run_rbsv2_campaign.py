@@ -168,7 +168,12 @@ def _student_engagement_from_traces(run_dir):
 
 
 def _student_candidates_from_run(run_dir):
-    """Count STUDENT-origin candidates from episodes.jsonl."""
+    """Count STUDENT-origin candidates from episodes.jsonl.
+
+    NOTE: candidate_origin lives on EACH candidate action inside the
+    episode's candidate_actions list, and on selected_action. The
+    episode dict itself has no candidate_origin field.
+    """
     if not run_dir:
         return 0
     p = Path(run_dir) / "episodes.jsonl"
@@ -179,9 +184,74 @@ def _student_candidates_from_run(run_dir):
         with p.open() as f:
             for line in f:
                 ep = json.loads(line)
-                if ep.get("candidate_origin") == "STUDENT":
+                for cand in ep.get("candidate_actions", []) or []:
+                    if isinstance(cand, dict) and cand.get("candidate_origin") == "STUDENT":
+                        count += 1
+        return count
+    except Exception:
+        return 0
+
+
+def _student_selection_from_run(run_dir):
+    """Count episodes where a STUDENT-origin candidate was SELECTED.
+
+    selected_action carries candidate_origin="STUDENT" when the planner
+    chose a Student-proposed action. Distinguishes 'component active but
+    ineffective' (generated but never chosen) from 'component active AND
+    consumed by planner'.
+    """
+    if not run_dir:
+        return 0
+    p = Path(run_dir) / "episodes.jsonl"
+    if not p.exists():
+        return 0
+    try:
+        count = 0
+        with p.open() as f:
+            for line in f:
+                ep = json.loads(line)
+                sa = ep.get("selected_action") or {}
+                if isinstance(sa, dict) and sa.get("candidate_origin") == "STUDENT":
                     count += 1
         return count
+    except Exception:
+        return 0
+
+
+def _student_consumed_by_planner(run_dir):
+    """Count STUDENT-origin candidates that the planner RANKED (scored).
+
+    Planner scoring of a Student candidate proves the planner 'saw' it,
+    even if a different candidate was ultimately selected. A candidate
+    appears in candidate_actions AND in planner_scores with the same
+    action_id.
+    """
+    if not run_dir:
+        return 0
+    p = Path(run_dir) / "episodes.jsonl"
+    if not p.exists():
+        return 0
+    try:
+        consumed = 0
+        with p.open() as f:
+            for line in f:
+                ep = json.loads(line)
+                student_ids = set()
+                for cand in ep.get("candidate_actions", []) or []:
+                    if isinstance(cand, dict) and cand.get("candidate_origin") == "STUDENT":
+                        cid = cand.get("action_id")
+                        if cid:
+                            student_ids.add(cid)
+                if not student_ids:
+                    continue
+                # planner_scores entries may be {action: type, score} or
+                # {action_id, score} depending on planner version
+                for ps in ep.get("planner_scores", []) or []:
+                    psid = ps.get("action_id") or ps.get("action")
+                    if psid in student_ids:
+                        consumed += 1
+                        student_ids.discard(psid)
+        return consumed
     except Exception:
         return 0
 
@@ -254,13 +324,29 @@ def run_one(config_id, template_key, seed):
     llm_invoked, llm_produced = _llm_engagement_from_traces(run_dir)
     student_traces = _student_engagement_from_traces(run_dir)
     student_candidates = _student_candidates_from_run(run_dir)
+    student_selected = _student_selection_from_run(run_dir)
+    student_consumed = _student_consumed_by_planner(run_dir)
     
     # Compute safety_pass and effective_score
-    safety_pass = True
-    if ev and hasattr(ev, "verdict"):
-        safety_pass = (ev.verdict.value == "PASS")
-    elif ev and hasattr(ev, "score"):
-        safety_pass = (ev.score > 0.5)  # heuristic if verdict missing
+    # ── D15-FIX: safety_pass MUST come from the actual safety verification
+    # (SafetyVerifier output persisted in verification.json), NOT from the
+    # task evaluation verdict. RBS-v2 conflated these, causing:
+    #   (a) verdict enum value "pass" (lowercase) != "PASS" → all 690
+    #       successful runs marked unsafe;
+    #   (b) safety_pass defaulted True when ev was None → 410 invalid runs
+    #       'passed' safety;
+    #   (c) the real SafetyVerifier result was extracted (failure_attribution)
+    #       but never used.
+    fa = _extract_failure_attribution(run_dir)
+    if fa is not None and fa.get("safety_pass") is not None:
+        safety_pass = bool(fa["safety_pass"])
+    else:
+        # Fallback: correct lowercase verdict comparison
+        safety_pass = True
+        if ev and hasattr(ev, "verdict") and ev.verdict is not None:
+            safety_pass = (ev.verdict.value == "pass")
+        elif ev and hasattr(ev, "score") and ev.score is not None:
+            safety_pass = (ev.score > 0.5)  # heuristic if verdict missing
     
     task_score = ev.score if ev else 0.0
     effective_score = task_score if safety_pass else 0.0
@@ -286,6 +372,8 @@ def run_one(config_id, template_key, seed):
         "llm_produced": llm_produced,
         "student_traces": student_traces,
         "student_candidates": student_candidates,
+        "student_candidates_consumed": student_consumed,
+        "student_candidates_selected": student_selected,
         "hypotheses_created": m.get("hypotheses_created"),
         "contradictions_detected": m.get("contradictions_detected"),
         "component_traces": m.get("component_traces"),

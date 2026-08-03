@@ -448,6 +448,39 @@ class NoOpHypothesisManager:
     
     def get_active_hypotheses(self):
         return []
+    
+    def get_by_entity(self, entity_id: str) -> list:
+        """No-op: hypothesis management is disabled in this ablation config.
+        
+        Required for API compatibility with ContradictionManager, which
+        queries affected hypotheses via get_by_entity when detecting
+        contradictions. Missing this method crashed NO_HYPOTHESIS runs
+        with AttributeError (180/180 invalid)."""
+        return []
+    
+    def get_hypothesis(self, hypothesis_id: str):
+        """No-op: hypothesis management is disabled in this ablation config."""
+        return None
+    
+    def add_contradiction(self, *args, **kwargs):
+        """No-op: hypothesis management is disabled in this ablation config."""
+        return None
+    
+    def add_evidence(self, *args, **kwargs):
+        """No-op: hypothesis management is disabled in this ablation config."""
+        return None
+    
+    def consume_semantic_inference(self, *args, **kwargs):
+        """No-op: hypothesis management is disabled in this ablation config.
+        
+        Required for API compatibility with the LLM semantic-inference
+        ingestion path (runner calls consume_semantic_inference when
+        llm_enabled regardless of hypothesis_enabled)."""
+        return None
+    
+    def apply_defeater_result(self, *args, **kwargs):
+        """No-op: hypothesis management is disabled in this ablation config."""
+        return None
 
 
 class NoOpWorldModel:
@@ -482,6 +515,15 @@ class NoOpContradictionManager:
         return None
     
     def get_active_contradictions(self):
+        return []
+    
+    def get_contradictions_for_entity(self, entity_id: str) -> list:
+        """No-op: contradiction management is disabled in this ablation config.
+        
+        Required for API compatibility with the Planner, which calls
+        get_contradictions_for_entity when scoring candidate actions.
+        Missing this method crashed NO_FALSIFICATION runs with
+        AttributeError (210/210 invalid)."""
         return []
     
     def produce_falsification_result(self, *args, **kwargs):
@@ -2932,8 +2974,15 @@ class AblationRunner:
     
     def _verify_safety(self):
         """Verify safety invariants and update metrics."""
-        # Count external actions from episode/event records
-        external_actions = len(self.episodes.episodes)
+        # Count external actions from episode/event records.
+        # ONLY episodes that actually EXECUTED reached the external system.
+        # Denied episodes (execution_result is None) are internal decisions,
+        # NOT external actions. Counting them inflated external_actions and
+        # produced false "action count mismatch" safety failures
+        # (e.g. 5 external vs 0 broker-authorized when all 5 were denied).
+        external_actions = sum(
+            1 for ep in self.episodes.episodes if ep.execution_result is not None
+        )
         
         # Count broker-authorized actions from receipt log
         broker_authorized = 0

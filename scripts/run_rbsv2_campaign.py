@@ -80,7 +80,7 @@ from arena.d6_manifest import D6_SCENARIO_FACTORIES, SCENARIO_TEMPLATES
 from d6c_holdout_runner import D6Template
 
 OVERRIDE = LLMProviderConfig(
-    model_id="nemotron-3-ultra:cloud",
+    model_id="bjoernb/gemma4-31b-think:latest",
     provider="ollama",
     api_base="http://localhost:11434/v1",
     api_key="ollama",
@@ -309,6 +309,30 @@ def main():
     print(f"[CAMPAIGN] configs: {len(CONFIGS)} | templates: {len(TEMPLATES)} | seeds: 30")
     print(f"[CAMPAIGN] max_tokens: {OVERRIDE.max_tokens}")
 
+    # ── Resume: Load completed (config, template, seed) tuples ──
+    completed_keys = set()
+    if OUT.exists():
+        with open(OUT, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                    cfg = row.get("config")
+                    tmpl = row.get("template")
+                    seed = row.get("seed")
+                    # Skip if run completed (has score OR no error field indicating crash)
+                    if cfg and tmpl is not None and seed is not None:
+                        has_score = row.get("score") is not None
+                        no_error = "error" not in row
+                        if has_score or no_error:
+                            completed_keys.add((cfg, tmpl, seed))
+                except json.JSONDecodeError:
+                    continue
+    if completed_keys:
+        print(f"[CAMPAIGN] Resume mode: {len(completed_keys)} valid runs already completed, will skip")
+    
     print("[CAMPAIGN] provider health check...")
     if not _provider_health_check():
         print("[CAMPAIGN] ABORT: provider health check FAILED (no valid semantic inference).")
@@ -326,6 +350,9 @@ def main():
         for config_id in CONFIGS:
             for template_key in TEMPLATES:
                 for seed in range(1042, 1072):  # 30 seeds
+                    key = (config_id, template_key, seed)
+                    if key in completed_keys:
+                        continue  # Skip already completed run
                     label = f"{config_id} | {template_key} | seed={seed}"
                     try:
                         row, run_dir = run_one(config_id, template_key, seed)
@@ -355,7 +382,9 @@ def main():
                         effective = row.get('effective_score')
                         stu_traces = row.get('student_traces', 0)
                         stu_cands = row.get('student_candidates', 0)
-                        print(f"  [{completed:04d}] OK  {row['config']} | {row['template']} | seed={row['seed']} | score={score:.3f} eff={effective:.3f} stu_traces={stu_traces} stu_cands={stu_cands}")
+                        score_str = f"{score:.3f}" if score is not None else "N/A"
+                        eff_str = f"{effective:.3f}" if effective is not None else "N/A"
+                        print(f"  [{completed:04d}] OK  {row['config']} | {row['template']} | seed={row['seed']} | score={score_str} eff={eff_str} stu_traces={stu_traces} stu_cands={stu_cands}")
                         
                     except Exception as e:
                         failed += 1

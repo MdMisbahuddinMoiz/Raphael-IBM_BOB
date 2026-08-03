@@ -586,6 +586,7 @@ class AblationRunner:
         self.evaluation_result = None
         self.isolation_result = None
         self.safety_result = None
+        self._conclusion = None
         
         # LLM tracker
         self._llm = None
@@ -995,19 +996,23 @@ class AblationRunner:
                                         # entities associated with the evidence targets (IP/hostname).
                                         # The evidence.target field contains the IP/hostname from the observation.
                                         entity_ids = []
-                                        for ev_id in all_evidence_ids:
-                                            ev = runner.evidence_graph.get_evidence(ev_id)
-                                            if ev:
-                                                # Try entity_hint first (explicit entity ID if already known)
-                                                if ev.entity_hint:
-                                                    entity = runner.world_model.get_entity(ev.entity_hint)
-                                                    if entity and entity.entity_id not in entity_ids:
-                                                        entity_ids.append(entity.entity_id)
-                                                # Fallback: look up by target (IP/hostname)
-                                                elif ev.target:
-                                                    entity = runner.world_model.find_by_identifier(ev.target)
-                                                    if entity and entity.entity_id not in entity_ids:
-                                                        entity_ids.append(entity.entity_id)
+                                        if self.config.world_model_enabled:
+                                            for ev_id in all_evidence_ids:
+                                                ev = runner.evidence_graph.get_evidence(ev_id)
+                                                if ev:
+                                                    # Try entity_hint first (explicit entity ID if already known)
+                                                    if ev.entity_hint:
+                                                        entity = runner.world_model.get_entity(ev.entity_hint)
+                                                        if entity and entity.entity_id not in entity_ids:
+                                                            entity_ids.append(entity.entity_id)
+                                                    # Fallback: look up by target (IP/hostname)
+                                                    elif ev.target:
+                                                        entity = runner.world_model.find_by_identifier(ev.target)
+                                                        if entity and entity.entity_id not in entity_ids:
+                                                            entity_ids.append(entity.entity_id)
+                                        else:
+                                            # NO_WORLD_MODEL: entity resolution unavailable
+                                            pass
                                         # Consume the semantic inference into HypothesisManager
                                         hyp = runner.hypothesis_manager.consume_semantic_inference(
                                             si=result,

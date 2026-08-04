@@ -271,3 +271,90 @@
 *Last Updated: 2026-08-01*  
 *Review Cadence: Per engagement (post-mortem) + monthly*  
 *Next Review: Post ICA Live Engagement*
+
+---
+
+## L-024: RBS-v3 — Benchmark Saturation (Added 2026-08-04)
+
+**Severity: CRITICAL**
+
+**Evidence from RBS-v3 Campaign (1,890 runs):**
+
+| Template | Level | FULL_RAPHAEL Pass Rate | Mean Score | Assessment |
+|----------|-------|------------------------|------------|------------|
+| T1_NEGATIVE_CONTROL | L1 | 100% | 1.0000 | Ceiling |
+| T2_HYPOTHESIS_SENSITIVE | L2 | 0% | 0.5000 | Binary floor |
+| T3_FALSIFICATION_SENSITIVE | L3 | 100% | 1.0000 | Ceiling |
+| T4_WORLD_MODEL_IDENTITY | L2 | 100% | 1.0000 | Ceiling |
+| T5_PLANNING_COST | L1 | 100% | 1.0000 | Ceiling |
+| T6_SEMANTIC_LLM | L3 | 100% | 1.0000 | Ceiling |
+| T7_DEFEATER_SENSITIVE | L3 | 0% | 0.3333 | Gradient only |
+
+**Finding:** 5/7 templates (T1, T3, T4, T5, T6) saturate at 100% pass rate, failing to discriminate terminal outcomes between decision-active components. Only T2 and T7 provide gradient.
+
+**Impact:** Claims of "architecture equivalence" on saturated templates are artifacts of benchmark ceiling effects. The RBS-v3 template suite has LOW DISCRIMINATION for architecture value estimation — same flaw identified in RBS-v1.1 (Threat 9) and RBS-v2, now confirmed in the full N=30 RBS-v3 campaign.
+
+**Required for RBS-v4:** Redesign T1, T3, T4, T5, T6 to produce genuine gradient with ≥ 0.3 mean score spread between FULL_RAPHAEL and NO_LLM baselines.
+
+---
+
+## L-025: RBS-v3 — NO_HYPOTHESIS Anomaly (Added 2026-08-04)
+
+**Severity: CRITICAL**
+
+**Evidence from RBS-v3 Campaign (210/210 NO_HYPOTHESIS runs):**
+
+- Execution time: mean=0.04s (all <1s) vs ~20s for other configs
+- LLM invocations: 0/210 (no LLM engagement)
+- Component traces: defeater=0, hypothesis=0 (ablated); planner=30, world_model=28, student=9
+- Score mean: 0.9000 (vs FULL 0.833) — inflated
+- Verdict: pass=178, fail=32 — 28 flips on T2 (fail→pass)
+
+**Adjudication:** These runs DO NOT constitute valid executions of the NO_HYPOTHESIS ablation. They short-circuit the cognitive loop. The elevated score is a MEASUREMENT ARTIFACT. 210 runs EXCLUDED from causal inference on Hypothesis component. Hypothesis contribution remains UNRESOLVED.
+
+**Mechanism:** Unknown. May stem from ablation config (`structured_reasoning_enabled=True`, `hypothesis_enabled=False`) interacting with `AblationRunner` short-circuit logic (see L-012). Root cause NOT established.
+
+**Required for RBS-v4:** Resolve ablation harness structural flaw (L-012); NO_HYPOTHESIS must execute full cognitive loop for valid causal inference.
+
+---
+
+## L-026: RBS-v3 — Safety Ceiling (Added 2026-08-04)
+
+**Severity: HIGH**
+
+**Evidence from RBS-v3 Campaign (1,890 runs across 7 templates):**
+
+- prohibited_actions_attempted: 0/1890
+- prohibited_actions_blocked: 0/1890  
+- prohibited_external_actions: 0/1890
+- safety_pass: 1890/1890 (100.0%)
+
+**Finding:** No template in the 7-template suite presents a prohibited-action opportunity. Safety metric at CEILING — 100% safety_pass trivially satisfied.
+
+**Impact:** RBS-v3 provides NO discriminating evidence on safety behavior. Compounds Task/Safety Decoupling threat (L-020) — even with safety-first evaluator, benchmark cannot stress safety invariant.
+
+**Required for RBS-v4:** Design templates with explicit prohibited-action opportunities (credential access, lateral movement, data exfiltration) so `prohibited_actions_attempted > 0` occurs in some configurations.
+
+---
+
+## L-027: RBS-v3 — Launch-State Qualification (Added 2026-08-04)
+
+**Severity: MEDIUM (Documentation Debt)**
+
+**Finding:** The `v3-final-validated` tag validates conclusions and documentation *post-campaign*. The exact instrument state generating 1,890 observations was **working tree `4cfac36a` + documented uncommitted diffs**, not a clean cryptographic tag.
+
+**Sequencing discrepancies (recorded per SENTINEL):**
+
+| Discrepancy | Detail |
+|-------------|--------|
+| D1: Manifest git_head | Seal manifest references `a28c2159`; launch at HEAD `4cfac36a` |
+| D2: Uncommitted instrument | Student boost (+1.0) in `action.py` + candidate gate removal in `ablation_runner.py` as working-tree diffs |
+| D3: No v3 tag | `v3-rbs-v3-sealed` tag does not exist; seal is logical, not cryptographic |
+
+**Impact:** Violates Rule 33 (Freeze Discipline). Working-tree diffs at launch are documentation debt, not scientific invalidation, but future campaigns must establish cryptographic freeze BEFORE first run.
+
+---
+
+*Last Updated: 2026-08-04*  
+*Review Cadence: Per engagement (post-mortem) + monthly*  
+*Next Review: Post RBS-v4 Benchmark Design*

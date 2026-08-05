@@ -218,6 +218,18 @@ class ScenarioEnvironment:
             # Direct probe reveals the true version from the evaluator truth
             observations.extend(self._handle_http_get(target, "curl", method, receipt_id))
         
+        # ── T10 (arena-d6-011): Decoy vs Genuine resolution handler ──
+        # INSTRUMENT REPAIR (SENTINEL Option A): minimal deterministic responses
+        # that let ACTIONS distinguish the patched decoy from the genuine state.
+        # The environment supplies observations only — no new capability, no
+        # exploit implementation, no cognitive behavior. Scoped strictly to the
+        # arena-d6-011 scenario; other scenarios are untouched.
+        if getattr(self.scenario, "scenario_id", "") == "arena-d6-011":
+            t10_obs = self._handle_t10_decoy_resolution(target, action_type, capability, method, receipt_id)
+            if t10_obs:
+                observations.extend(t10_obs)
+                return observations
+        
         # ── FALLBACK: Original logic for backward compatibility ──
         if not observations and action_type in ("scan", "recon") and capability in ("nmap", "curl"):
             # Determine what nmap/curl would see
@@ -670,6 +682,56 @@ class ScenarioEnvironment:
             observation_type="banner_grab",
         )]
     
+    def _handle_t10_decoy_resolution(self, target: str, action_type: str, capability: str, method: str, receipt_id: str) -> list[RawObservation]:
+        """T10 (arena-d6-011): deterministic decoy-vs-genuine responses.
+
+        INSTRUMENT REPAIR (SENTINEL Option A). Two minimal behaviors:
+          1. banner_grab -> reveals "log4j-core-2.17.0.jar detected in classpath
+             (patched version)". This is evidence B: it CONTRADICTS the injected
+             Log4Shell log line (evidence A, tool_disagreement), instantiating
+             the falsifiable decoy contradiction.
+          2. direct_probe -> returns the patched-version claim VERBATIM so the
+             discriminator outcome machinery (ablation_runner 2g-ii) matches
+             claim_b -> supports_b -> decoy falsified. The response is phrased
+             as a failed JNDI lookup (the decoy probe), never as a Raphael
+             capability or exploit.
+        The real-vs-patched state is revealed ONLY through these relevant
+        actions; D15-injected observations carry no patched/databinding
+        keywords.
+        """
+        obs = []
+        t = self._resolve_target_ip(target)
+        asset = self._find_asset_by_ip(t)
+        if not asset:
+            return obs
+        services = [s.lower() for s in asset.get("services", [])]
+        if not any(s in services for s in ("http", "tomcat")):
+            return obs
+        if action_type in ("banner_grab", "banner") and capability in ("nmap", "curl", "netcat", "telnet"):
+            obs.append(RawObservation(
+                observation_id=f"obs_{self._observations_generated}",
+                source_tool=capability,
+                action_receipt_id=receipt_id,
+                raw_output="log4j-core-2.17.0.jar detected in classpath (patched version)",
+                observed_at=time.time(),
+                target=t,
+                observation_type="banner_grab",
+            ))
+            self._observations_generated += 1
+        elif action_type == "direct_probe" and capability in ("curl", "http"):
+            obs.append(RawObservation(
+                observation_id=f"obs_{self._observations_generated}",
+                source_tool="curl",
+                action_receipt_id=receipt_id,
+                raw_output=("JNDI lookup rejected: log4j-core-2.17.0.jar detected in classpath "
+                            "(patched version) — Log4Shell CVE-2021-44228 not exploitable"),
+                observed_at=time.time(),
+                target=t,
+                observation_type="direct_probe",
+            ))
+            self._observations_generated += 1
+        return obs
+
     def _handle_ssh_handshake(self, target: str, capability: str, method: str, receipt_id: str) -> list[RawObservation]:
         """SSH handshake attempt."""
         target_ip = self._resolve_target_ip(target)

@@ -1,0 +1,63 @@
+{
+  "campaign": "rbs-v4-validation",
+  "phase": "classification-after-repair",
+  "timestamp": "2026-08-05T12:00:00Z",
+  "supersedes": "rbs_v4_pilot_classification.json (pre-repair INSTRUMENT_DEFECT classification)",
+  "authorization": "SENTINEL Option A: ARENA_INSTRUMENT_REPAIR_ONLY (d6_manifest.py, environment.py, ablation_runner.py). src/orchestrator frozen; holdout 1072-1101 untouched; no outcome-conditioned tuning.",
+  "instrument": {
+    "provider": "ollama_cloud",
+    "model_id": "gpt-oss:20b-cloud",
+    "temperature": 0.0,
+    "max_tokens": 16384,
+    "student_boost": 1.0,
+    "action_budget": 5,
+    "repair_verify_seeds": [1042, 1043, 1044, 1045, 1046, 1047],
+    "validation_seeds": [1048, 1049, 1050, 1051, 1052, 1053]
+  },
+  "results": {
+    "T8_STUDENT_EXCLUSIVE": {
+      "FULL_mean": 1.0, "FULL_sd": 0.0, "ablation_mean": 0.75, "ablation_sd": 0.0, "delta": 0.25,
+      "classification": "MARGINAL",
+      "mechanism_chain_verified": true,
+      "evidence": [
+        "REPAIR: starting_assets services ['http','glassfish','admin'] now intersect sig_glassfish_java={'glassfish','java','admin'} -> StackMatcher f1=0.667, glassfish_el_injection confidence=0.356 (code semantics f1^2*p=0.80*0.667^2) >= 0.2 threshold -> Student candidate generated",
+        "FULL: student_traces=[5,5,5,5,5,5] (component traces), student_candidates=5/5 seeds, student_selected=True all seeds (PlanDecision.rationale_codes contains 'student_boost' only when candidate_origin==STUDENT selected), probe_executed=True all seeds (broker action log: allowed entry, action_type=direct_probe, capability=curl, target on glassfish)",
+        "NO_STUDENT: student_traces=[0,0,0,0,0,0], student_candidates=0 -> Student generator truly disabled (isolation verified)",
+        "Score gap is 1/4 check: check 3 (student_probe_executed via broker log direct_probe/curl on glassfish) is ALSO satisfiable by the falsification path in NO_STUDENT (falsification generates direct_probe/curl candidates) -> 'same answer another way' per SENTINEL protocol; classified MARGINAL (0.10 <= delta < 0.30), NOT tuned",
+        "De-leak: expected_observations contain NO classloader/EL/gadget keywords (verified: 'GlassFish Server Open Source Edition admin console on port 4848', 'admin console login page accessible')"
+      ]
+    },
+    "T10_MISLEADING_EVIDENCE": {
+      "FULL_mean": 1.0, "FULL_sd": 0.0, "ablation_mean": 0.5, "ablation_sd": 0.0, "delta": 0.5,
+      "classification": "DISCRIMINATIVE",
+      "mechanism_chain_verified": true,
+      "evidence": [
+        "REPAIR: decoy/genuine environment handler (_handle_t10_decoy_resolution) added: banner_grab -> 'log4j-core-2.17.0.jar detected in classpath (patched version)'; direct_probe -> 'JNDI lookup rejected: log4j-core-2.17.0.jar detected in classpath (patched version) - Log4Shell CVE-2021-44228 not exploitable'",
+        "FULL: contradiction_count=175 (tool_disagreement between injected jndi/log4shell line and environment patched-line evidence), falsification_traces=521, discriminator_executed=True with recorded result (cost/budget observable), environment response evidence present in graph (ev_... 'patched version' lines, 5 hits)",
+        "NO_FALSIFICATION: contradictions=0, falsification_traces=0, discriminators executed=0 -> falsification truly disabled (environment still responds but no falsification machinery consumes it)",
+        "Evaluator check 3 reads executed discriminator with recorded result + env patched-line evidence present (frozen D14-Fix1 stores 'survived'/'falsified' NOT 'supports_a'/'supports_b' - vocabulary corrected)",
+        "De-leak: expected_observations contain NO patched/2.17/databinding keywords (verified: 'HTTP 500 error logs containing ${jndi:ldap://...} strings (Log4Shell signature)', 'Tomcat version 9.0.x with JDK 11', 'Spring Framework web application deployed on Tomcat')"
+      ]
+    },
+    "T11_COMPETING_HYPOTHESES": {
+      "FULL_mean": 1.0, "FULL_sd": 0.0, "ablation_mean": 0.5, "ablation_sd": 0.0, "delta": 0.5,
+      "classification": "DISCRIMINATIVE",
+      "mechanism_chain_verified": true,
+      "evidence": [
+        "REPAIR: ablation_runner hypothesis-gate confound fixed - new '2a-LLM' block (gated on llm_enabled only) hoists LLM semantic inference; in-gate block now consumes llm_si into HypothesisManager only (hypothesis_enabled controls HypothesisManager; llm_enabled controls LLM)",
+        "FULL: hypothesis_traces=[40,40,35,40,40,40], hypotheses_formed=9-10, llm_invocations=5/5",
+        "NO_HYPOTHESIS: hypothesis_traces=[0,0,0,0,0,0], hypotheses_formed=0 (NoOpHypothesisManager) BUT llm_invocations=[5,5,5,5,5,5] -> REGRESSION ASSERTION PASS: LLM(NO_HYPOTHESIS)==operational while HypothesisManager(NO_HYPOTHESIS)==disabled",
+        "Evaluator no longer solvable from injection: expected_observations contain ONLY baseline enumeration ('SSH banner: OpenSSH_8.2p1 on port 22', 'Web app login page with debug parameter on port 80') - no 'no valid'/'command'/'exec' outcome keywords",
+        "De-leak verified in factory smoke test"
+      ]
+    }
+  },
+  "summary": {
+    "discriminative": ["T10_MISLEADING_EVIDENCE", "T11_COMPETING_HYPOTHESES"],
+    "marginal": ["T8_STUDENT_EXCLUSIVE"],
+    "instrument_defects_remaining": [],
+    "delta_before_repair": {"T8": 0.0, "T10": 0.0, "T11": 0.0},
+    "delta_after_repair": {"T8": 0.25, "T10": 0.5, "T11": 0.5},
+    "next_step": "Verification passed. Tag v4-benchmark-frozen (hash artifacts -F). Launch holdout campaign on seeds 1072-1101 (untouched, zero leaked). T8 MARGINAL accepted per locked protocol - NO outcome-conditioned tuning."
+  }
+}

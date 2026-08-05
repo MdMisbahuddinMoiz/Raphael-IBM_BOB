@@ -909,6 +909,34 @@ class AblationRunner:
         while iteration < max_iterations:
             iteration += 1
             
+            # 2a-LLM. LLM semantic inference — gated on llm_enabled ONLY.
+            # T11 CONFOUND REPAIR (SENTINEL Option A): the LLM call previously
+            # lived INSIDE the hypothesis_enabled gate (ablation_runner line
+            # ~1010), so NO_HYPOTHESIS (llm_enabled=True) silently became
+            # NO_HYPOTHESIS + NO_LLM — a confounded ablation. The LLM now runs
+            # whenever llm_enabled and _llm_service exist; consumption into
+            # HypothesisManager (consume_semantic_inference) remains gated on
+            # hypothesis_enabled in the block below. Planner/WorldModel/Student/
+            # Falsification behavior is untouched.
+            llm_si = None  # (SemanticInferenceSuccess, evidence_ids) or None
+            if self.config.llm_enabled and self._llm_service:
+                _llm_ev = runner.evidence_graph.get_all_evidence()
+                if len(_llm_ev) >= 3:
+                    _diverse_items = select_diverse_evidence(_llm_ev)
+                    if _diverse_items:
+                        _llm_evidence_ids = tuple(
+                            eid for item in _diverse_items for eid in item.get('evidence_ids', [])
+                        )
+                        if _llm_evidence_ids:
+                            _llm_text = build_evidence_context(_diverse_items)
+                            _llm_result = self._llm_service.run_inference(
+                                observation_text=_llm_text,
+                                source_evidence_ids=_llm_evidence_ids,
+                                run_id=self.run_id,
+                            )
+                            if isinstance(_llm_result, SemanticInferenceSuccess):
+                                llm_si = (_llm_result, _llm_evidence_ids)
+            
             # 2a. Form hypothesis from available evidence (if enabled)
             if self.config.hypothesis_enabled:
                 # Get all evidence content to form hypothesis
@@ -1007,70 +1035,48 @@ class AblationRunner:
                         h_sources.append("Contradiction analysis unavailable — falsification disabled")
                     
                     # ── Component 3: LLM (MODEL_INFERENCE for semantic interpretation) ──
-                    if self.config.llm_enabled and self._llm_service:
-                        # D10: Use diverse, deduplicated evidence subset for LLM context
-                        # (replaces the previous per-observation loop over evidence_texts[-5:])
-                        if len(all_ev) >= 3:
-                            # Select diverse evidence prioritized by type richness
-                            diverse_items = select_diverse_evidence(all_ev)
-                            if not diverse_items:
-                                h_sources.append("Semantic interpretation: no diverse evidence available")
-                            else:
-                                # Collect all evidence IDs from diverse items
-                                all_evidence_ids = tuple(
-                                    eid for item in diverse_items for eid in item.get('evidence_ids', [])
-                                )
-                                if not all_evidence_ids:
-                                    h_sources.append("Semantic interpretation: evidence IDs not found")
-                                else:
-                                    # Build combined observation text with metadata annotations
-                                    combined_text = build_evidence_context(diverse_items)
-                                    
-                                    # Run semantic inference via LLMService with full context
-                                    result = self._llm_service.run_inference(
-                                        observation_text=combined_text,
-                                        source_evidence_ids=all_evidence_ids,
-                                        run_id=self.run_id,
-                                    )
-                                    
-                                    if isinstance(result, SemanticInferenceSuccess):
-                                        # D9: Resolve entity_ids from WorldModel by looking up
-                                        # entities associated with the evidence targets (IP/hostname).
-                                        # The evidence.target field contains the IP/hostname from the observation.
-                                        entity_ids = []
-                                        if self.config.world_model_enabled:
-                                            for ev_id in all_evidence_ids:
-                                                ev = runner.evidence_graph.get_evidence(ev_id)
-                                                if ev:
-                                                    # Try entity_hint first (explicit entity ID if already known)
-                                                    if ev.entity_hint:
-                                                        entity = runner.world_model.get_entity(ev.entity_hint)
-                                                        if entity and entity.entity_id not in entity_ids:
-                                                            entity_ids.append(entity.entity_id)
-                                                    # Fallback: look up by target (IP/hostname)
-                                                    elif ev.target:
-                                                        entity = runner.world_model.find_by_identifier(ev.target)
-                                                        if entity and entity.entity_id not in entity_ids:
-                                                            entity_ids.append(entity.entity_id)
-                                        else:
-                                            # NO_WORLD_MODEL: entity resolution unavailable
-                                            pass
-                                        # Consume the semantic inference into HypothesisManager
-                                        hyp = runner.hypothesis_manager.consume_semantic_inference(
-                                            si=result,
-                                            entity_ids=entity_ids,
-                                            evidence_ids=list(all_evidence_ids),
-                                        )
-                                        h_sources.append(
-                                            f"SEMANTIC INFERENCE: {result.claim} "
-                                            f"(category: {result.category.value}, "
-                                            f"confidence: {result.confidence:.2f})"
-                                        )
-                                        # Also extract classification if it's a version/service assessment
-                                        if result.category.value in ("version_assessment", "service_identification", "vulnerability_indication"):
-                                            h_sources.append(f"LLM MODEL_INFERENCE: {result.claim}")
-                                    # Failures are already traced in LLMService, no hypothesis created
-                                    # Single LLM call per iteration (no loop)
+                    # T11 CONFOUND REPAIR: the inference itself ran in 2a-LLM
+                    # above, gated on llm_enabled (NO_HYPOTHESIS keeps the LLM
+                    # operational). What remains here — gated on hypothesis_enabled
+                    # via this block — is CONSUMPTION into HypothesisManager and
+                    # h_sources, i.e., HypothesisManager behavior only.
+                    if llm_si is not None:
+                        result, all_evidence_ids = llm_si
+                        # D9: Resolve entity_ids from WorldModel by looking up
+                        # entities associated with the evidence targets (IP/hostname).
+                        # The evidence.target field contains the IP/hostname from the observation.
+                        entity_ids = []
+                        if self.config.world_model_enabled:
+                            for ev_id in all_evidence_ids:
+                                ev = runner.evidence_graph.get_evidence(ev_id)
+                                if ev:
+                                    # Try entity_hint first (explicit entity ID if already known)
+                                    if ev.entity_hint:
+                                        entity = runner.world_model.get_entity(ev.entity_hint)
+                                        if entity and entity.entity_id not in entity_ids:
+                                            entity_ids.append(entity.entity_id)
+                                    # Fallback: look up by target (IP/hostname)
+                                    elif ev.target:
+                                        entity = runner.world_model.find_by_identifier(ev.target)
+                                        if entity and entity.entity_id not in entity_ids:
+                                            entity_ids.append(entity.entity_id)
+                        else:
+                            # NO_WORLD_MODEL: entity resolution unavailable
+                            pass
+                        # Consume the semantic inference into HypothesisManager
+                        hyp = runner.hypothesis_manager.consume_semantic_inference(
+                            si=result,
+                            entity_ids=entity_ids,
+                            evidence_ids=list(all_evidence_ids),
+                        )
+                        h_sources.append(
+                            f"SEMANTIC INFERENCE: {result.claim} "
+                            f"(category: {result.category.value}, "
+                            f"confidence: {result.confidence:.2f})"
+                        )
+                        # Also extract classification if it's a version/service assessment
+                        if result.category.value in ("version_assessment", "service_identification", "vulnerability_indication"):
+                            h_sources.append(f"LLM MODEL_INFERENCE: {result.claim}")
                     else:
                         # NO_LLM: semantic interpretation unavailable
                         h_sources.append("Semantic interpretation unavailable — LLM disabled")
@@ -2161,15 +2167,15 @@ class AblationRunner:
                         max_candidates=8,
                         min_confidence=0.2,
                     )
-                    # D8: Filter against engagement scope
-                    for sc in student_candidates:
-                        if self._is_action_allowed(sc, view) and len(candidates) < 15:
-                            candidates.append(sc)
-                            self.tracer.trace(
-                                "student", "proposed_candidate",
-                                input_ids=[f"stack_{target_ip}"],
-                                output_ids=[sc.get("action_id", "")],
-                            )
+# Filter against engagement scope
+                for sc in student_candidates:
+                    if self._is_action_allowed(sc, view):
+                        candidates.append(sc)
+                        self.tracer.trace(
+                            "student", "proposed_candidate",
+                            input_ids=[f"stack_{target_ip}"],
+                            output_ids=[sc.get("action_id", "")],
+                        )
             except Exception as e:
                 print(f'[S1-DEBUG] Student candidate generation error: {e}')
 

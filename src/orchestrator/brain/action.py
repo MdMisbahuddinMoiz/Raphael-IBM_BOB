@@ -1066,6 +1066,17 @@ class Planner:
                 if "defeater_priority" not in rationale_codes:
                     rationale_codes.append("defeater_priority")
 
+            # S1-STUDENT: Student candidate scoring boost.
+            # Apply a scoring bonus to candidates originating from the Student
+            # component to ensure they compete effectively against BASE candidates.
+            # Weight 1.0 ensures STUDENT candidates are selected in FULL_RAPHAEL
+            # while remaining below falsification/defeater priority ceiling.
+            if c.get("candidate_origin") == "STUDENT":
+                student_boost = 1.0
+                utility_score += student_boost
+                if "student_boost" not in rationale_codes:
+                    rationale_codes.append("student_boost")
+
             # S1-B: ChainSynthesizer readiness boost.
             # If this candidate's technique_id matches a step that the
             # ChainSynthesizer reports as ready (high precondition satisfaction),

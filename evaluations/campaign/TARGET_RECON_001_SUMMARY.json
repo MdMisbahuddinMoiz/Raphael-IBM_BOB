@@ -1,0 +1,70 @@
+{
+  "recon_id": "TARGET_RECON_001",
+  "total_records": 150,
+  "http_status_distribution": {
+    "200": 76,
+    "400": 29,
+    "401": 1,
+    "405": 18,
+    "500": 26
+  },
+  "modules_total": 20,
+  "modules_fully_200": [
+    "CachePoisoning",
+    "ClickjackingVulnerability",
+    "CryptographicFailures",
+    "LDAPInjectionVulnerability",
+    "PathTraversal",
+    "PersistentXSSInHTMLTagVulnerability",
+    "RemoteFileInclusion",
+    "XSSWithHtmlTagInjection"
+  ],
+  "modules_with_non200": [
+    "AuthenticationVulnerability",
+    "BlindSQLInjectionVulnerability",
+    "CommandInjection",
+    "ErrorBasedSQLInjectionVulnerability",
+    "Http3xxStatusCodeBasedInjection",
+    "IDORVulnerability",
+    "JWTVulnerability",
+    "SSRFVulnerability",
+    "UnionBasedSQLInjectionVulnerability",
+    "UnrestrictedFileUpload",
+    "XSSInImgTagAttribute",
+    "XXEVulnerability"
+  ],
+  "interesting": {
+    "h2_console": {
+      "recon_id": "TARGET_RECON_001",
+      "ts_utc": "2026-08-08T08:11:56Z",
+      "target": "vulnerableapp:9090 (172.18.0.17)",
+      "through": "kali-tools (docker exec curl)",
+      "module": "__notable__",
+      "level": "-",
+      "variant": "-",
+      "url": "http://vulnerableapp:9090/VulnerableApp/h2/",
+      "http_status": 200,
+      "size_bytes": 938,
+      "elapsed_s": 0.196,
+      "content_type": "text/html"
+    },
+    "error_endpoint": {
+      "recon_id": "TARGET_RECON_001",
+      "ts_utc": "2026-08-08T08:11:56Z",
+      "target": "vulnerableapp:9090 (172.18.0.17)",
+      "through": "kali-tools (docker exec curl)",
+      "module": "__notable__",
+      "level": "-",
+      "variant": "-",
+      "url": "http://vulnerableapp:9090/VulnerableApp/error",
+      "http_status": 500,
+      "size_bytes": 73,
+      "elapsed_s": 0.014,
+      "content_type": "application/json"
+    }
+  },
+  "elapsed_range_s": [
+    0.003,
+    0.246
+  ]
+}

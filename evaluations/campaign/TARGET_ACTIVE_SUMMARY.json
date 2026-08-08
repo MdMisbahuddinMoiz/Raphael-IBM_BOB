@@ -1,0 +1,67 @@
+{
+  "run_id": "TARGET_ACTIVE_001_002",
+  "mode": "STUDENT-LED ACTIVE CHARACTERIZATION (creative control granted by operator)",
+  "safety_constraints_honored": [
+    "Target: vulnerableapp:9090 only (172.18.0.17) — no cross-container, no DVWA, no host traffic",
+    "GET-only, timeout-guarded (15s wall), no mutation verbs (no INSERT/UPDATE/DELETE/DROP)",
+    "Extraction limited to benign metadata: H2VERSION(), CURRENT_USER(), DATABASE()",
+    "No credentials attempted in SQLi; H2 console NOT logged into (reachability only)"
+  ],
+  "evidence_files": [
+    "evaluations/campaign/TARGET_ACTIVE_001.jsonl (S1 characterization 42 probes)",
+    "evaluations/campaign/TARGET_ACTIVE_002_ORACLE_LEAK.jsonl (L1 matrix + L2 extraction, full bodies)"
+  ],
+  "measurement_route": "all requests via docker exec kali-tools curl (same channel as recon), request timeouts, raw bodies stored",
+  "findings": {
+    "errorbased_sqli_ladder": {
+      "LEVEL_1": {
+        "injectable": true,
+        "mechanism": "NO quoting in template: `id=1'` and variants produce H2 syntax error oracle (42000-214). Boolean injection usable with `1 AND 1=1` form.",
+        "response": "200; syntax error leaks full statement"
+      },
+      "LEVEL_2": {
+        "injectable": true,
+        "mechanism": "single-quoted concatenation; error-based extraction WORKS",
+        "demonstrated_extraction": {
+          "h2_version": "2.1.214",
+          "current_user": "APPLICATION",
+          "database": "TESTDB"
+        },
+        "response": "200; SQL [.. CAST((SELECT ...) AS INT) ..] Data conversion error converting \"<value>\" [22018-214]"
+      },
+      "LEVEL_3": {
+        "injectable": false,
+        "mechanism": "input appears quote-stripped/sanatized: sub-expressions become literal values (`converting \"1 AND 1=1\"`)",
+        "response": "200 (car lookup true); no breakout, error text only for literal"
+      },
+      "LEVEL_4": {
+        "injectable": false,
+        "mechanism": "PreparedStatement / parameterized build: `PreparedStatementCallback`; payload treated as literal",
+        "response": "200; error text shows literal, no subquery execution"
+      },
+      "LEVEL_5": {
+        "injectable": false,
+        "mechanism": "secure wrapper: suppresses all moreInfo; 24B baseline '{ \"isCarPresent\": false}'",
+        "response": "200; fully silent"
+      }
+    },
+    "db_fingerprint": {
+      "engine": "H2 in-memory",
+      "version_leaked": "2.1.214",
+      "database_name": "TESTDB",
+      "current_user": "APPLICATION",
+      "h2_console": "reachable at /VulnerableApp/h2/login.jsp (200) — documented default creds in module docs; not used"
+    },
+    "s3_creative_sweep": {
+      "CachePoisoning_L1": "banner param reflected VERBATIM into HTML response (`<b>t</b>` preserved) — unvalidated reflection present in cache-poisoning module",
+      "SSRF_L1": "400 with both id= and url= — parameter name not yet resolved (0B body)",
+      "OpenRedirect_L1": "400 with url= — parameter name differs (0B body)",
+      "IDOR_L5": "401 with JSON body {\"content\":\"Provide login or token\",\"isValid\":false} — auth gate present",
+      "JWT_L6": "500 System Error — token flow gate present, mirrors earlier family profile"
+    }
+  },
+  "learning_transfer": {
+    "for_student_boost_isolation_design": "L1/L2 discrimination gives clean boolean+error class labels; L2 extraction is deterministic (2-3 request); L3/L4 provide hard-negative labels (sanitization classes)",
+    "for_cross_target": "L1/L2 error-oracle shapes match DVWA sqli-lab oracle signatures — transfer probe (same matrix on DVWA) is the natural next benchmark"
+  }
+}

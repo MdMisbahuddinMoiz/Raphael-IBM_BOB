@@ -218,6 +218,26 @@ LLM_ONLY = AblationConfig(
     baseline_type="llm_only",
 )
 
+# PROMPTED_AGENT — strong prompted-agent control arm (RBS-v4 repair item 9).
+# Per the terminal-comparison spec (rbs_v4_final_report §Q7/§26): same model,
+# same tools, same CapabilityBroker, matched budgets — but NO explicit cognitive
+# machinery (no hypothesis/falsification/world model/planner/defeater/student).
+# Decision-making is purely prompt-driven via the LLM-only execution path.
+# Broker is NEVER ablated (safety invariant). This preset makes the arm
+# instantiable; the terminal experiment itself remains a handoff (NOT launched).
+PROMPTED_AGENT = AblationConfig(
+    config_id="PROMPTED_AGENT",
+    hypothesis_enabled=False,
+    falsification_enabled=False,
+    world_model_enabled=False,
+    planner_enabled=False,
+    llm_enabled=True,
+    structured_reasoning_enabled=False,
+    defeater_enabled=False,
+    student_enabled=False,
+    baseline_type="llm_only",
+)
+
 # Scripted baseline — deterministic script, no LLM or reasoning components
 SCRIPTED_BASELINE = AblationConfig(
     config_id="SCRIPTED_BASELINE",
@@ -243,6 +263,7 @@ ABLATION_PRESETS: dict[str, AblationConfig] = {
     "SCRIPTED_BASELINE": SCRIPTED_BASELINE,
     "NO_DEFEATER": NO_DEFEATER,
     "NO_STUDENT": NO_STUDENT,
+    "PROMPTED_AGENT": PROMPTED_AGENT,
 }
 
 

@@ -1,0 +1,32 @@
+{
+  "record": "EXPERIMENT0_PROTOCOL_FREEZE",
+  "state": 1,
+  "states": [
+    "1_protocol_frozen",
+    "2_launch_decision_pending",
+    "3_results_frozen"
+  ],
+  "tag": "experiment0-protocol-v1",
+  "frozen_at_utc": "2026-08-08T09:07:48+00:00",
+  "operator_directive": "PROTOCOL FREEZE ONLY - no execution authorization implied",
+  "artifacts": {
+    "protocol": {
+      "path": "/home/yaser/raphael-2.0-rbsv2r/evaluations/campaign/EXPERIMENT0_PROTOCOL.md",
+      "sha256": "85b7ba07c2cca2c3c76413fb98a1f1edbceba9eb65ecc554003bbd6a6e0202d8"
+    },
+    "logging_schema": {
+      "path": "/home/yaser/raphael-2.0-rbsv2r/evaluations/campaign/TARGET_ACTIVE_003.schema.json",
+      "sha256": "9ba9ac96303fa04c6398b7aaca15d91937a6f79593e684e22c325ef74e679a2d"
+    }
+  },
+  "resource_block": {
+    "model": "nvidia/llama-3.3-nemotron-super-49b-v1",
+    "temperature": 0.0,
+    "max_output_tokens_per_call": 512,
+    "inference_token_budget_per_episode": 50000,
+    "action_budget_per_episode": 5,
+    "iteration_budget": 5,
+    "wall_clock_timeout_s": 300
+  },
+  "launch_requirement": "A separate signed launch decision (state 2) is required before any network interaction. The tag above records the protocol freeze only."
+}

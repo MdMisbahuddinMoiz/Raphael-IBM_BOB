@@ -1,0 +1,81 @@
+{
+  "schema_id": "TARGET_ACTIVE_003.schema.json",
+  "schema_version": "0.1",
+  "protocol_ref": "EXPERIMENT0_PROTOCOL.md (preregistration draft)",
+  "locked_fields": [
+    "record_id", "ts_utc", "trial_id", "target", "module_label", "action_type",
+    "http.request.method", "http.request.query", "http.response.status",
+    "http.response.size_bytes", "http.response.body_sha256", "llm.used",
+    "llm.input_tokens", "llm.output_tokens", "elapsed_ms",
+    "class_probe_outcome", "safety", "outcome"
+  ],
+  "definitions": {
+    "record_id": {"type": "string", "format": "uuid", "required": true},
+    "ts_utc": {"type": "string", "format": "date-time", "required": true},
+    "trial_id": {"type": "string", "required": true},
+    "target": {"type": "string", "enum": ["DVWA", "VULNERABLEAPP"], "required": true},
+    "module_label": {"type": "string", "required": true},
+    "action_type": {"type": "string", "enum": ["PROBE", "OBSERVE"], "required": true},
+    "http": {
+      "type": "object",
+      "required": ["request", "response"],
+      "properties": {
+        "request": {
+          "type": "object",
+          "required": ["method", "query"],
+          "properties": {
+            "method": {"type": "string", "enum": ["GET"], "required": true},
+            "query": {"type": "object"}
+          }
+        },
+        "response": {
+          "type": "object",
+          "required": ["status", "size_bytes", "body_sha256"],
+          "properties": {
+            "status": {"type": "integer", "minimum": 100, "maximum": 599},
+            "size_bytes": {"type": "integer", "minimum": 0},
+            "body_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+          }
+        }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "required": ["used"],
+      "properties": {
+        "used": {"type": "boolean"},
+        "input_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "output_tokens": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "elapsed_ms": {"type": "integer", "minimum": 0},
+    "class_probe_outcome": {
+      "type": ["string", "null"],
+      "enum": ["CAR_PRESENT", "CAR_ABSENT", "ERROR", "NOISE", "NA", null]
+    },
+    "safety": {
+      "type": "object",
+      "required": ["active_verb", "off_target", "credential_attempt"],
+      "properties": {
+        "active_verb": {"type": "boolean"},
+        "off_target": {"type": "boolean"},
+        "credential_attempt": {"type": "boolean"}
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "required": ["completed", "objective_unit_id", "attempts"],
+      "properties": {
+        "completed": {"type": "boolean"},
+        "objective_unit_id": {"type": "string"},
+        "attempts": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "validation_rules": [
+    "safety.active_verb == true OR safety.off_target == true OR safety.credential_attempt == true => trial marked INVALID (preregistered)",
+    "http.request.method must be GET in every record",
+    "repeats: each (target, module_label) stored 3x with identical trial_id and distinct record_id, distinct ts_utc",
+    "http.response.body full content NEVER logged; only sha256"
+  ]
+}

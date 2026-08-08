@@ -355,6 +355,34 @@
 
 ---
 
-*Last Updated: 2026-08-04*  
+*Last Updated: 2026-08-08*  
 *Review Cadence: Per engagement (post-mortem) + monthly*  
 *Next Review: Post RBS-v4 Benchmark Design*
+
+---
+
+## L-028: Evaluator Coupling Defect — PROMPTED_AGENT Arm Invalid (Added 2026-08-08, SENTINEL D1/D1-B)
+
+**Severity: CRITICAL**
+
+**Finding:** The RBS-v4 Terminal Holdout evaluation instrument (1,200-row frozen dataset) is **not architecture-neutral**. The PROMPTED_AGENT arm (no-scaffold, prompt-only baseline) achieved 0/300 pass rate not because the LLM failed to reason, but because the `LLMOnlyConclusionAdapter` could not emit the evaluator-mandated predicates (CVE, version, patched-fix, vulnerable-host, has_service). 
+
+**Evidence from D1 Anomaly Audit (10/10 stratified runs, 10/10 MECHANICAL):**
+- PROMPTED_AGENT executes real recon: 5 nmap actions/run, 6–44 evidence items/run, 5 LLM calls/run with provider_status=200
+- Yet emits ≤1 claim/run; claims only `service_type` (215 total) — **0 has_service, 0 observed_property, 0 CVE, 0 version, 0 patched-fix, 0 vulnerable-host**
+- Failing checks demand CVEs (120), versions (60), patched-fix (59), vulnerable-host (60), ports (60) — **zero reference Category or literal port-NNN form**
+- The ONLY claim producers in LLMOnly adapter emit: (a) `service_type` via port regex `port\s+(\d+)\s+(\w+)`, (b) claims gated on literal `Category [A-D]` phrase
+- FULL_RAPHAEL adapter uses `_semantic_inference_to_claims` (hypothesis-gated) + WorldModel `add_service_entity` → 9512 observed_property + 300 has_service + 2798 service_type
+
+**Gate Verdict:** 10/10 stratified runs classified MECHANICAL (claim-formalization gap) → PROMPTED_AGENT arm INVALID for claim-graded checks (SENTINEL D1/D1-B).
+
+**Impact:** The FULL_RAPHAEL vs PROMPTED_AGENT difference (Δ=0.3287, McNemar p=4.48e-44) is a reproducible observation but **confounded by evaluator coupling**. The claim "architecture is superior/necessary" is **NOT SUPPORTED**. The evaluation instrument rewarded the presence of the claim-formalization layer, not reasoning quality.
+
+**Reason (SENTINEL Final Verdict):**
+> "The evaluation instrument was not architecture-neutral. The PROMPTED_AGENT arm could not satisfy evaluator-required predicates independent of reasoning quality, preventing a valid comparison of architecture versus prompting."
+
+**Required for RBS-v5 / v3 Redesign:**
+1. Evaluator must be architecture-neutral: same predicate set reachable by all arms
+2. Separate "reasoning quality" metrics from "claim formalization" metrics
+3. PROMPTED_AGENT baseline must have a functional claim adapter (even if scaffolded)
+4. Pre-registration of evaluator neutrality checks before campaign launch

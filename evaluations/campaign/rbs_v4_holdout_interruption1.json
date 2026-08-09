@@ -1,0 +1,28 @@
+{
+  "record_type": "INFRASTRUCTURE_INTERRUPTION — RECOVERED",
+  "classification": "INFRASTRUCTURE_INTERRUPTION — RECOVERED",
+  "classification_rationale": "Not an experimental failure. The exact incomplete cell (NO_HYPOTHESIS T3_FALSIFICATION_SENSITIVE s1081) was resumed without changing the frozen instrument and without duplicating completed rows. 579 JSONL rows are the collection truth (not the buffered console log); the append-only dataset is preserved.",
+  "threats_to_validity_note": "Campaign has experienced (a) early holdout inspection at 550/3240 (documented protocol deviation) and (b) one execution interruption. Neither invalidates the results, but BOTH must be recorded in the final threats-to-validity/reproducibility record.",
+  "campaign": "rbs-v4-holdout",
+  "instrument_tag": "v4-benchmark-frozen",
+  "interruption_number": 1,
+  "detected_at": "2026-08-05T13:10:00Z",
+  "root_cause": "Process death (no OOM evidence in dmesg; no traceback in log). Initial 'stall' diagnosis at run 553 was a LOG-BUFFERING ARTIFACT: Python stdout is block-buffered when redirected to a file, so the .log lagged behind actual JSONL writes. The JSONL (source of truth) had progressed to 579 runs; the log's last flush was at 12:27:51Z while the last JSONL write was 12:34:22Z.",
+  "verification_performed": [
+    "Repro of the 'stuck' run (FULL_RAPHAEL T3_FALSIFICATION_SENSITIVE s1084) via driver run_one(): COMPLETED in 20.3s, llm=5/5, llm_produced=5, score=1.0, verdict=pass. Run does NOT hang.",
+    "Ollama endpoint healthy: GET /v1/models -> HTTP 200; direct chat completion smoke test -> HTTP 200 with gpt-oss:20b output.",
+    "JSONL integrity at resume: 579 rows, 0 parse errors, 0 duplicates, 0 order issues.",
+    "Instrument unchanged: run_one() used the identical frozen driver code path (OVERRIDE config: gpt-oss:20b-cloud via localhost:11434/v1, temp=0.0, max_tokens=16384, timeout=180)."
+  ],
+  "resume_policy_applied": "Identical frozen instrument. Campaign driver is inherently resumable (completed-set derived from JSONL rows). Resumed exactly at first incomplete (config,template,seed) = NO_HYPOTHESIS T3_FALSIFICATION_SENSITIVE s1081. No rows lost, no rows duplicated (verified: order issues = 0).",
+  "launch_mechanism": "systemd-run --user --unit=holdout-campaign (transient service) so the process survives WSL one-shot session teardown. stdout/stderr appended to evaluations/campaign/rbs_v4_holdout_run3.log. Python launched with -u (unbuffered) to prevent log-buffering ambiguity in future monitoring.",
+  "impact_on_collection": "None on data semantics. All rows are from the frozen instrument. 579 rows pre-interruption + resumed rows share identical schema and code path.",
+  "protocol_deviation_notes": "No new deviation. The pre-existing documented deviation (early inspection at 550/3240) remains the only one. Monitoring from this point is operational-telemetry-only per SENTINEL directive.",
+  "monitoring_plan": [
+    "JSONL line count growth as ground truth (NOT the log file).",
+    "systemctl --user status holdout-campaign for liveness.",
+    "Ollama endpoint health check if growth stalls.",
+    "No score/config analysis during collection.",
+    "Operational-only status checker: scripts/check_holdout.sh (process, row count/growth, parse+duplicate integrity, provider health, current run identifier — NO scores/verdicts/config comparisons)."
+  ]
+}

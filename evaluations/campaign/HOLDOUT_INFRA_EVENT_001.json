@@ -1,0 +1,30 @@
+{
+  "event_id": "HOLDOUT-INFRA-001",
+  "detected_at_utc": "2026-08-07T17:05:01Z",
+  "cell": {"config": "NO_WORLD_MODEL", "family": "false-lead", "seed": 15, "abs_seed": 2015},
+  "run_id": "abl_NO_WORLD_MODEL_false-lead_s0015_holdout",
+  "classification": {
+    "qualifying_infra": true,
+    "taxonomy_basis": "provider_failures=2 > 0 in a network arm (frozen taxonomy: provider_failures > 0 OR non-empty infra_failures)",
+    "type": "transient provider outage, recovered via preregistered dual-key failover",
+    "evidence": {
+      "provider_attempts": 26,
+      "failover_count": 6,
+      "retries_by_key_alias": {"KEY_A": 12, "KEY_B": 11},
+      "final_key_alias": "KEY_B",
+      "final_provider_status": 200,
+      "logical_llm_calls": 5,
+      "elapsed_seconds": 482.86,
+      "adapter_error_events": 0,
+      "envelope_failures": 0
+    }
+  },
+  "handling": {
+    "per_preregistration": "matched comparison (false-lead, seed 15) tagged INFRA_INVALID and EXCLUDED from primary FULL-vs-PROMPTED inference at integrity gate",
+    "selective_rerun": "FORBIDDEN",
+    "key_or_model_fallback": "NOT APPLIED (failover is the frozen transport design, not a post-hoc fallback)",
+    "row_retained_in_jsonl": true,
+    "intervention": "NONE — collection continues unchanged"
+  },
+  "status": "CLASSIFIED_NO_INTERVENTION"
+}

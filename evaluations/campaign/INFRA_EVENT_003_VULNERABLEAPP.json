@@ -1,0 +1,45 @@
+{
+  "event_id": "RBS-CAMPAIGN-INFRA-003",
+  "event_type": "INFRA_PROVISION_NEW_TARGET",
+  "recorded_at_utc": "2026-08-08T08:10:00Z",
+  "operator": "RAPHAEL-FORGE v4 (evaluation surgeon)",
+  "decision": "SENTINEL-approved Option A: deploy SasanLabs VulnerableApp 2.1.0 as a second live evaluation target (cross-target generalization / difficulty arms)",
+  "target_identity": {
+    "project": "SasanLabs/VulnerableApp",
+    "release": "2.1.0",
+    "docker_image": "sasanlabs/owasp-vulnerableapp:2.1.0",
+    "image_digest": "sha256:7d15773de5dbb58b089b99d73d9ebf6f50a91043bffe6a12507727cddc04157d",
+    "container_name": "vulnerableapp",
+    "container_id": "4ca2363327eb2219a62e382fe5a7caf045059975631340092b622f13460cc9c7"
+  },
+  "network": {
+    "docker_network": "raphael_redteam_raphael-net",
+    "container_ip": "172.18.0.17",
+    "host_mapping": "0.0.0.0:9090->9090/tcp",
+    "context_path": "/VulnerableApp",
+    "attack_path_from_kali_tools": "http://vulnerableapp:9090/VulnerableApp/"
+  },
+  "verification": {
+    "liveness_host_root": {"path": "http://localhost:9090/VulnerableApp/", "http": 200, "body": "Vulnerable App SPA (doGetAjaxCall -> allEndPointJson)"},
+    "liveness_from_kali_tools": {"status": "HTTP 200", "note": "verified through on-net DNS name vulnerableapp"},
+    "fingerprint": {"tool": "nmap -sT -p 9090", "result": "9090/tcp open zeus-admin"},
+    "inventory_snapshot": {
+      "file": "evaluations/campaign/vulnerableapp_allEndPointJson_snapshot.json",
+      "bytes": 137368,
+      "sha256": "a82eaf416acfe50b88d2af1ea3f3b60c817afda96556a93bea282f0793659132",
+      "first_module": "AuthenticationVulnerability"
+    },
+    "container_health": {"status": "Up", "contexts": ["/VulnerableApp (Tomcat 9.0.83, Spring Boot)"]}
+  },
+  "frozen_core_boundary": {
+    "src_modified": false,
+    "note": "Zero src/ changes. VulnerableApp is infra + host-visible service on raphael-net only.",
+    "harness_constraint": "RBS experiment runners (run_experiment0/3) execute D6_* scenario templates over simulated 10.0.x.0/24 world layers from src/arena/d6_manifest.py. Live-target arms require an ADDITIVE scenario/template in scripts/ or evaluations/ (not frozen src/)."
+  },
+  "handling": {
+    "rerun_of_past_runs": "NONE",
+    "preregistration_impact": "NONE — new target provisioned for future Candidate arms; existing FINAL verdict ledger unchanged",
+    "rollback": "docker rm -f vulnerableapp (image retained locally)"
+  },
+  "status": "PROVISIONED_AND_VERIFIED"
+}

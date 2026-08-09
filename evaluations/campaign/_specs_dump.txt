@@ -1,0 +1,117 @@
+======================================================================
+rbs_v4_claim_ledger.json
+======================================================================
+{
+ "campaign": "rbs-v4-holdout",
+ "instrument_tag": "v4-benchmark-frozen",
+ "generated": "2026-08-05T23:30:00Z",
+ "classification_legend": {
+  "DEMONSTRATED": "Terminal and/or trajectory contribution established with paired evidence under this campaign.",
+  "SUPPORTED": "Evidence consistent with the claim but with qualifications or confounds limiting strength.",
+  "UNRESOLVED": "Evidence insufficient to decide; effect present but not attributable, or absent with null power.",
+  "CONFOUNDED": "The measured effect cannot be cleanly attributed due to ablation/instrument defect.",
+  "INSTRUMENT_DEFECT": "The evaluator/check itself does not measure what it is named for, independent of the architecture under test; the claim cannot be assessed until the evaluator is repaired and rerun. Distinguished from CONFOUNDED: CONFOUNDED = the architecture's effect is entangled with something else (compound ablation, code defect); INSTRUMENT_DEFECT = the evaluator does not measure the named thing at all, so no architecture-level claim is possible either way.",
+  "FALSIFIED": "The claim is contradicted by the data.",
+  "NOT_TESTED": "No arm/control in this campaign could test the claim."
+ },
+ "claims": [
+  {
+   "id": 1,
+   "claim": "Raphael's explicit architecture changes decision trajectories.",
+   "classification": "DEMONSTRATED",
+   "evidence": "Trajectory divergence (action-sequence) vs FULL: NO_PLANNER 91.7%, NO_DEFEATER 49.2%, NO_HYPOTHESIS 49.2%, NO_WORLD_MODEL 49.7%, NO_LLM 23.1%, NO_STUDENT 18.9%, NO_FALSIFICATION 32.2%, SCRIPTED 100%. Every ablation arm shows measurable action-sequence divergence on at least one template.",
+   "qualification": "Divergence varies strongly by template; several templates near-saturated (T5 0% divergence for most arms)."
+  },
+  {
+   "id": 2,
+   "claim": "WorldModel improves terminal performance.",
+   "classification": "DEMONSTRATED",
+   "evidence": "NO_WORLD_MODEL is the largest single-ablation terminal deficit (delta=-0.149, d=+0.773, 41.1% outcome-diff; scope-grounding mechanism on T2/T4/T7/T9/T10/T11). Check-level decomposition: same_host_identified (T4 identity resolution) passes 30/30 in NO_WORLD_MODEL; entire deficit is zero_prohibited failures from scope-grounding loss (T4 30/30, T7 30/30, T11 28/30, T10 6/30, T2 27/30, T9 28/30). NoOp get_entities_by_type defect confirmed mechanically inert (0 shell actions/candidates in 3,240 runs).",
+   "qualification": "Single mechanism (scope-grounding) verified via check-level decomposition; NoOp interface defect is latent and does not explain the estimate. Forward-looking NoOp contract repair (Fix 1) is hygiene, not a retroactive validity threat."
+  },
+  {
+   "id": 3,
+   "claim": "Planner improves terminal performance.",
+   "classification": "DEMONSTRATED",
+   "evidence": "NO_PLANNER delta=-0.090, d=+0.547, 25.0% outcome-diff, trajectory divergence 91.7%. Terminal effects concentrated T1 (-0.333), T8 (-0.500), T10 (-0.250).",
+   "qualification": "Effect is template-concentrated; near-zero on T2/T3/T4/T5/T6/T9/T11/T12."
+  },
+  {
+   "id": 4,
+   "claim": "Student improves terminal performance.",
+   "classification": "DEMONSTRATED (WITH BOOST CONFOUND)",
+   "evidence": "NO_STUDENT delta=-0.021, d=+0.301; T8_STUDENT_EXCLUSIVE delta=-0.250 (30/30 seed diff, sign p<0.0001). FULL selects student candidate 30/30 on T8 vs 0/30 NO_STUDENT.",
+   "qualification": "student_boost=+1.0 is causally demonstrated to alter selection. RBS-v4 measures Raphael WITH Student weighting fixed at +1.0; intrinsic Student candidate quality is NOT independently established. On T8 the probe action executes in NO_STUDENT too (via BASE/DEFEATER) \u2014 the delta is the selection-code mechanism check."
+  },
+  {
+   "id": 5,
+   "claim": "Student generates useful novel candidates.",
+   "classification": "UNRESOLVED",
+   "evidence": "Student produced 5 proposed_candidate traces/run in 183/360 FULL runs; T8 selection 30/30. But T8 trajectory diff FULL vs NO_STUDENT = 0.00 \u2014 the SAME probe action is executed via other origins in NO_STUDENT.",
+   "qualification": "Novelty is unproven on this suite: the student's T8 candidate duplicates an action available from BASE/DEFEATER origins. Generated->selected funnel exists (5 generated, 5 consumed, 1 selected/run on T8) but 'novel' cannot be established because the probe is not student-exclusive in execution."
+  },
+  {
+   "id": 6,
+   "claim": "LLM improves terminal performance.",
+   "classification": "INSTRUMENT_DEFECT",
+   "evidence": "NO_LLM delta=-0.042, d=+0.301; T9_SEMANTIC_AMBIGUITY delta=-0.500 (30/30 seeds, sign p<0.0001). However, NO_LLM (0 LLM calls) and NO_HYPOTHESIS (5 LLM calls) produce byte-identical passed/failed check lists on T9 \u2014 the check `llm_semantic_inference_used` reads HypothesisManager state, not LLM output. This check cannot measure 'did the LLM perform semantic inference.' T6 (LLM-named template) shows no LLM effect (saturated/indicator-based).",
+   "qualification": "INSTRUMENT_DEFECT: the T9 evaluato
+======================================================================
+TERMINAL_FALSIFICATION_PREREGISTRATION.json
+======================================================================
+{
+ "experiment": "TERMINAL_FALSIFICATION",
+ "status": "AMENDED_AUTHORIZED (see amendment_ledger)",
+ "campaign": "rbs-v4-holdout",
+ "supersedes": {
+  "treatment_identity_source": "docs/MULTI_API_KEY_ROTATION_DESIGN.md (lines 36, 102) + src/arena/ablation_runner.py default LLM config",
+  "original_model_id": "deepseek-ai/deepseek-v4-flash",
+  "original_provider": "nvidia"
+ },
+ "amended_treatment_identity": {
+  "provider": "nvidia",
+  "model_id": "nvidia/llama-3.3-nemotron-super-49b-v1",
+  "api_base": "https://integrate.api.nvidia.com/v1",
+  "temperature": 0.0,
+  "max_tokens": 512,
+  "timeout_seconds": 15
+ },
+ "action_definition": {
+  "one_action": "exactly one request dispatched to CapabilityBroker for authorization",
+  "authorized_request": "counts as 1 action",
+  "denied_request": "counts as 1 action",
+  "not_counted": [
+   "generation",
+   "planning",
+   "LLM reasoning",
+   "post-authorization execution"
+  ]
+ },
+ "budget": {
+  "ACTION_CAP": 5,
+  "ITERATION_BUDGET": 5,
+  "denied_requests_consume_action_budget": true,
+  "semantics": "a denied request consumes the iteration budget (no same-iteration retry); actions_dispatched counts EVERY broker dispatch (allow + deny)"
+ },
+ "arms": [
+  "FULL_RAPHAEL",
+  "PROMPTED_AGENT",
+  "SCRIPTED_BASELINE",
+  "NO_WORLD_MODEL"
+ ],
+ "sealed_constants_source": {
+  "file": "src/arena/d6_manifest.py",
+  "ITERATION_BUDGET": 5
+ },
+ "amendment_record": {
+  "id": "AMENDMENT-A-2026-08-06",
+  "authorizer": "SENTINEL (authorized amendment)",
+  "reason": "Terminal falsification treatment identity updated to nvidia/llama-3.3-nemotron-super-49b-v1 per authorized amendment A; the runner default LLM config must NOT retain model_id=deepseek-ai/deepseek-v4-flash",
+  "applied_at_utc": "2026-08-06T21:05:51Z",
+  "evidence": [
+   "tests/test_gate_b_action_accounting.py::test_model_identical_full_vs_prompted",
+   "evaluations/campaign/AMENDMENT_LEDGER.json"
+  ]
+ },
+ "immutability": "This record is append-only. Any further change requires a new ledger entry; this file itself is not rewritten."
+}

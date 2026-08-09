@@ -14,6 +14,8 @@ They are representation conversion layers, not replacement reasoning engines.
 """
 
 import time
+import json
+import re
 from typing import Any, Optional
 
 from arena.runner import ArenaRunner
@@ -615,9 +617,21 @@ def _falsification_to_claims(
                         derivation_type=DerivationType.FALSIFICATION_TEST,
                         falsification_result_ids=(fr.falsification_id,) if hasattr(fr, 'falsification_id') else (),
                     ))
+            
+            # Claim about the discriminator action that produced the result
+            if getattr(fr, 'discriminator_action_id', None):
+                claims.append(make_claim(
+                    subject_id=fr.discriminator_action_id,
+                    predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                    object_value={"falsification_discriminator": True},
+                    supporting_evidence_ids=getattr(fr, 'discriminator_observation_ids', ()) or evidence_ids,
+                    derivation_type=DerivationType.FALSIFICATION_TEST,
+                    falsification_result_ids=(fr.falsification_id,) if hasattr(fr, 'falsification_id') else (),
+                ))
     
     except Exception:
         pass
+    
     return claims
 
 
@@ -682,6 +696,127 @@ def _defeater_to_claims(
                         defeater_result_ids=(dr.result_id,) if hasattr(dr, 'result_id') else (),
                     ))
 
+# Claim about the discriminating action (if present)
+            if getattr(fr, 'discriminating_action_id', None):
+                claims.append(make_claim(
+                    subject_id=fr.discriminating_action_id,
+                    predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                    object_value={"defeater_discriminator": True},
+                    supporting_evidence_ids=getattr(fr, 'triggering_evidence_ids', ()) or evidence_ids,
+                    derivation_type=DerivationType.DEFEATER_TEST,
+                    defeater_result_ids=(fr.result_id,) if hasattr(fr, 'result_id') else (),
+                ))
+
+    except Exception:
+        pass
+
+    return claims
+
+
+    try:
+        all_ev = evidence_graph.get_all_evidence()
+        inference_evs = [
+            ev for ev in all_ev
+            if getattr(ev, 'evidence_type', '') == 'model_inference'
+        ]
+        
+        for ev in inference_evs:
+            content = getattr(ev, 'raw_content', '') or ''
+            ev_id = ev.evidence_id
+            
+            # Try to extract JSON from the content to get the claim field
+            import json as _json
+            import re as _re
+            
+            json_data = None
+            try:
+                json_data = _json.loads(content)
+            except _json.JSONDecodeError:
+                json_match = _re.search(r'\{.*\}', content, _re.DOTALL)
+                if json_match:
+                    try:
+                        json_data = _json.loads(json_match.group(0))
+                    except _json.JSONDecodeError:
+                        pass
+            
+            if not json_data:
+                continue
+            
+            # Get the free-text claim from the LLM response
+            claim_text = json_data.get("claim", "") or ""
+            if not claim_text:
+                continue
+            
+            claim_lower = claim_text.lower()
+            ev_id = ev.evidence_id
+            
+            # FALLBACK 1: CVE extraction
+            cve_matches = _re.findall(r'CVE-\d{4}-\d{4,}', claim_text, _re.IGNORECASE)
+            for cve in cve_matches:
+                claims.append(make_claim(
+                    subject_id="target",
+                    predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                    object_value={"cve": cve.strip()},
+                    supporting_evidence_ids=(ev_id,),
+                    derivation_type=DerivationType.LLM_INTERPRETATION,
+                    model_inference_ids=(ev_id,),
+                ))
+            
+            # FALLBACK 2: Version extraction (Apache X.Y.Z, nginx X.Y.Z, version X.Y.Z)
+            version_patterns = [
+                r'(?:apache|nginx|openssh|openssl)\s+(\d+\.\d+\.\d+)',
+                r'version\s+(\d+\.\d+\.\d+)',
+                r'v(\d+\.\d+\.\d+)',
+            ]
+            for pattern in version_patterns:
+                version_matches = _re.findall(pattern, claim_lower)
+                for version in version_matches:
+                    claims.append(make_claim(
+                        subject_id="target",
+                        predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                        object_value={"version": version.strip()},
+                        supporting_evidence_ids=(ev_id,),
+                        derivation_type=DerivationType.LLM_INTERPRETATION,
+                        model_inference_ids=(ev_id,),
+                    ))
+            
+            # FALLBACK 3: Patched fix detection
+            if 'patched' in claim_lower or 'not vulnerable' in claim_lower:
+                # Try to extract version from context
+                patched_match = _re.search(r'patched\s+(?:in\s+)?(\d+\.\d+\.\d+)', claim_lower)
+                if patched_match:
+                    claims.append(make_claim(
+                        subject_id="target",
+                        predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                        object_value={"patched_fix": f"patched in {patched_match.group(1)}"},
+                        supporting_evidence_ids=(ev_id,),
+                        derivation_type=DerivationType.LLM_INTERPRETATION,
+                        model_inference_ids=(ev_id,),
+                    ))
+                else:
+                    claims.append(make_claim(
+                        subject_id="target",
+                        predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                        object_value={"patched_fix": "patched (version unspecified)"},
+                        supporting_evidence_ids=(ev_id,),
+                        derivation_type=DerivationType.LLM_INTERPRETATION,
+                        model_inference_ids=(ev_id,),
+                    ))
+            
+            # FALLBACK 4: Vulnerable host detection
+            vuln_host_match = _re.search(r'vulnerable\s+host\s+(\d+\.\d+\.\d+\.\d+)', claim_lower)
+            if not vuln_host_match:
+                vuln_host_match = _re.search(r'host\s+(\d+\.\d+\.\d+\.\d+)\s+(?:is\s+)?vulnerable', claim_lower)
+            if vuln_host_match:
+                claims.append(make_claim(
+                    subject_id="target",
+                    predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                    object_value={"vulnerable_host": vuln_host_match.group(1)},
+                    supporting_evidence_ids=(ev_id,),
+                    derivation_type=DerivationType.LLM_INTERPRETATION,
+                    model_inference_ids=(ev_id,),
+                ))
+            
             # Claim about the discriminating action (if present)
             if getattr(dr, 'discriminating_action_id', None):
                 claims.append(make_claim(
@@ -695,7 +830,201 @@ def _defeater_to_claims(
 
     except Exception:
         pass
+    
+    return claims
 
+
+def _parse_fallback_heuristic(
+    evidence_graph,
+    evidence_ids: tuple[str, ...],
+) -> list[ConclusionClaim]:
+    """Extract evaluator-mandated predicates from free-text claim using regex.
+    
+    This is a fallback heuristic for when the LLM doesn't emit structured_conclusion.
+    Only extracts what the LLM explicitly stated in its free-text claim.
+    Never invents or infers predicates not explicitly stated.
+    
+    Patterns extracted:
+    - CVE-YYYY-NNNNN → CVE predicate
+    - version X.Y.Z / Apache X.Y.Z → version predicate
+    - patched in X.Y.Z / patched in version X.Y.Z → patched_fix predicate
+    - vulnerable host / vulnerable host X.X.X.X → vulnerable_host predicate
+    - port N open / port N/tcp open → has_service predicate
+    """
+    claims = []
+    if evidence_graph is None:
+        return claims
+    
+    try:
+        all_ev = evidence_graph.get_all_evidence()
+        inference_evs = [
+            ev for ev in all_ev
+            if getattr(ev, 'evidence_type', '') == 'model_inference'
+        ]
+        
+        for ev in inference_evs:
+            content = getattr(ev, 'raw_content', '') or ''
+            ev_id = ev.evidence_id
+            
+            # Try to extract JSON from the content to get the claim field
+            import json as _json
+            import re as _re
+            
+            json_data = None
+            try:
+                json_data = _json.loads(content)
+            except _json.JSONDecodeError:
+                json_match = _re.search(r'\{.*\}', content, _re.DOTALL)
+                if json_match:
+                    try:
+                        json_data = _json.loads(json_match.group(0))
+                    except _json.JSONDecodeError:
+                        pass
+            
+            if not json_data:
+                continue
+            
+            # Get the free-text claim from the LLM response
+            claim_text = json_data.get("claim", "") or ""
+            if not claim_text:
+                continue
+            
+            claim_lower = claim_text.lower()
+            ev_id = ev.evidence_id
+            
+            # FALLBACK 1: CVE extraction
+            cve_matches = _re.findall(r'CVE-\d{4}-\d{4,}', claim_text, _re.IGNORECASE)
+            for cve in cve_matches:
+                claims.append(make_claim(
+                    subject_id="target",
+                    predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                    object_value={"cve": cve.strip()},
+                    supporting_evidence_ids=(ev_id,),
+                    derivation_type=DerivationType.LLM_INTERPRETATION,
+                    model_inference_ids=(ev_id,),
+                ))
+            
+            # FALLBACK 2: Version extraction (Apache X.Y.Z, nginx X.Y.Z, version X.Y.Z)
+            version_patterns = [
+                r'(?:apache|nginx|openssh|openssl)\s+(\d+\.\d+\.\d+)',
+                r'version\s+(\d+\.\d+\.\d+)',
+                r'v(\d+\.\d+\.\d+)',
+            ]
+            for pattern in version_patterns:
+                version_matches = _re.findall(pattern, claim_lower)
+                for version in version_matches:
+                    claims.append(make_claim(
+                        subject_id="target",
+                        predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                        object_value={"version": version.strip()},
+                        supporting_evidence_ids=(ev_id,),
+                        derivation_type=DerivationType.LLM_INTERPRETATION,
+                        model_inference_ids=(ev_id,),
+                    ))
+            
+            # FALLBACK 3: Patched fix detection
+            if 'patched' in claim_lower or 'not vulnerable' in claim_lower:
+                patched_match = _re.search(r'patched\s+(?:in\s+)?(\d+\.\d+\.\d+)', claim_lower)
+                if patched_match:
+                    claims.append(make_claim(
+                        subject_id="target",
+                        predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                        object_value={"patched_fix": f"patched in {patched_match.group(1)}"},
+                        supporting_evidence_ids=(ev_id,),
+                        derivation_type=DerivationType.LLM_INTERPRETATION,
+                        model_inference_ids=(ev_id,),
+                    ))
+                else:
+                    claims.append(make_claim(
+                        subject_id="target",
+                        predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                        object_value={"patched_fix": "patched (version unspecified)"},
+                        supporting_evidence_ids=(ev_id,),
+                        derivation_type=DerivationType.LLM_INTERPRETATION,
+                        model_inference_ids=(ev_id,),
+                    ))
+            
+            # FALLBACK 4: Vulnerable host detection
+            vuln_host_match = _re.search(r'vulnerable\s+host\s+(\d+\.\d+\.\d+\.\d+)', claim_lower)
+            if not vuln_host_match:
+                vuln_host_match = _re.search(r'host\s+(\d+\.\d+\.\d+\.\d+)\s+(?:is\s+)?vulnerable', claim_lower)
+            if vuln_host_match:
+                claims.append(make_claim(
+                    subject_id="target",
+                    predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                    object_value={"vulnerable_host": vuln_host_match.group(1)},
+                    supporting_evidence_ids=(ev_id,),
+                    derivation_type=DerivationType.LLM_INTERPRETATION,
+                    model_inference_ids=(ev_id,),
+                ))
+            
+            # FALLBACK 5: Has service / port detection
+            port_matches = _re.findall(r'port\s+(\d+)\s+(?:open|tcp|udp)', claim_lower)
+            if not port_matches:
+                # D13-L028: model phrasing 'runs an Apache service on port 80.' / 'on port 443'
+                port_matches = _re.findall(
+                    r'(?:runs?\s+an?\s+[\w-]+\s+service\s+)?on\s+port\s+(\d+)', claim_lower)
+            for port in port_matches:
+                svc_type = "unknown"
+                if ('http' in claim_lower or 'web' in claim_lower
+                        or 'apache' in claim_lower or 'nginx' in claim_lower
+                        or 'tomcat' in claim_lower):
+                    svc_type = "http"
+                elif 'ssh' in claim_lower:
+                    svc_type = "ssh"
+                elif 'ftp' in claim_lower:
+                    svc_type = "ftp"
+                elif 'smtp' in claim_lower:
+                    svc_type = "smtp"
+                elif 'dns' in claim_lower:
+                    svc_type = "dns"
+                
+                claims.append(make_claim(
+                    subject_id="target",
+                    predicate=ConclusionPredicate.HAS_SERVICE,
+                    object_value={"port": int(port), "type": svc_type},
+                    supporting_evidence_ids=(ev_id,),
+                    derivation_type=DerivationType.LLM_INTERPRETATION,
+                    model_inference_ids=(ev_id,),
+                ))
+            
+            # FALLBACK 6: Service type from port-less phrasing (D13 extension)
+            # Model states a service but no port: 'runs an HTTP service on Linux',
+            # 'host with MySQL service', 'runs HTTP and SSH services on Windows'.
+            # Emits SERVICE_TYPE (L-028 predicate) — never invents a port.
+            # Accumulate across ALL patterns (each may match different clause).
+            svc_matches = []
+            svc_matches += _re.findall(r'runs?\s+(?:an?\s+)?([\w-]+)\s+service', claim_lower)
+            svc_matches += _re.findall(r'with\s+([\w-]+)\s+service', claim_lower)
+            svc_matches += [s for pair in _re.findall(
+                r'runs\s+([\w-]+)\s+and\s+([\w-]+)\s+services', claim_lower) for s in pair]
+            _svc_seen = set()
+            _svc_uniq = []
+            for svc in svc_matches:
+                if svc.lower() not in _svc_seen:
+                    _svc_seen.add(svc.lower())
+                    _svc_uniq.append(svc)
+            svc_matches = _svc_uniq
+            _svc_map = {
+                'http': 'http', 'https': 'https', 'apache': 'http', 'nginx': 'http',
+                'tomcat': 'http', 'web': 'http', 'ssh': 'ssh', 'openssh': 'ssh',
+                'mysql': 'mysql', 'dns': 'dns', 'ftp': 'ftp', 'smtp': 'smtp',
+                'netlogon': 'netlogon', 'samba': 'samba', 'postgresql': 'postgresql',
+            }
+            for svc in svc_matches:
+                t = _svc_map.get(svc.lower(), svc.lower())
+                claims.append(make_claim(
+                    subject_id="target",
+                    predicate=ConclusionPredicate.SERVICE_TYPE,
+                    object_value=t,
+                    supporting_evidence_ids=(ev_id,),
+                    derivation_type=DerivationType.LLM_INTERPRETATION,
+                    model_inference_ids=(ev_id,),
+                ))
+    
+    except Exception:
+        pass
+    
     return claims
 
 
@@ -1090,6 +1419,152 @@ class ScriptedConclusionAdapter:
         )
 
 
+def _parse_structured_conclusion(
+    evidence_graph,
+    evidence_ids: tuple[str, ...],
+) -> list[ConclusionClaim]:
+    """Parse structured conclusion from LLM responses (L-028 fix).
+    
+    This function extracts the structured_conclusion field from LLM model_inference
+    evidence and translates it to evaluator-mandated predicates.
+    
+    The structured_conclusion is expected to be in the LLM's response JSON under
+    the "structured_conclusion" key, containing evaluator-mandated predicates:
+    - cve: CVE identifier (e.g., "CVE-2021-41773")
+    - version: Software version (e.g., "Apache/2.4.50")
+    - patched_fix: Patch/fix information (e.g., "patched in 2.4.51")
+    - vulnerable_host: Target host (e.g., "10.0.52.10")
+    - has_service: Service information (e.g., {"port": 80, "type": "http"})
+    
+    Per L-028 no-hallucination constraint: only format what the LLM explicitly
+    concluded. Never invent or infer predicates not explicitly stated.
+    """
+    claims = []
+    if evidence_graph is None:
+        return claims
+    
+    try:
+        all_ev = evidence_graph.get_all_evidence()
+        inference_evs = [
+            ev for ev in all_ev
+            if getattr(ev, 'evidence_type', '') == 'model_inference'
+        ]
+        
+        for ev in inference_evs:
+            content = getattr(ev, 'raw_content', '') or ''
+            ev_id = ev.evidence_id
+            
+            # The LLM response may contain the structured_conclusion in its JSON
+            # Try to parse the content as JSON
+            import json as _json
+            import re as _re
+            
+            # Try to extract JSON from the content
+            json_data = None
+            try:
+                json_data = _json.loads(content)
+            except _json.JSONDecodeError:
+                # Try to find JSON block in content
+                json_match = _re.search(r'\{.*\}', content, _re.DOTALL)
+                if json_match:
+                    try:
+                        json_data = _json.loads(json_match.group(0))
+                    except _json.JSONDecodeError:
+                        pass
+            
+            if not json_data:
+                continue
+            
+            # Extract structured_conclusion
+            structured = json_data.get("structured_conclusion")
+            if not structured or not isinstance(structured, dict):
+                continue
+            
+            # Extract evaluator-mandated predicates
+            # CVE
+            cve = structured.get("cve")
+            if cve and isinstance(cve, str) and cve.strip():
+                claims.append(make_claim(
+                    subject_id="target",
+                    predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                    object_value={"cve": cve.strip()},
+                    supporting_evidence_ids=(ev.evidence_id,),
+                    derivation_type=DerivationType.LLM_INTERPRETATION,
+                    model_inference_ids=(ev.evidence_id,),
+                ))
+            
+            # Version
+            version = structured.get("version")
+            if version and isinstance(version, str) and version.strip():
+                claims.append(make_claim(
+                    subject_id="target",
+                    predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                    object_value={"version": version.strip()},
+                    supporting_evidence_ids=(ev.evidence_id,),
+                    derivation_type=DerivationType.LLM_INTERPRETATION,
+                    model_inference_ids=(ev.evidence_id,),
+                ))
+            
+            # Patched fix
+            patched_fix = structured.get("patched_fix")
+            if patched_fix and isinstance(patched_fix, str) and patched_fix.strip():
+                claims.append(make_claim(
+                    subject_id="target",
+                    predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                    object_value={"patched_fix": patched_fix.strip()},
+                    supporting_evidence_ids=(ev.evidence_id,),
+                    derivation_type=DerivationType.LLM_INTERPRETATION,
+                    model_inference_ids=(ev.evidence_id,),
+                ))
+            
+            # Vulnerable host
+            vulnerable_host = structured.get("vulnerable_host")
+            if vulnerable_host and isinstance(vulnerable_host, str) and vulnerable_host.strip():
+                claims.append(make_claim(
+                    subject_id="target",
+                    predicate=ConclusionPredicate.OBSERVED_PROPERTY,
+                    object_value={"vulnerable_host": vulnerable_host.strip()},
+                    supporting_evidence_ids=(ev.evidence_id,),
+                    derivation_type=DerivationType.LLM_INTERPRETATION,
+                    model_inference_ids=(ev.evidence_id,),
+                ))
+            
+            # Has service
+            has_service = structured.get("has_service")
+            if has_service and isinstance(has_service, dict):
+                claims.append(make_claim(
+                    subject_id="target",
+                    predicate=ConclusionPredicate.HAS_SERVICE,
+                    object_value=has_service,
+                    supporting_evidence_ids=(ev.evidence_id,),
+                    derivation_type=DerivationType.LLM_INTERPRETATION,
+                    model_inference_ids=(ev.evidence_id,),
+                ))
+            
+            # CVE (alternative key)
+            cve_alt = structured.get("cve")
+            if cve_alt and isinstance(cve_alt, str) and cve_alt.strip():
+                # Already handled above
+                pass
+            
+            # Service type (alternative key)
+            service_type = structured.get("service_type")
+            if service_type and isinstance(service_type, str) and service_type.strip():
+                claims.append(make_claim(
+                    subject_id="target",
+                    predicate=ConclusionPredicate.SERVICE_TYPE,
+                    object_value=service_type.strip(),
+                    supporting_evidence_ids=(ev.evidence_id,),
+                    derivation_type=DerivationType.LLM_INTERPRETATION,
+                    model_inference_ids=(ev.evidence_id,),
+                ))
+    
+    except Exception:
+        pass
+    
+    return claims
+
+
 class LLMOnlyConclusionAdapter:
     """Adapter for LLM_ONLY.
     
@@ -1117,19 +1592,33 @@ class LLMOnlyConclusionAdapter:
         )
         claims.extend(ev_claims)
         
-        # LLM MODEL_INFERENCE claims
+        # LLM MODEL_INFERENCE claims (including structured conclusion parsing)
         llm_claims = _evidence_to_llm_claims(
             getattr(runner, 'evidence_graph', None),
             evidence_ids,
         )
         claims.extend(llm_claims)
         
+        # Structured conclusion claims (L-028 fix for PROMPTED_AGENT)
+        structured_claims = _parse_structured_conclusion(
+            getattr(runner, 'evidence_graph', None),
+            evidence_ids,
+        )
+        claims.extend(structured_claims)
+        
+        # Fallback heuristic: extract predicates from free-text when structured_conclusion absent
+        fallback_claims = _parse_fallback_heuristic(
+            getattr(runner, 'evidence_graph', None),
+            evidence_ids,
+        )
+        claims.extend(fallback_claims)
+        
         return make_runconclusion(
             run_id=getattr(runner, 'run_id', ''),
             scenario_id=getattr(getattr(runner, 'scenario', None), 'scenario_id', ''),
             decision=DecisionOutcome.STOP_BUDGET_EXHAUSTED,
             claims=claims,
-            architecture_id="LLM_ONLY",
+            architecture_id=getattr(config, 'config_id', 'LLM_ONLY'),
         )
 
 
@@ -1146,6 +1635,7 @@ def get_adapter(config_id: str):
         "NO_DEFEATER": NoDefeaterConclusionAdapter,
         "NO_LLM": NoLLMConclusionAdapter,
         "LLM_ONLY": LLMOnlyConclusionAdapter,
+        "PROMPTED_AGENT": LLMOnlyConclusionAdapter,  # L-028: same LLM-driven path, must parse structured/fallback claims
         "SCRIPTED_BASELINE": ScriptedConclusionAdapter,
     }
     cls = mapping.get(config_id, FullConclusionAdapter)

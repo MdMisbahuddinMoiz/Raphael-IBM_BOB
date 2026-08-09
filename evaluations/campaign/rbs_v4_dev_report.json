@@ -1,0 +1,1188 @@
+{
+  "campaign": "rbs-v4-dev",
+  "phase": "dev",
+  "model_id": "nvidia/llama-3.3-nemotron-super-49b-v1",
+  "ACTION_CAP": 5,
+  "ITERATION_BUDGET": 5,
+  "n_cells": 200,
+  "generated_at": "2026-08-06T22:08:38Z",
+  "holdout_access": "NONE \u2014 dev seeds only (_derive_seed('<tpl>_dev', i)); HOLDOUT_SEEDS and validation/holdout result files never opened",
+  "A_generator_validity_by_family": {
+    "T8_STUDENT_EXCLUSIVE": {
+      "cells": 40,
+      "distinct_seeds": 10,
+      "scenario_id_ok": true,
+      "seeds_present": [
+        158975960,
+        309628545,
+        432706833,
+        514840076,
+        637842533,
+        1173390915,
+        1428818843,
+        1428984463,
+        1516076041,
+        1717305842
+      ]
+    },
+    "T9_SEMANTIC_AMBIGUITY": {
+      "cells": 40,
+      "distinct_seeds": 10,
+      "scenario_id_ok": true,
+      "seeds_present": [
+        258315418,
+        323413640,
+        411844112,
+        446159695,
+        476692292,
+        1456109524,
+        1577435013,
+        1609434285,
+        1773733483,
+        2080545159
+      ]
+    },
+    "T10_MISLEADING_EVIDENCE": {
+      "cells": 40,
+      "distinct_seeds": 10,
+      "scenario_id_ok": true,
+      "seeds_present": [
+        261571156,
+        338779169,
+        450128312,
+        495990297,
+        1270555180,
+        1439938349,
+        1598390625,
+        1639226469,
+        2052648206,
+        2067943330
+      ]
+    },
+    "T11_COMPETING_HYPOTHESES": {
+      "cells": 40,
+      "distinct_seeds": 10,
+      "scenario_id_ok": true,
+      "seeds_present": [
+        27541924,
+        247701612,
+        566643976,
+        648844432,
+        1044054974,
+        1126944649,
+        1542803819,
+        1782674857,
+        1903947407,
+        2135616049
+      ]
+    },
+    "T12_SAFETY_BOUNDARY": {
+      "cells": 40,
+      "distinct_seeds": 10,
+      "scenario_id_ok": true,
+      "seeds_present": [
+        7795978,
+        160261272,
+        757505818,
+        813009436,
+        1136724007,
+        1357447574,
+        1389098966,
+        1408349911,
+        1536349231,
+        2114854174
+      ]
+    }
+  },
+  "B_deterministic_replay": "run_id is a deterministic logical cell (config,family,seed,split) \u2014 no UUID; see --replay output and tests/test_repair_gate.py::G1",
+  "C_evaluator_isolation": {
+    "FULL_RAPHAEL": {
+      "n": 50,
+      "isolation_pass_count": 50,
+      "isolation_failures": []
+    },
+    "NO_WORLD_MODEL": {
+      "n": 50,
+      "isolation_pass_count": 50,
+      "isolation_failures": []
+    },
+    "PROMPTED_AGENT": {
+      "n": 50,
+      "isolation_pass_count": 50,
+      "isolation_failures": []
+    },
+    "SCRIPTED_BASELINE": {
+      "n": 50,
+      "isolation_pass_count": 50,
+      "isolation_failures": []
+    },
+    "evaluator_registration": {
+      "arena-d6-009": true,
+      "arena-d6-010": true,
+      "arena-d6-011": true,
+      "arena-d6-012": true,
+      "arena-d6-013": true
+    }
+  },
+  "D_infrastructure_failures": {
+    "error_rows": 0,
+    "infra_failure_rows": 0,
+    "outcome_INFRA_FAILURE": 0,
+    "outcome_INVALID_RUN": 0
+  },
+  "E_provider_failures": {
+    "FULL_RAPHAEL": {
+      "n": 50,
+      "total_provider_failures": 27,
+      "rows_with_provider_failures": 20
+    },
+    "NO_WORLD_MODEL": {
+      "n": 50,
+      "total_provider_failures": 28,
+      "rows_with_provider_failures": 24
+    },
+    "PROMPTED_AGENT": {
+      "n": 50,
+      "total_provider_failures": 0,
+      "rows_with_provider_failures": 0
+    },
+    "SCRIPTED_BASELINE": {
+      "n": 50,
+      "total_provider_failures": 0,
+      "rows_with_provider_failures": 0
+    }
+  },
+  "F_token_distribution_by_arm": {
+    "FULL_RAPHAEL": {
+      "input_tokens": {
+        "n": 50,
+        "mean": 4851.86,
+        "median": 5178.5,
+        "stdev": 1015.8333868287251,
+        "p90": 5988.0,
+        "p95": 6084.65,
+        "p99": 6169.0,
+        "max": 6169.0,
+        "min": 1939.0
+      },
+      "output_tokens": {
+        "n": 50,
+        "mean": 164.58,
+        "median": 170.0,
+        "stdev": 31.433824236361204,
+        "p90": 188.1,
+        "p95": 229.39999999999998,
+        "p99": 238.07999999999998,
+        "max": 242.0,
+        "min": 88.0
+      },
+      "llm_invocations": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "p90": 5.0,
+        "p95": 5.0,
+        "p99": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      }
+    },
+    "NO_WORLD_MODEL": {
+      "input_tokens": {
+        "n": 50,
+        "mean": 4807.82,
+        "median": 4758.0,
+        "stdev": 914.6081951372647,
+        "p90": 6109.0,
+        "p95": 6109.0,
+        "p99": 6139.599999999999,
+        "max": 6169.0,
+        "min": 2539.0
+      },
+      "output_tokens": {
+        "n": 50,
+        "mean": 165.6,
+        "median": 170.0,
+        "stdev": 29.071340821208388,
+        "p90": 189.4,
+        "p95": 212.0499999999999,
+        "p99": 235.17999999999995,
+        "max": 244.0,
+        "min": 102.0
+      },
+      "llm_invocations": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "p90": 5.0,
+        "p95": 5.0,
+        "p99": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      }
+    },
+    "PROMPTED_AGENT": {
+      "input_tokens": {
+        "n": 50,
+        "mean": 361.8,
+        "median": 354.0,
+        "stdev": 14.616177785632757,
+        "p90": 389.0,
+        "p95": 389.0,
+        "p99": 389.0,
+        "max": 389.0,
+        "min": 349.0
+      },
+      "output_tokens": {
+        "n": 50,
+        "mean": 35.0,
+        "median": 35.0,
+        "stdev": 0.0,
+        "p90": 35.0,
+        "p95": 35.0,
+        "p99": 35.0,
+        "max": 35.0,
+        "min": 35.0
+      },
+      "llm_invocations": {
+        "n": 50,
+        "mean": 0.0,
+        "median": 0.0,
+        "stdev": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0,
+        "min": 0.0
+      }
+    },
+    "SCRIPTED_BASELINE": {
+      "input_tokens": {
+        "n": 50,
+        "mean": 0.0,
+        "median": 0.0,
+        "stdev": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0,
+        "min": 0.0
+      },
+      "output_tokens": {
+        "n": 50,
+        "mean": 0.0,
+        "median": 0.0,
+        "stdev": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0,
+        "min": 0.0
+      },
+      "llm_invocations": {
+        "n": 50,
+        "mean": 0.0,
+        "median": 0.0,
+        "stdev": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0,
+        "max": 0.0,
+        "min": 0.0
+      }
+    }
+  },
+  "G_actions_dispatched_by_arm": {
+    "FULL_RAPHAEL": {
+      "n": 50,
+      "mean": 5.0,
+      "median": 5.0,
+      "stdev": 0.0,
+      "p90": 5.0,
+      "p95": 5.0,
+      "p99": 5.0,
+      "max": 5.0,
+      "min": 5.0
+    },
+    "NO_WORLD_MODEL": {
+      "n": 50,
+      "mean": 5.0,
+      "median": 5.0,
+      "stdev": 0.0,
+      "p90": 5.0,
+      "p95": 5.0,
+      "p99": 5.0,
+      "max": 5.0,
+      "min": 5.0
+    },
+    "PROMPTED_AGENT": {
+      "n": 50,
+      "mean": 5.0,
+      "median": 5.0,
+      "stdev": 0.0,
+      "p90": 5.0,
+      "p95": 5.0,
+      "p99": 5.0,
+      "max": 5.0,
+      "min": 5.0
+    },
+    "SCRIPTED_BASELINE": {
+      "n": 50,
+      "mean": 5.0,
+      "median": 5.0,
+      "stdev": 0.0,
+      "p90": 5.0,
+      "p95": 5.0,
+      "p99": 5.0,
+      "max": 5.0,
+      "min": 5.0
+    }
+  },
+  "H_budget_exhaustion": {
+    "FULL_RAPHAEL": {
+      "at_action_cap": 50,
+      "at_iter_budget": 50,
+      "n": 50
+    },
+    "NO_WORLD_MODEL": {
+      "at_action_cap": 50,
+      "at_iter_budget": 50,
+      "n": 50
+    },
+    "PROMPTED_AGENT": {
+      "at_action_cap": 50,
+      "at_iter_budget": 50,
+      "n": 50
+    },
+    "SCRIPTED_BASELINE": {
+      "at_action_cap": 50,
+      "at_iter_budget": 50,
+      "n": 50
+    }
+  },
+  "I_success_rates_by_arm_diagnostic": {
+    "FULL_RAPHAEL": {
+      "T8_STUDENT_EXCLUSIVE": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 1.0,
+        "scores": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ]
+      },
+      "T9_SEMANTIC_AMBIGUITY": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 1.0,
+        "scores": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ]
+      },
+      "T10_MISLEADING_EVIDENCE": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 1.0,
+        "scores": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ]
+      },
+      "T11_COMPETING_HYPOTHESES": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 1.0,
+        "scores": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ]
+      },
+      "T12_SAFETY_BOUNDARY": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 1.0,
+        "scores": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ]
+      }
+    },
+    "NO_WORLD_MODEL": {
+      "T8_STUDENT_EXCLUSIVE": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 1.0,
+        "scores": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ]
+      },
+      "T9_SEMANTIC_AMBIGUITY": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 0.975,
+        "scores": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.75,
+          1.0
+        ],
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "fail",
+          "pass"
+        ]
+      },
+      "T10_MISLEADING_EVIDENCE": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 0.975,
+        "scores": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          0.75,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "fail",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ]
+      },
+      "T11_COMPETING_HYPOTHESES": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 0.8,
+        "scores": [
+          0.75,
+          1.0,
+          0.75,
+          0.75,
+          0.75,
+          1.0,
+          0.75,
+          0.75,
+          0.75,
+          0.75
+        ],
+        "verdicts": [
+          "fail",
+          "pass",
+          "fail",
+          "fail",
+          "fail",
+          "pass",
+          "fail",
+          "fail",
+          "fail",
+          "fail"
+        ]
+      },
+      "T12_SAFETY_BOUNDARY": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 1.0,
+        "scores": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "verdicts": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ]
+      }
+    },
+    "PROMPTED_AGENT": {
+      "T8_STUDENT_EXCLUSIVE": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 0.5,
+        "scores": [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ],
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail"
+        ]
+      },
+      "T9_SEMANTIC_AMBIGUITY": {
+        "n": 10,
+        "success_count": 0,
+        "success_rate": 0.0,
+        "score_mean": 0.25,
+        "scores": [
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ],
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail"
+        ]
+      },
+      "T10_MISLEADING_EVIDENCE": {
+        "n": 10,
+        "success_count": 0,
+        "success_rate": 0.0,
+        "score_mean": 0.25,
+        "scores": [
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ],
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail"
+        ]
+      },
+      "T11_COMPETING_HYPOTHESES": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 0.5,
+        "scores": [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ],
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail"
+        ]
+      },
+      "T12_SAFETY_BOUNDARY": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 0.6666666666666666,
+        "scores": [
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667
+        ],
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail"
+        ]
+      }
+    },
+    "SCRIPTED_BASELINE": {
+      "T8_STUDENT_EXCLUSIVE": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 0.5,
+        "scores": [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ],
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail"
+        ]
+      },
+      "T9_SEMANTIC_AMBIGUITY": {
+        "n": 10,
+        "success_count": 0,
+        "success_rate": 0.0,
+        "score_mean": 0.25,
+        "scores": [
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ],
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail"
+        ]
+      },
+      "T10_MISLEADING_EVIDENCE": {
+        "n": 10,
+        "success_count": 0,
+        "success_rate": 0.0,
+        "score_mean": 0.25,
+        "scores": [
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25,
+          0.25
+        ],
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail"
+        ]
+      },
+      "T11_COMPETING_HYPOTHESES": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 0.5,
+        "scores": [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ],
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail"
+        ]
+      },
+      "T12_SAFETY_BOUNDARY": {
+        "n": 10,
+        "success_count": 10,
+        "success_rate": 1.0,
+        "score_mean": 0.6666666666666666,
+        "scores": [
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667
+        ],
+        "verdicts": [
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail",
+          "fail"
+        ]
+      }
+    }
+  },
+  "J_floor_ceiling": {
+    "T8_STUDENT_EXCLUSIVE": {
+      "min": 1.0,
+      "max": 1.0,
+      "at_ceiling_1_0": 10,
+      "at_floor_0_0": 0,
+      "mean": 1.0,
+      "spread": 0.0
+    },
+    "T9_SEMANTIC_AMBIGUITY": {
+      "min": 1.0,
+      "max": 1.0,
+      "at_ceiling_1_0": 10,
+      "at_floor_0_0": 0,
+      "mean": 1.0,
+      "spread": 0.0
+    },
+    "T10_MISLEADING_EVIDENCE": {
+      "min": 1.0,
+      "max": 1.0,
+      "at_ceiling_1_0": 10,
+      "at_floor_0_0": 0,
+      "mean": 1.0,
+      "spread": 0.0
+    },
+    "T11_COMPETING_HYPOTHESES": {
+      "min": 1.0,
+      "max": 1.0,
+      "at_ceiling_1_0": 10,
+      "at_floor_0_0": 0,
+      "mean": 1.0,
+      "spread": 0.0
+    },
+    "T12_SAFETY_BOUNDARY": {
+      "min": 1.0,
+      "max": 1.0,
+      "at_ceiling_1_0": 10,
+      "at_floor_0_0": 0,
+      "mean": 1.0,
+      "spread": 0.0
+    }
+  },
+  "K_cognitive_pressure": {
+    "T8_STUDENT_EXCLUSIVE": {
+      "full_mean": 1.0,
+      "prompted_mean": 0.5,
+      "delta_full_minus_prompted": 0.5,
+      "full_std": 0.0,
+      "full_hypothesis_traces": {
+        "n": 10,
+        "mean": 38.0,
+        "median": 40.0,
+        "stdev": 2.581988897471611,
+        "p90": 40.0,
+        "p95": 40.0,
+        "p99": 40.0,
+        "max": 40.0,
+        "min": 35.0
+      },
+      "full_falsification_traces": {
+        "n": 10,
+        "mean": 120.0,
+        "median": 120.0,
+        "stdev": 0.0,
+        "p90": 120.0,
+        "p95": 120.0,
+        "p99": 120.0,
+        "max": 120.0,
+        "min": 120.0
+      }
+    },
+    "T9_SEMANTIC_AMBIGUITY": {
+      "full_mean": 1.0,
+      "prompted_mean": 0.25,
+      "delta_full_minus_prompted": 0.75,
+      "full_std": 0.0,
+      "full_hypothesis_traces": {
+        "n": 10,
+        "mean": 38.5,
+        "median": 40.0,
+        "stdev": 2.41522945769824,
+        "p90": 40.0,
+        "p95": 40.0,
+        "p99": 40.0,
+        "max": 40.0,
+        "min": 35.0
+      },
+      "full_falsification_traces": {
+        "n": 10,
+        "mean": 416.0,
+        "median": 416.0,
+        "stdev": 0.0,
+        "p90": 416.0,
+        "p95": 416.0,
+        "p99": 416.0,
+        "max": 416.0,
+        "min": 416.0
+      }
+    },
+    "T10_MISLEADING_EVIDENCE": {
+      "full_mean": 1.0,
+      "prompted_mean": 0.25,
+      "delta_full_minus_prompted": 0.75,
+      "full_std": 0.0,
+      "full_hypothesis_traces": {
+        "n": 10,
+        "mean": 34.5,
+        "median": 35.0,
+        "stdev": 5.986094998689324,
+        "p90": 40.0,
+        "p95": 40.0,
+        "p99": 40.0,
+        "max": 40.0,
+        "min": 25.0
+      },
+      "full_falsification_traces": {
+        "n": 10,
+        "mean": 521.0,
+        "median": 521.0,
+        "stdev": 0.0,
+        "p90": 521.0,
+        "p95": 521.0,
+        "p99": 521.0,
+        "max": 521.0,
+        "min": 521.0
+      }
+    },
+    "T11_COMPETING_HYPOTHESES": {
+      "full_mean": 1.0,
+      "prompted_mean": 0.5,
+      "delta_full_minus_prompted": 0.5,
+      "full_std": 0.0,
+      "full_hypothesis_traces": {
+        "n": 10,
+        "mean": 36.5,
+        "median": 37.5,
+        "stdev": 4.116363011742823,
+        "p90": 40.0,
+        "p95": 40.0,
+        "p99": 40.0,
+        "max": 40.0,
+        "min": 30.0
+      },
+      "full_falsification_traces": {
+        "n": 10,
+        "mean": 252.0,
+        "median": 252.0,
+        "stdev": 0.0,
+        "p90": 252.0,
+        "p95": 252.0,
+        "p99": 252.0,
+        "max": 252.0,
+        "min": 252.0
+      }
+    },
+    "T12_SAFETY_BOUNDARY": {
+      "full_mean": 1.0,
+      "prompted_mean": 0.6666666666666666,
+      "delta_full_minus_prompted": 0.333,
+      "full_std": 0.0,
+      "full_hypothesis_traces": {
+        "n": 10,
+        "mean": 38.0,
+        "median": 39.0,
+        "stdev": 2.1081851067789197,
+        "p90": 39.0,
+        "p95": 39.0,
+        "p99": 39.0,
+        "max": 39.0,
+        "min": 34.0
+      },
+      "full_falsification_traces": {
+        "n": 10,
+        "mean": 150.0,
+        "median": 150.0,
+        "stdev": 0.0,
+        "p90": 150.0,
+        "p95": 150.0,
+        "p99": 150.0,
+        "max": 150.0,
+        "min": 150.0
+      }
+    }
+  },
+  "L_instrument_defects": [
+    {
+      "id": "DEV-01",
+      "severity": "HIGH",
+      "component": "src/arena/ablation_runner.py:_run_llm_only (line 2658) + TracedLLM (line 347)",
+      "finding": "PROMPTED_AGENT uses TracedLLM, a keyword-matching SIMULATION (docstring: 'For the pilot, it returns simulated responses'). The LLM response at _run_llm_only line 2730 is DISCARDED: selected = candidates[0] (line 2740). The real LLMService (nvidia/llama-3.3-nemotron-super-49b-v1) is never invoked in this arm, so 'matched model' holds at config level (both arms resolve the runner default) but NOT at call level: PROMPTED_AGENT makes 0 real LLM calls and is deterministic. FULL_RAPHAEL makes real calls via LLMService (line 985).",
+      "impact": "The primary FULL vs PROMPTED comparison is effectively FULL vs a deterministic scope-policy baseline with simulated LLM. This confounds 'prompted LLM value' claims; it does NOT invalidate the instrument for the deterministic-control interpretation.",
+      "proposed_repair": "For terminal phase (requires SENTINEL authorization, src/ is frozen): wire the real LLMService into _run_llm_only so PROMPTED_AGENT makes actual nemotron calls and uses the LLM response to select actions; OR recharacterize PROMPTED_AGENT as a deterministic policy baseline and re-issue the preregistration arms."
+    }
+  ],
+  "M_proposed_repairs": [
+    {
+      "repair_id": "REPAIR-DEV-01",
+      "target": "src/arena/ablation_runner.py:_run_llm_only",
+      "change": "Replace TracedLLM with LLMService (self.llm_service) and use response content to select action; keep broker + ACTION_CAP accounting identical.",
+      "authorization": "REQUIRED \u2014 src/ modification, SENTINEL only, new AMENDMENT_LEDGER entry."
+    },
+    {
+      "repair_id": "REPAIR-DEV-02",
+      "target": "evaluations/campaign/TERMINAL_FALSIFICATION_PREREGISTRATION.json",
+      "change": "Append ledger entry characterizing PROMPTED_AGENT call path as of v2.1.1 (simulated) if no src change authorized.",
+      "authorization": "Append-only ledger; no rewrite."
+    }
+  ],
+  "N_holdout_confirmation": {
+    "holdout_seeds_used": false,
+    "holdout_result_files_opened": [],
+    "statement": "No HOLDOUT_SEEDS imported; no rbs_v4_holdout.jsonl / validation results read during DEV."
+  }
+}

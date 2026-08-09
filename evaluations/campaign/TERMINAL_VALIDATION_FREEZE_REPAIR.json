@@ -1,0 +1,24 @@
+{
+  "artifact_id": "TERMINAL_VALIDATION_FREEZE_REPAIR",
+  "version": "1.0",
+  "status": "REPAIR",
+  "frozen_at_utc": "2026-08-08T06:45:00Z",
+  "authorizer": "SENTINEL (D1-E directive: close git-anchoring gap post-hoc)",
+  "note": "This repair addresses the git-anchoring gap identified in D1-C-2/D1-E. The original TERMINAL_VALIDATION_FREEZE.json (2026-08-06) covered 9 files including src/arena/ablation.py, but did NOT include the campaign runner script (scripts/run_rbs_v4_holdout_frozen.py). Furthermore, the ablation.py hash in the original freeze matched an uncommitted worktree state (PROMPTED_AGENT config existed only in uncommitted worktree at freeze time, not in any git commit). This repair commits both files to git and records their hashes as a post-hoc repair, explicitly dated AFTER data collection (which occurred 2026-08-07). The original freeze remains the authority for the 9 files it covered; this repair supplements it with the missing runner script and re-anchors ablation.py to a committed blob.",
+  "references": {
+    "original_freeze": "evaluations/campaign/TERMINAL_VALIDATION_FREEZE.json",
+    "original_freeze_date": "2026-08-06T23:55:00Z",
+    "data_collection_window": "2026-08-07T12:11:23Z to 2026-08-07T20:34:53Z",
+    "repair_commit": "a00ee3e1",
+    "repair_date_utc": "2026-08-08T06:45:00Z"
+  },
+  "files_sha256": {
+    "src/arena/ablation.py": "5eb4a8530f5f9a5528df36dd72ba210094bb96a2e4342a15c0a10e4e6f1d084d",
+    "scripts/run_rbs_v4_holdout_frozen.py": "a53a3b534372706b073882fed6da74fec6e683618dd69c10a34e1ddab47b073e"
+  },
+  "repair_rationale": {
+    "ablation.py": "The original TERMINAL_VALIDATION_FREEZE.json included src/arena/ablation.py with hash 5eb4a8530f5f9a5528df36dd72ba210094bb96a2e4342a15c0a10e4e6f1d084d, which matched the worktree state at freeze time (2026-08-06) containing the PROMPTED_AGENT config. However, this config existed ONLY in uncommitted worktree state at that time (no committed git blob ever contained PROMPTED_AGENT). This repair commits the config to git (commit a00ee3e1) so the frozen hash now corresponds to a committed, reproducible blob.",
+    "run_rbs_v4_holdout_frozen.py": "The frozen campaign runner script was never included in the original 9-file freeze hash set, nor was it ever committed to git. It existed only as untracked worktree state (?? in git status). This repair adds it to git and records its hash, closing the gap where the actual campaign execution logic was unpinned."
+  },
+  "post_hoc_disclosure": "CRITICAL: These hashes were captured AFTER data collection (2026-08-07). The original freeze (2026-08-06) claimed to pin the instrument, but the runner script and the ablation.py config state were not actually pinned to committed git state at that time. This repair records the actual bytecode used during collection, but does NOT retroactively validate the original freeze claim. Any integrity verification must reference both the original freeze (for the 9 originally-pinned files) AND this repair record (for the two post-hoc-pinned files), with the explicit understanding that the runner script's hash was captured post-collection."
+}

@@ -90,6 +90,7 @@ class EpisodeRecorder:
         self.episodes: list[Episode] = []
         self.sequence_counter = 0
         self._output_dir = output_dir
+        self._first_write = True
         self._file_handle = None
     
     def record(self, 
@@ -138,11 +139,13 @@ class EpisodeRecorder:
         return ep
     
     def _append_to_file(self, episode: Episode) -> None:
-        """Append episode as JSONL to output file."""
+        """Append episode as JSONL to output file. First write truncates, subsequent appends."""
         out_dir = Path(self._output_dir) / "raw" / self.run_id
         out_dir.mkdir(parents=True, exist_ok=True)
         ep_file = out_dir / "episodes.jsonl"
-        with open(ep_file, "a") as f:
+        mode = "w" if self._first_write else "a"
+        self._first_write = False
+        with open(ep_file, mode) as f:
             f.write(episode.to_json() + "\n")
     
     def get_episode(self, sequence_number: int) -> Optional[Episode]:
@@ -179,6 +182,7 @@ class EventsRecorder:
         self.run_id = run_id
         self.events: list[dict] = []
         self._output_dir = output_dir
+        self._first_write = True
     
     def record_event(self, event_type: str, data: dict) -> dict:
         """Record a timestamped event."""
@@ -195,7 +199,9 @@ class EventsRecorder:
             out_dir = Path(self._output_dir) / "raw" / self.run_id
             out_dir.mkdir(parents=True, exist_ok=True)
             evt_file = out_dir / "events.jsonl"
-            with open(evt_file, "a") as f:
+            mode = "w" if self._first_write else "a"
+            self._first_write = False
+            with open(evt_file, mode) as f:
                 f.write(json.dumps(event, default=str) + "\n")
         
         return event

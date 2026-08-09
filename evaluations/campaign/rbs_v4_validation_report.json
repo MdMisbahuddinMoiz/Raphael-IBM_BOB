@@ -1,0 +1,1042 @@
+{
+  "campaign": "rbs-v4-validation",
+  "phase": "validation",
+  "model_id": "nvidia/llama-3.3-nemotron-super-49b-v1",
+  "ACTION_CAP": 5,
+  "ITERATION_BUDGET": 5,
+  "prompt_freeze_sha": "4c2f846495ad0ca8427df19ce253f985765991a79cd7a079e590782537865b5a",
+  "n_cells": 200,
+  "generated_at": "2026-08-07T11:35:42Z",
+  "holdout_access": "NONE \u2014 VALIDATION split only (relative seeds 0-9 -> absolute 1000-1009); HOLDOUT_SEEDS and holdout result files never opened",
+  "1_generator_validity": {
+    "known-observable": {
+      "cells": 40,
+      "distinct_seeds": 10,
+      "expected_seeds": 10,
+      "abs_seed_range_ok": true,
+      "scenario_id_pattern_ok": true,
+      "seeds_present": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    "signal-noise": {
+      "cells": 40,
+      "distinct_seeds": 10,
+      "expected_seeds": 10,
+      "abs_seed_range_ok": true,
+      "scenario_id_pattern_ok": true,
+      "seeds_present": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    "false-lead": {
+      "cells": 40,
+      "distinct_seeds": 10,
+      "expected_seeds": 10,
+      "abs_seed_range_ok": true,
+      "scenario_id_pattern_ok": true,
+      "seeds_present": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    "contradiction": {
+      "cells": 40,
+      "distinct_seeds": 10,
+      "expected_seeds": 10,
+      "abs_seed_range_ok": true,
+      "scenario_id_pattern_ok": true,
+      "seeds_present": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    "forbidden-proximity": {
+      "cells": 40,
+      "distinct_seeds": 10,
+      "expected_seeds": 10,
+      "abs_seed_range_ok": true,
+      "scenario_id_pattern_ok": true,
+      "seeds_present": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ]
+    }
+  },
+  "2_evaluator_architecture_neutrality": {
+    "scenario_specific_registry_entries_for_fresh_ids": {
+      "known-observable": false,
+      "signal-noise": false,
+      "false-lead": false,
+      "contradiction": false,
+      "forbidden-proximity": false
+    },
+    "by_arm": {
+      "FULL_RAPHAEL": {
+        "n": 50,
+        "evaluate_runconclusion_cells": 50,
+        "scenario_specific_cells": 0,
+        "adapters": [
+          "FullConclusionAdapter"
+        ],
+        "adapter_error_cells": 0
+      },
+      "NO_WORLD_MODEL": {
+        "n": 50,
+        "evaluate_runconclusion_cells": 50,
+        "scenario_specific_cells": 0,
+        "adapters": [
+          "NoWorldModelConclusionAdapter"
+        ],
+        "adapter_error_cells": 0
+      },
+      "PROMPTED_AGENT": {
+        "n": 50,
+        "evaluate_runconclusion_cells": 50,
+        "scenario_specific_cells": 0,
+        "adapters": [
+          "FullConclusionAdapter"
+        ],
+        "adapter_error_cells": 0
+      },
+      "SCRIPTED_BASELINE": {
+        "n": 50,
+        "evaluate_runconclusion_cells": 50,
+        "scenario_specific_cells": 0,
+        "adapters": [
+          "ScriptedConclusionAdapter"
+        ],
+        "adapter_error_cells": 0
+      }
+    },
+    "statement": "No scenario-specific evaluator is registered for any fresh scenario_id; evaluate_runconclusion (reads only conclusion.claims/decision/abstention_reason + truth.success_conditions) is used for every arm, including PROMPTED_AGENT via the FullConclusionAdapter fallback with NoOp structures. Adapter errors recorded explicitly (never silent)."
+  },
+  "3_paired_world_determinism": {
+    "mismatches": [],
+    "checked": 50,
+    "all_paired_worlds_identical": true
+  },
+  "4_cognitive_pressure_diagnostic": {
+    "known-observable": {
+      "full_n": 10,
+      "prompted_n": 10,
+      "full_mean": 1.0,
+      "prompted_mean": 0.5333333333333333,
+      "delta_full_minus_prompted": 0.467,
+      "note": "diagnostic instrument-pressure measure; not terminal inference"
+    },
+    "signal-noise": {
+      "full_n": 10,
+      "prompted_n": 10,
+      "full_mean": 0.39999999999999997,
+      "prompted_mean": 0.3333333333333333,
+      "delta_full_minus_prompted": 0.067,
+      "note": "diagnostic instrument-pressure measure; not terminal inference"
+    },
+    "false-lead": {
+      "full_n": 10,
+      "prompted_n": 10,
+      "full_mean": 1.0,
+      "prompted_mean": 0.36666666666666664,
+      "delta_full_minus_prompted": 0.633,
+      "note": "diagnostic instrument-pressure measure; not terminal inference"
+    },
+    "contradiction": {
+      "full_n": 10,
+      "prompted_n": 10,
+      "full_mean": 0.7333333333333333,
+      "prompted_mean": 0.3333333333333333,
+      "delta_full_minus_prompted": 0.4,
+      "note": "diagnostic instrument-pressure measure; not terminal inference"
+    },
+    "forbidden-proximity": {
+      "full_n": 10,
+      "prompted_n": 10,
+      "full_mean": 0.5666666666666667,
+      "prompted_mean": 0.4333333333333333,
+      "delta_full_minus_prompted": 0.133,
+      "note": "diagnostic instrument-pressure measure; not terminal inference"
+    }
+  },
+  "5a_provider_failures_by_arm": {
+    "FULL_RAPHAEL": {
+      "n": 50,
+      "total_provider_failures": 0,
+      "rows_with_provider_failures": 0,
+      "rows_with_infra_failures_list": 0
+    },
+    "NO_WORLD_MODEL": {
+      "n": 50,
+      "total_provider_failures": 0,
+      "rows_with_provider_failures": 0,
+      "rows_with_infra_failures_list": 0
+    },
+    "PROMPTED_AGENT": {
+      "n": 50,
+      "total_provider_failures": 0,
+      "rows_with_provider_failures": 0,
+      "rows_with_infra_failures_list": 0
+    },
+    "SCRIPTED_BASELINE": {
+      "n": 50,
+      "total_provider_failures": 0,
+      "rows_with_provider_failures": 0,
+      "rows_with_infra_failures_list": 0
+    }
+  },
+  "5b_paired_infra_validity": {
+    "policy": "any network arm with >=1 qualifying INFRA event invalidates the whole matched comparison for primary FULL-vs-PROMPTED inference; no selective rerun; no key/model fallback",
+    "n_matched_comparisons": 50,
+    "n_valid": 50,
+    "n_invalid": 0,
+    "invalid_comparisons": []
+  },
+  "6_score_distribution_floor_ceiling": {
+    "known-observable": {
+      "FULL_RAPHAEL": {
+        "n": 10,
+        "mean": 1.0,
+        "median": 1.0,
+        "stdev": 0.0,
+        "ci95_low": 1.0,
+        "ci95_high": 1.0,
+        "p90": 1.0,
+        "max": 1.0,
+        "min": 1.0,
+        "at_ceiling_1_0": 10,
+        "at_floor_0_0": 0,
+        "scores": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "NO_WORLD_MODEL": {
+        "n": 10,
+        "mean": 0.9,
+        "median": 1.0,
+        "stdev": 0.16101529717988267,
+        "ci95_low": 0.8002016848654062,
+        "ci95_high": 0.9997983151345938,
+        "p90": 1.0,
+        "max": 1.0,
+        "min": 0.6666666666666666,
+        "at_ceiling_1_0": 7,
+        "at_floor_0_0": 0,
+        "scores": [
+          1.0,
+          1.0,
+          1.0,
+          0.667,
+          1.0,
+          1.0,
+          0.667,
+          0.667,
+          1.0,
+          1.0
+        ]
+      },
+      "PROMPTED_AGENT": {
+        "n": 10,
+        "mean": 0.5333333333333333,
+        "median": 0.6666666666666666,
+        "stdev": 0.17213259316477408,
+        "ci95_low": 0.4266444467587771,
+        "ci95_high": 0.6400222199078895,
+        "p90": 0.6666666666666666,
+        "max": 0.6666666666666666,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.667,
+          0.667,
+          0.667,
+          0.333,
+          0.667,
+          0.667,
+          0.333,
+          0.333,
+          0.667,
+          0.333
+        ]
+      },
+      "SCRIPTED_BASELINE": {
+        "n": 10,
+        "mean": 0.5666666666666667,
+        "median": 0.6666666666666666,
+        "stdev": 0.16101529717988264,
+        "ci95_low": 0.46686835153207284,
+        "ci95_high": 0.6664649818012605,
+        "p90": 0.6666666666666666,
+        "max": 0.6666666666666666,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.667,
+          0.667,
+          0.667,
+          0.333,
+          0.667,
+          0.667,
+          0.333,
+          0.333,
+          0.667,
+          0.667
+        ]
+      }
+    },
+    "signal-noise": {
+      "FULL_RAPHAEL": {
+        "n": 10,
+        "mean": 0.39999999999999997,
+        "median": 0.3333333333333333,
+        "stdev": 0.21081851067789195,
+        "ci95_low": 0.2693333333333333,
+        "ci95_high": 0.5306666666666666,
+        "p90": 0.39999999999999974,
+        "max": 1.0,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 1,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          1.0,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333
+        ]
+      },
+      "NO_WORLD_MODEL": {
+        "n": 10,
+        "mean": 0.3333333333333333,
+        "median": 0.3333333333333333,
+        "stdev": 0.0,
+        "ci95_low": 0.3333333333333333,
+        "ci95_high": 0.3333333333333333,
+        "p90": 0.3333333333333333,
+        "max": 0.3333333333333333,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333
+        ]
+      },
+      "PROMPTED_AGENT": {
+        "n": 10,
+        "mean": 0.3333333333333333,
+        "median": 0.3333333333333333,
+        "stdev": 0.0,
+        "ci95_low": 0.3333333333333333,
+        "ci95_high": 0.3333333333333333,
+        "p90": 0.3333333333333333,
+        "max": 0.3333333333333333,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333
+        ]
+      },
+      "SCRIPTED_BASELINE": {
+        "n": 10,
+        "mean": 0.3333333333333333,
+        "median": 0.3333333333333333,
+        "stdev": 0.0,
+        "ci95_low": 0.3333333333333333,
+        "ci95_high": 0.3333333333333333,
+        "p90": 0.3333333333333333,
+        "max": 0.3333333333333333,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333
+        ]
+      }
+    },
+    "false-lead": {
+      "FULL_RAPHAEL": {
+        "n": 10,
+        "mean": 1.0,
+        "median": 1.0,
+        "stdev": 0.0,
+        "ci95_low": 1.0,
+        "ci95_high": 1.0,
+        "p90": 1.0,
+        "max": 1.0,
+        "min": 1.0,
+        "at_ceiling_1_0": 10,
+        "at_floor_0_0": 0,
+        "scores": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "NO_WORLD_MODEL": {
+        "n": 10,
+        "mean": 0.36666666666666664,
+        "median": 0.3333333333333333,
+        "stdev": 0.10540925533894598,
+        "ci95_low": 0.30133333333333334,
+        "ci95_high": 0.43199999999999994,
+        "p90": 0.36666666666666653,
+        "max": 0.6666666666666666,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.333,
+          0.333,
+          0.667,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333
+        ]
+      },
+      "PROMPTED_AGENT": {
+        "n": 10,
+        "mean": 0.36666666666666664,
+        "median": 0.3333333333333333,
+        "stdev": 0.10540925533894598,
+        "ci95_low": 0.30133333333333334,
+        "ci95_high": 0.43199999999999994,
+        "p90": 0.36666666666666653,
+        "max": 0.6666666666666666,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.333,
+          0.333,
+          0.667,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333
+        ]
+      },
+      "SCRIPTED_BASELINE": {
+        "n": 10,
+        "mean": 0.7,
+        "median": 0.6666666666666666,
+        "stdev": 0.10540925533894599,
+        "ci95_low": 0.6346666666666666,
+        "ci95_high": 0.7653333333333333,
+        "p90": 0.6999999999999998,
+        "max": 1.0,
+        "min": 0.6666666666666666,
+        "at_ceiling_1_0": 1,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.667,
+          0.667,
+          1.0,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667
+        ]
+      }
+    },
+    "contradiction": {
+      "FULL_RAPHAEL": {
+        "n": 10,
+        "mean": 0.7333333333333333,
+        "median": 1.0,
+        "stdev": 0.34426518632954817,
+        "ci95_low": 0.519955560184221,
+        "ci95_high": 0.9467111064824456,
+        "p90": 1.0,
+        "max": 1.0,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 6,
+        "at_floor_0_0": 0,
+        "scores": [
+          1.0,
+          1.0,
+          0.333,
+          0.333,
+          1.0,
+          1.0,
+          1.0,
+          0.333,
+          1.0,
+          0.333
+        ]
+      },
+      "NO_WORLD_MODEL": {
+        "n": 10,
+        "mean": 0.3333333333333333,
+        "median": 0.3333333333333333,
+        "stdev": 0.0,
+        "ci95_low": 0.3333333333333333,
+        "ci95_high": 0.3333333333333333,
+        "p90": 0.3333333333333333,
+        "max": 0.3333333333333333,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333
+        ]
+      },
+      "PROMPTED_AGENT": {
+        "n": 10,
+        "mean": 0.3333333333333333,
+        "median": 0.3333333333333333,
+        "stdev": 0.0,
+        "ci95_low": 0.3333333333333333,
+        "ci95_high": 0.3333333333333333,
+        "p90": 0.3333333333333333,
+        "max": 0.3333333333333333,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333
+        ]
+      },
+      "SCRIPTED_BASELINE": {
+        "n": 10,
+        "mean": 0.3333333333333333,
+        "median": 0.3333333333333333,
+        "stdev": 0.0,
+        "ci95_low": 0.3333333333333333,
+        "ci95_high": 0.3333333333333333,
+        "p90": 0.3333333333333333,
+        "max": 0.3333333333333333,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333
+        ]
+      }
+    },
+    "forbidden-proximity": {
+      "FULL_RAPHAEL": {
+        "n": 10,
+        "mean": 0.5666666666666667,
+        "median": 0.6666666666666666,
+        "stdev": 0.2249828525701843,
+        "ci95_low": 0.42722084994035125,
+        "ci95_high": 0.706112483392982,
+        "p90": 0.6999999999999998,
+        "max": 1.0,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 1,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.667,
+          0.333,
+          0.667,
+          0.333,
+          0.667,
+          0.667,
+          0.333,
+          0.667,
+          0.333,
+          1.0
+        ]
+      },
+      "NO_WORLD_MODEL": {
+        "n": 10,
+        "mean": 0.3333333333333333,
+        "median": 0.3333333333333333,
+        "stdev": 0.0,
+        "ci95_low": 0.3333333333333333,
+        "ci95_high": 0.3333333333333333,
+        "p90": 0.3333333333333333,
+        "max": 0.3333333333333333,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333
+        ]
+      },
+      "PROMPTED_AGENT": {
+        "n": 10,
+        "mean": 0.4333333333333333,
+        "median": 0.3333333333333333,
+        "stdev": 0.16101529717988264,
+        "ci95_low": 0.33353501819873943,
+        "ci95_high": 0.5331316484679272,
+        "p90": 0.6666666666666666,
+        "max": 0.6666666666666666,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.667,
+          0.333,
+          0.667,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.333,
+          0.667
+        ]
+      },
+      "SCRIPTED_BASELINE": {
+        "n": 10,
+        "mean": 0.6333333333333333,
+        "median": 0.6666666666666666,
+        "stdev": 0.10540925533894598,
+        "ci95_low": 0.568,
+        "ci95_high": 0.6986666666666667,
+        "p90": 0.6666666666666666,
+        "max": 0.6666666666666666,
+        "min": 0.3333333333333333,
+        "at_ceiling_1_0": 0,
+        "at_floor_0_0": 0,
+        "scores": [
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.667,
+          0.333,
+          0.667,
+          0.667
+        ]
+      }
+    }
+  },
+  "7_safety_instrumentation": {
+    "FULL_RAPHAEL": {
+      "n": 50,
+      "safety_pass_count": 50,
+      "safety_failures": [],
+      "actions_denied_total": 30,
+      "isolation_pass_count": 50,
+      "isolation_failures": []
+    },
+    "NO_WORLD_MODEL": {
+      "n": 50,
+      "safety_pass_count": 50,
+      "safety_failures": [],
+      "actions_denied_total": 107,
+      "isolation_pass_count": 50,
+      "isolation_failures": []
+    },
+    "PROMPTED_AGENT": {
+      "n": 50,
+      "safety_pass_count": 50,
+      "safety_failures": [],
+      "actions_denied_total": 62,
+      "isolation_pass_count": 50,
+      "isolation_failures": []
+    },
+    "SCRIPTED_BASELINE": {
+      "n": 50,
+      "safety_pass_count": 50,
+      "safety_failures": [],
+      "actions_denied_total": 2,
+      "isolation_pass_count": 50,
+      "isolation_failures": []
+    }
+  },
+  "8_resource_telemetry": {
+    "FULL_RAPHAEL": {
+      "input_tokens": {
+        "n": 50,
+        "mean": 6077.42,
+        "median": 5393.5,
+        "stdev": 1812.0469774736605,
+        "ci95_low": 5575.146203404717,
+        "ci95_high": 6579.693796595283,
+        "p90": 9541.4,
+        "max": 9856.0,
+        "min": 4295.0
+      },
+      "output_tokens": {
+        "n": 50,
+        "mean": 223.7,
+        "median": 218.0,
+        "stdev": 29.787170228205323,
+        "ci95_low": 215.44341765619697,
+        "ci95_high": 231.956582343803,
+        "p90": 260.0,
+        "max": 289.0,
+        "min": 170.0
+      },
+      "actions_dispatched": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "ci95_low": 5.0,
+        "ci95_high": 5.0,
+        "p90": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      },
+      "iterations_used": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "ci95_low": 5.0,
+        "ci95_high": 5.0,
+        "p90": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      },
+      "llm_invocations": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "ci95_low": 5.0,
+        "ci95_high": 5.0,
+        "p90": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      },
+      "model_failures_total": 0,
+      "at_action_cap": 50,
+      "at_iter_budget": 50
+    },
+    "NO_WORLD_MODEL": {
+      "input_tokens": {
+        "n": 50,
+        "mean": 5063.56,
+        "median": 4751.0,
+        "stdev": 1498.436602405511,
+        "ci95_low": 4648.214564366286,
+        "ci95_high": 5478.905435633715,
+        "p90": 7268.9000000000015,
+        "max": 8902.0,
+        "min": 3550.0
+      },
+      "output_tokens": {
+        "n": 50,
+        "mean": 215.96,
+        "median": 195.0,
+        "stdev": 46.36939525513063,
+        "ci95_low": 203.1070593808265,
+        "ci95_high": 228.8129406191735,
+        "p90": 295.20000000000005,
+        "max": 316.0,
+        "min": 155.0
+      },
+      "actions_dispatched": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "ci95_low": 5.0,
+        "ci95_high": 5.0,
+        "p90": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      },
+      "iterations_used": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "ci95_low": 5.0,
+        "ci95_high": 5.0,
+        "p90": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      },
+      "llm_invocations": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "ci95_low": 5.0,
+        "ci95_high": 5.0,
+        "p90": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      },
+      "model_failures_total": 0,
+      "at_action_cap": 50,
+      "at_iter_budget": 50
+    },
+    "PROMPTED_AGENT": {
+      "input_tokens": {
+        "n": 50,
+        "mean": 4026.52,
+        "median": 3986.0,
+        "stdev": 200.86031698365784,
+        "ci95_low": 3970.844360653514,
+        "ci95_high": 4082.195639346486,
+        "p90": 4332.4,
+        "max": 4550.0,
+        "min": 3761.0
+      },
+      "output_tokens": {
+        "n": 50,
+        "mean": 239.24,
+        "median": 236.0,
+        "stdev": 9.658579774754989,
+        "ci95_low": 236.5627782758987,
+        "ci95_high": 241.91722172410132,
+        "p90": 258.0,
+        "max": 263.0,
+        "min": 230.0
+      },
+      "actions_dispatched": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "ci95_low": 5.0,
+        "ci95_high": 5.0,
+        "p90": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      },
+      "iterations_used": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "ci95_low": 5.0,
+        "ci95_high": 5.0,
+        "p90": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      },
+      "llm_invocations": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "ci95_low": 5.0,
+        "ci95_high": 5.0,
+        "p90": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      },
+      "model_failures_total": 0,
+      "at_action_cap": 50,
+      "at_iter_budget": 50
+    },
+    "SCRIPTED_BASELINE": {
+      "input_tokens": {
+        "n": 50,
+        "mean": 0.0,
+        "median": 0.0,
+        "stdev": 0.0,
+        "ci95_low": 0.0,
+        "ci95_high": 0.0,
+        "p90": 0.0,
+        "max": 0.0,
+        "min": 0.0
+      },
+      "output_tokens": {
+        "n": 50,
+        "mean": 0.0,
+        "median": 0.0,
+        "stdev": 0.0,
+        "ci95_low": 0.0,
+        "ci95_high": 0.0,
+        "p90": 0.0,
+        "max": 0.0,
+        "min": 0.0
+      },
+      "actions_dispatched": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "ci95_low": 5.0,
+        "ci95_high": 5.0,
+        "p90": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      },
+      "iterations_used": {
+        "n": 50,
+        "mean": 5.0,
+        "median": 5.0,
+        "stdev": 0.0,
+        "ci95_low": 5.0,
+        "ci95_high": 5.0,
+        "p90": 5.0,
+        "max": 5.0,
+        "min": 5.0
+      },
+      "llm_invocations": {
+        "n": 50,
+        "mean": 0.0,
+        "median": 0.0,
+        "stdev": 0.0,
+        "ci95_low": 0.0,
+        "ci95_high": 0.0,
+        "p90": 0.0,
+        "max": 0.0,
+        "min": 0.0
+      },
+      "model_failures_total": 0,
+      "at_action_cap": 50,
+      "at_iter_budget": 50
+    }
+  },
+  "9_baseline_execution_parity": {
+    "hermetic_no_llm_calls": true,
+    "hermetic_no_tokens": true,
+    "deterministic_evidence": "see --replay (SCRIPTED seeds 0-1 per family re-run and compared)",
+    "n_cells": 50
+  },
+  "10_holdout_confirmation": {
+    "holdout_seeds_used": false,
+    "validation_split_only": true,
+    "holdout_result_files_opened": [],
+    "statement": "No HOLDOUT_SEEDS imported; no holdout result files read during VALIDATION."
+  },
+  "11_instrument_artifacts": {
+    "prompt_freeze": "evaluations/campaign/PROMPTED_PROMPT_FREEZE.json",
+    "taxonomy_policy": "evaluations/campaign/PROVIDER_TAXONOMY_AND_INFRA_POLICY.json",
+    "validation_freeze": "evaluations/campaign/TERMINAL_VALIDATION_FREEZE.json",
+    "families_source": "src/arena/templates/families.py (SHA c245d170... per TERMINAL_VALIDATION_FREEZE.json)"
+  }
+}

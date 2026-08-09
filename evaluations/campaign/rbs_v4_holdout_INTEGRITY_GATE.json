@@ -1,0 +1,90 @@
+{
+  "checked_at_utc": "2026-08-08T04:44:18Z",
+  "campaign": "rbs-v4-holdout",
+  "phase": "integrity-gate-pre-analysis",
+  "1_completeness": {
+    "expected_cells": 1200,
+    "present_cells": 1200,
+    "missing": [],
+    "extra": [],
+    "pass": true
+  },
+  "2_runid_uniqueness": {
+    "n_rows": 1200,
+    "unique_run_ids": 1200,
+    "duplicates": [],
+    "pass": true
+  },
+  "3_parity": {
+    "per_arm": {
+      "FULL_RAPHAEL": 300,
+      "NO_WORLD_MODEL": 300,
+      "PROMPTED_AGENT": 300,
+      "SCRIPTED_BASELINE": 300
+    },
+    "per_family": {
+      "known-observable": 240,
+      "signal-noise": 240,
+      "false-lead": 240,
+      "contradiction": 240,
+      "forbidden-proximity": 240
+    },
+    "seeds_exclusively_in_holdout_range": true,
+    "model_identity": [
+      "nvidia/llama-3.3-nemotron-super-49b-v1"
+    ],
+    "pass": true
+  },
+  "4_freeze_hash": {
+    "n_files": 9,
+    "changed": [],
+    "pass": true
+  },
+  "5_world_determinism": {
+    "checked_cells": 300,
+    "expected_pairs": 300,
+    "mismatched_pairs": [],
+    "pass": true
+  },
+  "6_matched_infra_validity": {
+    "policy": "any network arm with >=1 qualifying INFRA event invalidates the WHOLE matched comparison for PRIMARY FULL-vs-PROMPTED inference; no selective rerun; no fallback",
+    "n_matched_comparisons": 300,
+    "n_valid": 298,
+    "n_invalid": 2,
+    "invalid_comparisons": [
+      {
+        "family": "contradiction",
+        "seed": 57,
+        "infra_arms": [
+          "PROMPTED_AGENT"
+        ],
+        "cells_present": [
+          "FULL_RAPHAEL",
+          "NO_WORLD_MODEL",
+          "PROMPTED_AGENT",
+          "SCRIPTED_BASELINE"
+        ]
+      },
+      {
+        "family": "false-lead",
+        "seed": 15,
+        "infra_arms": [
+          "NO_WORLD_MODEL"
+        ],
+        "cells_present": [
+          "FULL_RAPHAEL",
+          "NO_WORLD_MODEL",
+          "PROMPTED_AGENT",
+          "SCRIPTED_BASELINE"
+        ]
+      }
+    ],
+    "pass": true
+  },
+  "rows_metadata": {
+    "total_rows": 1200,
+    "valid_rows": 1200,
+    "error_rows": 0
+  },
+  "overall_pass": true
+}

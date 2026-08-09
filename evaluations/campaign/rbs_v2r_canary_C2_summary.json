@@ -1,0 +1,28 @@
+{
+  "phase": 3,
+  "revision": "C2",
+  "model": "gpt-oss:20b-cloud",
+  "provider": "ollama_cloud",
+  "path": "LLMService.run_inference (frozen)",
+  "max_tokens": 16384,
+  "timeout_seconds": 180,
+  "calls": 20,
+  "classes": {
+    "success": 20
+  },
+  "success_rate": 1.0,
+  "degraded_successes": 0,
+  "degradation_rate_of_successes": 0.0,
+  "gemma_reference_unclear_count": 0,
+  "gate_success": true,
+  "verdict": "PROVIDER_RELIABLE",
+  "note": "degradation (unclear fallback) counts against causal fidelity even though it passes the frozen 'produced' criterion; Gemma ref had 0 unclear",
+  "timestamp": "2026-08-04T08:24:47Z",
+  "provenance": {
+    "definitive_run_rows": 20,
+    "telemetry_file": "rbs_v2r_canary_C2.jsonl (run 2 only, N=20)",
+    "warmup_run_rows": 10,
+    "warmup_file": "rbs_v2r_canary_C2_warmup.jsonl",
+    "note": "Run 1 was a 10-call harness-validation warm-up with identical code+config; its rows were separated, not deleted. Definitive canary = run 2 (N=20)."
+  }
+}

@@ -1,0 +1,2539 @@
+{
+  "papers_read": 30,
+  "total_pdf_bytes": 2311352,
+  "extract_failures": 0,
+  "theme_counts": {
+    "chain-of-thought": 16,
+    "mechanistic-interpretability": 17,
+    "reasoning": 23,
+    "planning": 25,
+    "self-consistency": 16,
+    "mechanistic": 15,
+    "faithfulness": 13,
+    "alignment": 26,
+    "generalization": 19,
+    "robustness": 17,
+    "efficiency": 27,
+    "in-context-learning": 18,
+    "activation-analysis": 10,
+    "emergent-abilities": 4,
+    "neural-network-reasoning": 5,
+    "tree-of-thought": 2,
+    "decomposition": 10
+  },
+  "cve_mentions": {},
+  "per_paper": [
+    {
+      "arxiv_id": "0babb88f147eb1ba",
+      "pdf_bytes": 108549,
+      "text_chars": 107762,
+      "takeaway": "Our approach substantially reduces SC2W\non popular open-sourced models while preserv-\ning accuracy when the added context is clean,\ncorrect, or irrelevant.",
+      "techniques": [
+        "SCOPE, a signal-counterfactual\npreference method that balances misleading-\nresistance pairs against matched clean,\ncorrect-context, and irrelevant-context con-\ntrols."
+      ],
+      "chain_steps": [
+        "screened for difficult, re-\nalistic candidates and wrote the matched context\nvariants under a shared guideline.",
+        "screened for answer validity, difficulty, and realism.",
+        "pass, one annotator selected or wrote the clean\nproblem, recorded the gold answer and a plausi-\nble wrong answer, and produced the three context-\nbearing variants.",
+        "select items where the base model answers\nthe clean condition correctly but the matched mis-\nleading condition incorrectly.",
+        "build 5,000 training source\nitems, each rendered under the same four context\nconditions used by the benchmark: clean, mislead-\ning, correct-context, and irrelevant-context."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "File Inclusion",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "mechanistic-interpretability",
+        "reasoning",
+        "planning",
+        "self-consistency",
+        "mechanistic",
+        "faithfulness",
+        "alignment",
+        "generalization",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "answer",
+          116
+        ],
+        [
+          "context",
+          90
+        ],
+        [
+          "misleading",
+          74
+        ],
+        [
+          "models",
+          65
+        ],
+        [
+          "clean",
+          64
+        ],
+        [
+          "scope",
+          62
+        ],
+        [
+          "matched",
+          52
+        ],
+        [
+          "benchmark",
+          49
+        ],
+        [
+          "arxiv",
+          47
+        ],
+        [
+          "items",
+          45
+        ],
+        [
+          "correct",
+          44
+        ],
+        [
+          "preference",
+          43
+        ]
+      ],
+      "read_s": 0.07
+    },
+    {
+      "arxiv_id": "9ad6f21aa22ac392",
+      "pdf_bytes": 43735,
+      "text_chars": 43591,
+      "takeaway": "In this work, we empirically compare program-\nmatic tool calling (PTC) to native JSON tool\ncalling across 14 language models on BFCL v4.",
+      "techniques": [
+        "ensures\nthat programmatic tool calling and JSON tool call-\ning consume the same number of LLM calls per\nentry, making accuracy comparisons straightfor-\nward."
+      ],
+      "chain_steps": [
+        "is code-action\nagents.",
+        "crosses baseline at GPT-5-nano before\nconverging fully by the GPT-5.",
+        ", BFCL v4 uses echo-return stubs.",
+        "model call\nafter the execute tool returns and terminates the\nagent loop without issuing a second inference.",
+        "model call\nand terminates the agent loop."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Privilege Escalation",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "reasoning",
+        "planning",
+        "alignment",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "calling",
+          140
+        ],
+        [
+          "programmatic",
+          61
+        ],
+        [
+          "models",
+          53
+        ],
+        [
+          "accuracy",
+          43
+        ],
+        [
+          "calls",
+          36
+        ],
+        [
+          "claude",
+          28
+        ],
+        [
+          "function",
+          27
+        ],
+        [
+          "ablation",
+          27
+        ],
+        [
+          "baseline",
+          25
+        ],
+        [
+          "under",
+          23
+        ],
+        [
+          "python",
+          23
+        ],
+        [
+          "sonnet",
+          23
+        ]
+      ],
+      "read_s": 0.03
+    },
+    {
+      "arxiv_id": "b301edff4027a470",
+      "pdf_bytes": 87690,
+      "text_chars": 87408,
+      "takeaway": "We developed the Nimblemind\nMulti-Agent System (nMAS), an evidence-\nlinked, rubric-grounded pipeline for automated\nheart-failure feature engineering, and evaluated\nit on 500 dummy patient records from nine\nEHR source tables.",
+      "techniques": [
+        "and implementation of a standard-\nized framework to generate and evaluate patient-\nlevel prediction models using observational health-\ncare data."
+      ],
+      "chain_steps": [
+        "checks that the available source data\ncan support each target feature; features whose re-\nquired inputs are absent are reported as unsupported\nrather than assigned inferred values.",
+        "/latest event extraction, and recurrence analysis.",
+        ", com-\nputing counts, first and latest event timestamps, and\nclinically relevant flags.",
+        ", behavioral ex-\nposures were kept as ordered categories rather than\nbinary flags, because cardiovascular risk from tobacco\nand alcohol persists after cessation and varies by in-\ntensity (Yoo et al.",
+        "collapsed nine source\ntables to the patient level without Cartesian explo-\nsion, producing exactly one row per patient, no du-\nplicates, and 132 structured columns across all 500\npatients."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "File Inclusion",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "mechanistic-interpretability",
+        "reasoning",
+        "planning",
+        "in-context-learning",
+        "self-consistency",
+        "mechanistic",
+        "faithfulness",
+        "alignment",
+        "generalization",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "feature",
+          135
+        ],
+        [
+          "features",
+          68
+        ],
+        [
+          "heart",
+          66
+        ],
+        [
+          "clinical",
+          60
+        ],
+        [
+          "evidence",
+          54
+        ],
+        [
+          "rubric",
+          48
+        ],
+        [
+          "disease",
+          46
+        ],
+        [
+          "source",
+          44
+        ],
+        [
+          "comorbid",
+          43
+        ],
+        [
+          "count",
+          38
+        ],
+        [
+          "failure",
+          36
+        ],
+        [
+          "score",
+          35
+        ]
+      ],
+      "read_s": 0.05
+    },
+    {
+      "arxiv_id": "805b94aa48c757e7",
+      "pdf_bytes": 42482,
+      "text_chars": 42416,
+      "takeaway": "AI Digital Sovereignty in Nigerian Mobile Applications   \n  1 \nInvestigating Artificial Intelligence Digital Sovereignty in Mobile Shopping Apps: A Case Study of Nigeria Full Paper1  George Grispos University of Nebraska-Omaha ggrispos@unomaha.edu   \nSajda Qureshi University of Nebraska-Omaha squres",
+      "techniques": [],
+      "chain_steps": [
+        "data source involves the extraction and analysis of AI-relevant artifacts from three Android e-commerce applications, Jumia, Konga, and Jiji, executed in a controlled Android environment.",
+        "digital economies that rely heavily on digital platforms, have developing regulatory frameworks, and show moderate levels of AI awareness, such as Nigeria and similar emerging markets.",
+        ", technological trust is critical (Cunha et al.",
+        "digital economy with rapid platform growth and developing governance structures.",
+        "Americas Conference on Information Systems, Reno."
+      ],
+      "vuln_classes": [
+        "SQL Injection",
+        "RCE",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "mechanistic-interpretability",
+        "reasoning",
+        "planning",
+        "in-context-learning",
+        "mechanistic",
+        "faithfulness",
+        "alignment",
+        "generalization",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "digital",
+          86
+        ],
+        [
+          "sovereignty",
+          54
+        ],
+        [
+          "applications",
+          51
+        ],
+        [
+          "mobile",
+          50
+        ],
+        [
+          "analysis",
+          37
+        ],
+        [
+          "development",
+          32
+        ],
+        [
+          "systems",
+          28
+        ],
+        [
+          "https",
+          28
+        ],
+        [
+          "transparency",
+          25
+        ],
+        [
+          "nigeria",
+          24
+        ],
+        [
+          "jumia",
+          24
+        ],
+        [
+          "android",
+          23
+        ]
+      ],
+      "read_s": 0.02
+    },
+    {
+      "arxiv_id": "cea2e454bfd6d589",
+      "pdf_bytes": 46186,
+      "text_chars": 44559,
+      "takeaway": "An Optimal Agnostic PAC Algorithm\nMarkus Engelund Mathiasen \u2217 Jian Qian \u2020 Nikita Zhivotovskiy \u2021\nAugust 6, 2026\nAbstract\nLet H \u2286 {\u22121, +1}X be a class of finite VC dimensiond\u2265 1.",
+      "techniques": [],
+      "chain_steps": [
+        "optimal high probability PAC bound was proved by Hanneke [18], building on the work\nof Simon [25].",
+        "introduce the cube notation for\n2The exact form of(1) is not stated in these references.",
+        "relation below\nholds for everyv\u2208V P andp\u2208P, and the second for everyv\u2208V P andD\u2286P:\nwv,p +w v\u2295p,p = 1,(5)\nX\np\u2208D\nwv,p \u2264\u03c1 F (v) +R D(F).",
+        "member ofF minimizing |DIS (v, f) \u2229T| .",
+        ",\nX\np\u2208D\nwv,p = 2ET\n\f\fDIS(v, \u03c0T (v))\u2229D\u2229T c\f\f."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Privilege Escalation",
+        "File Inclusion",
+        "Cloud Security"
+      ],
+      "themes": [
+        "in-context-learning",
+        "alignment",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "bound",
+          43
+        ],
+        [
+          "gives",
+          37
+        ],
+        [
+          "probability",
+          33
+        ],
+        [
+          "optimal",
+          29
+        ],
+        [
+          "every",
+          27
+        ],
+        [
+          "learning",
+          25
+        ],
+        [
+          "theorem",
+          24
+        ],
+        [
+          "lemma",
+          23
+        ],
+        [
+          "inequality",
+          22
+        ],
+        [
+          "agnostic",
+          21
+        ],
+        [
+          "sample",
+          19
+        ],
+        [
+          "least",
+          19
+        ]
+      ],
+      "read_s": 0.03
+    },
+    {
+      "arxiv_id": "2c50984a7dde2ddf",
+      "pdf_bytes": 96617,
+      "text_chars": 94806,
+      "takeaway": "A V-AIV AT: 74\u00d7Cheaper Agent Evaluation\nwith Certified Anytime-Valid Stopping in Imperfect-Information\nGames\nBoning Li\u2217 Yu Chen\u2020 Longbo Huang\u2021\nAugust 7, 2026\nAbstract\nDeciding which of two agents is stronger means playing games until skill outweighs luck, and\nevery game costs money, model inference,",
+      "techniques": [],
+      "chain_steps": [
+        "favorable look\ninvalidates nominal coverage and inflates false positives.",
+        ", online learning is valid under a pre-action conditional-kernel interface.",
+        "favorable look\nyields 61% false positives under the null, whereas recomputing the CS at that reported stopping\n2\ntime overturns essentially all such claims.",
+        "-look and\ncensoring metadata, declared bound, and locked CS settings lets a third party recompute the\nreported intervals at the exact stopping time without requiring the raw payoff stream.",
+        "crossing\n\u03c4(\u03b5) := inf{t:w t \u2264\u03b5}."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Cloud Security"
+      ],
+      "themes": [
+        "reasoning",
+        "planning",
+        "self-consistency",
+        "faithfulness",
+        "alignment",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "stopping",
+          72
+        ],
+        [
+          "asympcs",
+          66
+        ],
+        [
+          "bound",
+          66
+        ],
+        [
+          "variance",
+          64
+        ],
+        [
+          "value",
+          63
+        ],
+        [
+          "eb-cs",
+          59
+        ],
+        [
+          "hands",
+          54
+        ],
+        [
+          "evaluation",
+          52
+        ],
+        [
+          "games",
+          45
+        ],
+        [
+          "exact",
+          42
+        ],
+        [
+          "predictable",
+          41
+        ],
+        [
+          "correction",
+          39
+        ]
+      ],
+      "read_s": 0.05
+    },
+    {
+      "arxiv_id": "358db998f6a1272c",
+      "pdf_bytes": 128118,
+      "text_chars": 127749,
+      "takeaway": "Our results reveal a staged temporal failure.",
+      "techniques": [
+        "controlled evaluation framework that re-\nplaces a single aggregate score with capability surfaces\nover event count and frequency."
+      ],
+      "chain_steps": [
+        "positive count\nfrom 1.",
+        "-\nEver Comprehensive Evaluation Benchmark of Multi-modal\nLLMs in Video Analysis.",
+        ", carefully list every detected\nevent with its approximate timestamp\nand current count.",
+        ", describe what exercise is\nbeing performed.",
+        "six types concern individual reported or true events."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "reasoning",
+        "in-context-learning",
+        "self-consistency",
+        "faithfulness",
+        "alignment",
+        "generalization",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "event",
+          269
+        ],
+        [
+          "count",
+          162
+        ],
+        [
+          "frequency",
+          91
+        ],
+        [
+          "trace",
+          89
+        ],
+        [
+          "events",
+          84
+        ],
+        [
+          "video",
+          81
+        ],
+        [
+          "state",
+          71
+        ],
+        [
+          "final",
+          69
+        ],
+        [
+          "sampling",
+          66
+        ],
+        [
+          "visual",
+          61
+        ],
+        [
+          "reasoning",
+          59
+        ],
+        [
+          "accuracy",
+          57
+        ]
+      ],
+      "read_s": 0.07
+    },
+    {
+      "arxiv_id": "12d8817d905fab63",
+      "pdf_bytes": 65256,
+      "text_chars": 63508,
+      "takeaway": "In this paper, we focus on the outer loop question through the lens of Mechanism Design.",
+      "techniques": [],
+      "chain_steps": [
+        "problem as aninner-loopquestion: the question of training, interpretability,\nand evaluation.",
+        ", compute is agovernable\nresource.",
+        "component isgovernence currency domain.",
+        "argument on[\u03ba halt,\u221e).",
+        "-\nclass trust assumption, not an implementation detail."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "File Inclusion",
+        "Cloud Security"
+      ],
+      "themes": [
+        "mechanistic-interpretability",
+        "self-consistency",
+        "mechanistic",
+        "alignment",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "start",
+          44
+        ],
+        [
+          "compute",
+          41
+        ],
+        [
+          "agent",
+          37
+        ],
+        [
+          "definition",
+          37
+        ],
+        [
+          "mechanism",
+          34
+        ],
+        [
+          "authorization",
+          31
+        ],
+        [
+          "securities",
+          29
+        ],
+        [
+          "governance",
+          28
+        ],
+        [
+          "deployer",
+          24
+        ],
+        [
+          "contributions",
+          23
+        ],
+        [
+          "breadth-weighted",
+          21
+        ],
+        [
+          "belief",
+          21
+        ]
+      ],
+      "read_s": 0.04
+    },
+    {
+      "arxiv_id": "c4fc79606dba2275",
+      "pdf_bytes": 73970,
+      "text_chars": 73744,
+      "takeaway": "In this paper, we present\nCalibForge, an autonomous terminal-task synthesis system that uses verified solver behavior\nto revise candidate tasks through adversarial solver calibration.",
+      "techniques": [
+        "CalibForge, an autonomous terminal-task synthesis system that uses verified solver behavior\nto revise candidate tasks through adversarial solver calibration."
+      ],
+      "chain_steps": [
+        "c2 c3\nTask Authoring & Validation\nAll Fail\n.",
+        "remove candidates whose prompts\nhave 14-gram overlap with any evaluation instance.",
+        "verified solver\noutcome to their eventual retention outcome.",
+        "verified solver probe: only 19% exhibit the target strong-\npass/weak-fail relation, while 81% do not, despite all candidates having passed structural validation\nand self-solving.",
+        "calibration round Final status\nfeedback \u2192 revision \u2192 re-probing\nTarget relation\n19%\nBoth fail16%\nBoth\npass\n61%\nInverted: 4%\nAccepted\n96%\nDiscarded: 4%\nFigure 8."
+      ],
+      "vuln_classes": [
+        "SQL Injection",
+        "RCE",
+        "File Inclusion",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "reasoning",
+        "planning",
+        "activation-analysis",
+        "emergent-abilities",
+        "generalization",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "solver",
+          138
+        ],
+        [
+          "calibration",
+          100
+        ],
+        [
+          "tasks",
+          81
+        ],
+        [
+          "arxiv",
+          73
+        ],
+        [
+          "calibforge",
+          66
+        ],
+        [
+          "terminal",
+          59
+        ],
+        [
+          "adversarial",
+          45
+        ],
+        [
+          "candidate",
+          38
+        ],
+        [
+          "feedback",
+          36
+        ],
+        [
+          "scaling",
+          35
+        ],
+        [
+          "learnable",
+          35
+        ],
+        [
+          "agents",
+          35
+        ]
+      ],
+      "read_s": 0.04
+    },
+    {
+      "arxiv_id": "16276647517da1df",
+      "pdf_bytes": 38965,
+      "text_chars": 38766,
+      "takeaway": "Challenges in Evaluating Explanation Methods\nfor Static and Evolving Data\nJerzy Stefanowski[0000\u22120002\u22124949\u22128271]\nPoznan University of Technology, Institute of Computing Sciences, Poland\njerzy.stefanowski@cs.put.poznan.pl\nAbstract.This paper addresses the limitations of Explainable Artificial\nIntelli",
+      "techniques": [
+        "to select a final counterfactual from this front\nby applying themultiple criteria Ideal Point Method, which does not require\nadditional preference elicitation from the user, and is computationally efficient."
+      ],
+      "chain_steps": [
+        "ly review the current proposals for eval-\nuating local explanations, and by case studies will discuss how to evaluate them\nbetter also with designing appropriate human surveys.",
+        "ly, the XAI literature has produced a wide range of mainly post-hoc\ntechniques to approximate different aspects of model performance with many\nmethodological paradigms.",
+        "case study demonstrates the use of XAI in the context of auto-\nmated methods, while the second illustrates the challenges of a human-grounded\nevaluation study.",
+        "challenge was how to detect this bias.",
+        "challenge was deciding which task and the image dataset that would\nbe understandable to a broad group of respondents."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "File Inclusion",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "mechanistic-interpretability",
+        "reasoning",
+        "planning",
+        "in-context-learning",
+        "mechanistic",
+        "activation-analysis",
+        "faithfulness",
+        "alignment",
+        "generalization",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "methods",
+          49
+        ],
+        [
+          "explanations",
+          42
+        ],
+        [
+          "evaluation",
+          26
+        ],
+        [
+          "explanation",
+          19
+        ],
+        [
+          "research",
+          17
+        ],
+        [
+          "human",
+          17
+        ],
+        [
+          "stefanowski",
+          16
+        ],
+        [
+          "drift",
+          16
+        ],
+        [
+          "models",
+          16
+        ],
+        [
+          "measures",
+          16
+        ],
+        [
+          "changes",
+          16
+        ],
+        [
+          "challenges",
+          15
+        ]
+      ],
+      "read_s": 0.03
+    },
+    {
+      "arxiv_id": "3bd29ab8cb11a0aa",
+      "pdf_bytes": 66017,
+      "text_chars": 64870,
+      "takeaway": "Experiments on math-\nematical reasoning benchmarks covering 17\nlanguages and multiple difficulty levels show\nthat our method outperforms strong multilin-\ngual reasoning baselines and OPSD variants.",
+      "techniques": [],
+      "chain_steps": [
+        "factor, both teacher views are given\nthe English translation of the question, denoted by\nxh.",
+        "isreasoning-control piv-\nots, including \u201c\u6240\u4ee5\u201d (so), \u201c\u56e0\u6b64\u201d (therefore), and\n\u201c\u4f46\u201d (but).",
+        "sample a correct English\ntrace, while PCS relies on outcome-level rollout\nrewards.",
+        "-token\ndistribution is\npt =\u03c0 \u03b8(\u00b7 |x\u2113, y<t).",
+        "token after\nthe same low-resource rollout prefix."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "mechanistic-interpretability",
+        "reasoning",
+        "planning",
+        "self-consistency",
+        "neural-network-reasoning",
+        "mechanistic",
+        "activation-analysis",
+        "alignment",
+        "generalization",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "reasoning",
+          120
+        ],
+        [
+          "rp-opsd",
+          59
+        ],
+        [
+          "language",
+          46
+        ],
+        [
+          "teacher",
+          41
+        ],
+        [
+          "english",
+          39
+        ],
+        [
+          "arxiv",
+          37
+        ],
+        [
+          "privileged",
+          36
+        ],
+        [
+          "reference",
+          36
+        ],
+        [
+          "preprint",
+          36
+        ],
+        [
+          "tokens",
+          32
+        ],
+        [
+          "multilingual",
+          31
+        ],
+        [
+          "languages",
+          31
+        ]
+      ],
+      "read_s": 0.04
+    },
+    {
+      "arxiv_id": "db491da749f518a1",
+      "pdf_bytes": 106545,
+      "text_chars": 106299,
+      "takeaway": "In this work, we propose TRA-\nJDEBUG, an error-lifecycle tracing framework\nthat addresses long-trajectory error discovery\nwith multi-granularity history compression and\nevidence-based error identification, and sup-\nports critical attribution by tracing each error\u2019s\nresolution status and terminal imp",
+      "techniques": [
+        "TRA-\nJDEBUG, an error-lifecycle tracing framework\nthat addresses long-trajectory error discovery\nwith multi-granularity history compression and\nevidence-based error identification, and sup-\nports critical attribution by tracing each error\u2019s\nresolution status and terminal impact.",
+        "TRA-\nJDEBUG, an evidence-grounded error-lifecycle\ntracing framework for critical error detection."
+      ],
+      "chain_steps": [
+        ", long trajectories make it dif-\nficult to identify individual errors, since the\nevidence for judging a step may be scattered\nacross distant instructions, observations, and\nprior context.",
+        ",long\ntrajectories make it difficult to identify individual\nerrors.",
+        "local error observed in the trajectory, nor the\ntemporally closest error to the terminal failure.",
+        ",\neach failed trajectory is diagnosed and converted\ninto targeted guidance before re-executing the same\ntask, improving success by 10.",
+        "formalizes critical error step detec-\ntion (\u00a7 2."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "reasoning",
+        "planning",
+        "self-consistency",
+        "tree-of-thought",
+        "decomposition",
+        "faithfulness",
+        "alignment",
+        "generalization",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "error",
+          175
+        ],
+        [
+          "trajectory",
+          110
+        ],
+        [
+          "critical",
+          92
+        ],
+        [
+          "agent",
+          84
+        ],
+        [
+          "failure",
+          65
+        ],
+        [
+          "trajectories",
+          57
+        ],
+        [
+          "errors",
+          57
+        ],
+        [
+          "arxiv",
+          57
+        ],
+        [
+          "steps",
+          56
+        ],
+        [
+          "state",
+          56
+        ],
+        [
+          "trigger",
+          54
+        ],
+        [
+          "instance",
+          48
+        ]
+      ],
+      "read_s": 0.07
+    },
+    {
+      "arxiv_id": "48c1b300b8749dc1",
+      "pdf_bytes": 176923,
+      "text_chars": 169856,
+      "takeaway": "We introduce an estimation framework\nthat removes this computational barrier: each optimization iteration is independent of\nthe series lengthT.",
+      "techniques": [
+        "estimation framework\nthat removes this computational barrier: each optimization iteration is independent of\nthe series lengthT.",
+        "dense V ARMA framework with computational efficiency\nand sound theoretical guarantees that can scale up to high dimension.",
+        "the method for the V ARMA model, the same sufficient-statistics\nframework accommodates, without changing its leading computational cost, two exten-\nsions that matter in applications: a multiplicativeseasonal V ARMAfor periodic data (Sec-\ntion 5."
+      ],
+      "chain_steps": [
+        "describe a generic transformation acting on a stack ofrunconstrained lag\nmatrices, then express the full V ARMA reparametrisation as a factorised product.",
+        "(per-lag contraction).",
+        "propagated backward: setL f\nr =I d and, fors=\nr, r\u22121, .",
+        "approach evaluates\nthe conditional likelihoodp(Z 1:T |\u03a6 1:p,\u0398 1:q,\u03a3) recursively intby computing the one-\nstep-ahead innovations \u02c6Zt+1|1:t from the V ARMA recursion; see Section 14.",
+        ", every gradient evaluation must touch allTobservations\nthrough the recursion (or the filter), so cost scales linearly inT."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "mechanistic-interpretability",
+        "reasoning",
+        "planning",
+        "in-context-learning",
+        "self-consistency",
+        "decomposition",
+        "mechanistic",
+        "faithfulness",
+        "alignment",
+        "generalization",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "seasonal",
+          94
+        ],
+        [
+          "models",
+          61
+        ],
+        [
+          "coefficients",
+          61
+        ],
+        [
+          "every",
+          60
+        ],
+        [
+          "factor",
+          50
+        ],
+        [
+          "estimation",
+          49
+        ],
+        [
+          "series",
+          46
+        ],
+        [
+          "ridge",
+          46
+        ],
+        [
+          "gaussian",
+          41
+        ],
+        [
+          "through",
+          40
+        ],
+        [
+          "unconstrained",
+          40
+        ],
+        [
+          "evaluation",
+          39
+        ]
+      ],
+      "read_s": 0.12
+    },
+    {
+      "arxiv_id": "34c7f868cce4db86",
+      "pdf_bytes": 65462,
+      "text_chars": 64287,
+      "takeaway": "We show that this additional cost is inherent beyond VC dimension one: In the worst case\nover classes of VC dimension d and over known finite insertion budgets, the minimax expected\nerror is \u0398(1/n) at d = 1 and \u0398((d/n) log n/d) for d \u2265 2.",
+      "techniques": [],
+      "chain_steps": [
+        ", n\nexamples are drawn independently from D and labeled by h\u22c6.",
+        "open question of Larsen, Pabbaraju, and Shetty [LPS26].",
+        "result answers the above question.",
+        "algorithm-independent separation between\nlearning from i.",
+        ", nature draws an ordered clean sample X = (X1, ."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "planning",
+        "in-context-learning",
+        "self-consistency",
+        "generalization",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "every",
+          96
+        ],
+        [
+          "adversary",
+          75
+        ],
+        [
+          "dimension",
+          63
+        ],
+        [
+          "learner",
+          61
+        ],
+        [
+          "sample",
+          57
+        ],
+        [
+          "theorem",
+          51
+        ],
+        [
+          "clean",
+          50
+        ],
+        [
+          "point",
+          45
+        ],
+        [
+          "monotone",
+          43
+        ],
+        [
+          "class",
+          41
+        ],
+        [
+          "bound",
+          40
+        ],
+        [
+          "proof",
+          40
+        ]
+      ],
+      "read_s": 0.05
+    },
+    {
+      "arxiv_id": "ab2ab370bbb1f210",
+      "pdf_bytes": 85756,
+      "text_chars": 85246,
+      "takeaway": "We present TYTAN, a system\nfor automatically constructing ananalytic se-\nmantic schemafrom a relational database and,\nwhen available, a short user-provided descrip-\ntion.",
+      "techniques": [
+        "on TYTANleverages\nthe strengths of each method, while creating safe-\nguards to eliminate the limitations."
+      ],
+      "chain_steps": [
+        "Name} {LastName}\u2019\u2019) used\nwhen results mention individual instances.",
+        "proposes a small\nset of domain entities and their likely attributes.",
+        ",\nentities introduced during the iterative coverage\nsweep are assigned an identifier that other tables\ncan reference.",
+        ", while Numeric mea-\nsures are excluded.",
+        ", we check if entities and attributes\nthat are referenced in the ring are reachable or not\nand then we identify if any relevant entity, fea-\nture or relationship was missed."
+      ],
+      "vuln_classes": [
+        "SQL Injection",
+        "RCE",
+        "Privilege Escalation",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "mechanistic-interpretability",
+        "reasoning",
+        "planning",
+        "self-consistency",
+        "mechanistic",
+        "alignment",
+        "generalization",
+        "robustness"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "database",
+          85
+        ],
+        [
+          "entity",
+          74
+        ],
+        [
+          "schema",
+          63
+        ],
+        [
+          "columns",
+          59
+        ],
+        [
+          "column",
+          55
+        ],
+        [
+          "attributes",
+          54
+        ],
+        [
+          "values",
+          53
+        ],
+        [
+          "joins",
+          50
+        ],
+        [
+          "attribute",
+          44
+        ],
+        [
+          "declared",
+          42
+        ],
+        [
+          "against",
+          42
+        ],
+        [
+          "semantic",
+          40
+        ]
+      ],
+      "read_s": 0.06
+    },
+    {
+      "arxiv_id": "dac3094741f728e4",
+      "pdf_bytes": 56495,
+      "text_chars": 55851,
+      "takeaway": "We introduce a reference-free frame-\nwork that uses LLM judges to assess bench-\nmark consistency, complexity, and policy cov-\nerage, while providing actionable diagnostics\nof weaknesses.",
+      "techniques": [],
+      "chain_steps": [
+        ", we generate multiple bench-\nmarks using a synthetic benchmark-generation\npipeline.",
+        "decomposes\nthe policy into flows, such asbooking a flightor\ncanceling a reservation, and extracts the policies\nrelevant to each flow.",
+        "to systematically evaluate benchmarks for con-\nversational agents.",
+        "assist the user in modifying their flight reserva-\ntion by requesting a payment or refund method,\n12\nsuch as a gift card or credit card.",
+        "_name\u2019:\n13\n\u2019Alice\u2019, \u2019last_name\u2019: \u2019Smith\u2019, \u2019dob\u2019:\n\u20191985-07-15\u2019} and {\u2019first_name\u2019:\n\u2019Bob\u2019, \u2019last_name\u2019: \u2019Johnson\u2019, \u2019dob\u2019:\n\u20191992-03-22\u2019}."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "File Inclusion",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "reasoning",
+        "planning",
+        "self-consistency",
+        "decomposition",
+        "alignment",
+        "robustness"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "policy",
+          123
+        ],
+        [
+          "expected",
+          99
+        ],
+        [
+          "behavior",
+          77
+        ],
+        [
+          "benchmarks",
+          63
+        ],
+        [
+          "benchmark",
+          63
+        ],
+        [
+          "description",
+          51
+        ],
+        [
+          "score",
+          45
+        ],
+        [
+          "metrics",
+          39
+        ],
+        [
+          "alignment",
+          37
+        ],
+        [
+          "judge",
+          35
+        ],
+        [
+          "tasks",
+          34
+        ],
+        [
+          "quality",
+          32
+        ]
+      ],
+      "read_s": 0.05
+    },
+    {
+      "arxiv_id": "de80ca513c396c4f",
+      "pdf_bytes": 78770,
+      "text_chars": 77842,
+      "takeaway": "To bridge this gap, we introduceGB/T-\nBench, the first benchmark for the structured review of na-\ntional standard documents.",
+      "techniques": [
+        "GB/T-Reviewer, a multi-agent review\nframework designed to improve the performance of LLMs\non national standard document review tasks.",
+        "GB/T-Reviewer, a multi-agent\nframework that organizes review knowledge into special-\nizedskillsandcoordinatescomplementaryreviewprocesses."
+      ],
+      "chain_steps": [
+        "benchmark for the structured review of na-\ntional standard documents.",
+        "challenge is to establish a diag-\nnostic evaluation foundation.",
+        "challenge, we introduce GB/T-Bench,\nwhichintegratestheGB/TReviewTaxonomy,acontrollable\ncounterexample generation mechanism, and a diagnosis-\norientedevaluationprotocol.",
+        "benchmark for\nevaluating LLMs in national standard document review.",
+        ", thedocument-level capabilities, denoted as\nDdoc ={D STR, DSCP}, focus on the overall structure and\ncontent boundaries of standard documents."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Privilege Escalation",
+        "File Inclusion",
+        "Cloud Security"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "mechanistic-interpretability",
+        "reasoning",
+        "planning",
+        "in-context-learning",
+        "self-consistency",
+        "decomposition",
+        "activation-analysis",
+        "faithfulness",
+        "alignment",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "review",
+          163
+        ],
+        [
+          "error",
+          112
+        ],
+        [
+          "document",
+          55
+        ],
+        [
+          "dimension",
+          49
+        ],
+        [
+          "normative",
+          41
+        ],
+        [
+          "standard",
+          37
+        ],
+        [
+          "t-reviewer",
+          34
+        ],
+        [
+          "scope",
+          31
+        ],
+        [
+          "recall",
+          31
+        ],
+        [
+          "whether",
+          28
+        ],
+        [
+          "documents",
+          27
+        ],
+        [
+          "models",
+          27
+        ]
+      ],
+      "read_s": 0.05
+    },
+    {
+      "arxiv_id": "cf1f4924f51ec9e4",
+      "pdf_bytes": 27545,
+      "text_chars": 27422,
+      "takeaway": "Does FLAIR super-resolution erase or hallucinate\nsmall white-matter lesions?",
+      "techniques": [
+        "the very structure we aim to reconstruct, which\nexplains why the FLAIR-only method performs better in this case."
+      ],
+      "chain_steps": [
+        "depresses sensitivity; the second inflates the count with\nfalse positives.",
+        ", we degraded each to simulated 3 and 5 mm through-plane ac-\nquisitions.",
+        "inflates the count with\nfalse positives.",
+        ", because the reference is a single expert\u2019s manual mask, some\napparent hallucinations may be true lesions it missed; a multi-rater consensus\nreference would sharpen the false-positive estimates."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "planning",
+        "decomposition",
+        "alignment",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "lesions",
+          54
+        ],
+        [
+          "flair",
+          34
+        ],
+        [
+          "small",
+          33
+        ],
+        [
+          "lesion",
+          27
+        ],
+        [
+          "reconstruction",
+          23
+        ],
+        [
+          "segmentation",
+          22
+        ],
+        [
+          "manual",
+          20
+        ],
+        [
+          "https",
+          19
+        ],
+        [
+          "eclare",
+          18
+        ],
+        [
+          "volume",
+          17
+        ],
+        [
+          "slice",
+          17
+        ],
+        [
+          "erasure",
+          17
+        ]
+      ],
+      "read_s": 0.02
+    },
+    {
+      "arxiv_id": "8cd923037c0b605f",
+      "pdf_bytes": 109251,
+      "text_chars": 108235,
+      "takeaway": "To\nbridge this gap, we propose aR anking-basedR ewardC onstruction (RRC) ap-\nproach, which enables generative reward models to provide more effective RL\nlearning signals by deriving rewards from relative preference rankings.",
+      "techniques": [
+        "aR anking-basedR ewardC onstruction (RRC) approach, which constructs scalar re-\nward scores directly from the relative preference orderings among sampled responses.",
+        "task-specific\nrules, an approach commonly referred to as reinforcement\nlearning with verifiable rewards (RLVR), which has been\nwidely used to improve the reasoning capabilities of LLMs\n(Guo et al.",
+        "the experimental results of\nour RRC approach.",
+        "the experimental results of our RRC approach."
+      ],
+      "chain_steps": [
+        "obtain a reference responseo ref = arg maxo \u03c0\u03b8(o|x)via greedy decoding from the\ncurrent policy.",
+        "obtainareferenceresponseo ref = arg maxo\u03c0\u03b8(o|x)via\ngreedy decoding from the current policy.",
+        "briefly review the desiderata for reward construction in RL.",
+        "setting, the policy model generated explicit CoT\nreasoning before producing the final response (denoted asreasoning-augmented policy).",
+        "groupfocusedon\naddressingthescarcityofpreferencedata."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "File Inclusion",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "reasoning",
+        "planning",
+        "in-context-learning",
+        "self-consistency",
+        "faithfulness",
+        "emergent-abilities",
+        "alignment",
+        "generalization",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "reward",
+          304
+        ],
+        [
+          "models",
+          137
+        ],
+        [
+          "generative",
+          103
+        ],
+        [
+          "preference",
+          92
+        ],
+        [
+          "responses",
+          78
+        ],
+        [
+          "ranking",
+          66
+        ],
+        [
+          "arxiv",
+          56
+        ],
+        [
+          "preprint",
+          53
+        ],
+        [
+          "response",
+          53
+        ],
+        [
+          "policy",
+          48
+        ],
+        [
+          "training",
+          45
+        ],
+        [
+          "performance",
+          45
+        ]
+      ],
+      "read_s": 0.08
+    },
+    {
+      "arxiv_id": "69231b33bf79ee92",
+      "pdf_bytes": 76590,
+      "text_chars": 76078,
+      "takeaway": "Beyond Top-K: Replacing Black-Box Retrieval with\nInterpretable Agentic Operations\nSagar Tamang* 1 2 Ayush Vyas 2 Tabarakul Hazarika2\ngrep\nnormalized line\nsearch\noutline\nheadings + line numbers\nread\nbounded span,\ncited lines\nagent chooses what to read next\n780-page\nfinancial report\n86.8% table rows\nc",
+      "techniques": [],
+      "chain_steps": [
+        ", naive chunking degrades catastrophically at small\nchunk sizes: at 800 characters,67.",
+        "row is the important one.",
+        "assumed, and we retain read naive grep as an ablation\nthat isolates it.",
+        "recorded this cell as citing the wrong statement.",
+        ",iter-\nation is expensive: READconsumed 58\u201378k input tokens\nagainst the dense baseline\u2019s 6."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "mechanistic-interpretability",
+        "reasoning",
+        "planning",
+        "in-context-learning",
+        "decomposition",
+        "activation-analysis",
+        "faithfulness",
+        "alignment",
+        "generalization",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "retrieval",
+          83
+        ],
+        [
+          "document",
+          72
+        ],
+        [
+          "dense",
+          57
+        ],
+        [
+          "rather",
+          43
+        ],
+        [
+          "questions",
+          41
+        ],
+        [
+          "chunk",
+          39
+        ],
+        [
+          "every",
+          38
+        ],
+        [
+          "against",
+          38
+        ],
+        [
+          "agentic",
+          37
+        ],
+        [
+          "lines",
+          35
+        ],
+        [
+          "top-k",
+          34
+        ],
+        [
+          "answer",
+          34
+        ]
+      ],
+      "read_s": 0.07
+    },
+    {
+      "arxiv_id": "f44c89d240c6509d",
+      "pdf_bytes": 59888,
+      "text_chars": 59170,
+      "takeaway": "We introduce HARNESSOPT-BENCH, a benchmark for end-to-end harness optimization\nunder expensive and stochastic evaluation.",
+      "techniques": [
+        "per-run jitter in cases, tool\nbehavior, and verifier implementation to distinguish general improvements from exploitation of stable evaluator\nartifacts."
+      ],
+      "chain_steps": [
+        "average replicates:\n\u00afgmt = 1\n|Rmt| \u2211\nr\u2208R mt\ngmtr.",
+        "-to-last spread exceeds the task\u2019s resolution band.",
+        "Conference on Language Modeling, 2024.",
+        "regime is the one that increasingly matters.",
+        "line expands the search\nspace to the agent program itself: STOP [35] recursively improves a scaffolding program."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "File Inclusion",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "reasoning",
+        "planning",
+        "in-context-learning",
+        "tree-of-thought",
+        "decomposition",
+        "generalization",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "harness",
+          107
+        ],
+        [
+          "optimizer",
+          74
+        ],
+        [
+          "agent",
+          44
+        ],
+        [
+          "evaluation",
+          42
+        ],
+        [
+          "arxiv",
+          41
+        ],
+        [
+          "scale",
+          32
+        ],
+        [
+          "models",
+          32
+        ],
+        [
+          "research",
+          31
+        ],
+        [
+          "search",
+          31
+        ],
+        [
+          "held-out",
+          30
+        ],
+        [
+          "coding",
+          28
+        ],
+        [
+          "normalized",
+          28
+        ]
+      ],
+      "read_s": 0.04
+    },
+    {
+      "arxiv_id": "56cfa3fbdb4fa2fa",
+      "pdf_bytes": 38758,
+      "text_chars": 38273,
+      "takeaway": "Bias Analysis of L2 Speaking Assessment Systems\nUsing Concept Activation Vectors\nArya Labroo\nUniversity of Cambridge\nal2135@cam.ac.uk\nMengjie Qian\nUniversity of Cambridge\nmq227@cam.ac.uk\nKate Knill\nUniversity of Cambridge\nkmk1001@cam.ac.uk\nAbstract\u2014Automatic speaking assessment systems are increas-\n",
+      "techniques": [],
+      "chain_steps": [
+        "language (L1) or\nage.",
+        "language (L1) or age.",
+        "encoded as a sparse latent vectorz, and the\nCA V is learned in the latent space, producing a latent-space\nCA Vd(c)\nz .",
+        "encoded, and\na linear classifier is trained to separate the concept classes in\nthe latent space, giving a latent space CA Vd (c)\nz \u2208R m.",
+        "hidden\nlayer (d= 600), denotedLayer 1, and the post-ReLU output\nof the second (d= 20), denotedLayer 2."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "mechanistic-interpretability",
+        "planning",
+        "in-context-learning",
+        "mechanistic",
+        "activation-analysis",
+        "alignment",
+        "generalization",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "concept",
+          69
+        ],
+        [
+          "layer",
+          35
+        ],
+        [
+          "score",
+          33
+        ],
+        [
+          "analysis",
+          29
+        ],
+        [
+          "activation",
+          29
+        ],
+        [
+          "grader",
+          29
+        ],
+        [
+          "space",
+          28
+        ],
+        [
+          "concepts",
+          27
+        ],
+        [
+          "latent",
+          27
+        ],
+        [
+          "language",
+          26
+        ],
+        [
+          "gender",
+          26
+        ],
+        [
+          "whisper",
+          24
+        ]
+      ],
+      "read_s": 0.03
+    },
+    {
+      "arxiv_id": "907a7de8d824155f",
+      "pdf_bytes": 68415,
+      "text_chars": 67739,
+      "takeaway": "In this study, we show that on-policy self-distillation can be\nachieved using only a model\u2019s own generations via internal consistency.",
+      "techniques": [],
+      "chain_steps": [
+        "samples multiple\nrollouts and constructs a pseudo solution by majority vote under a self-consistency\nthreshold.",
+        "50, under the protocol of Table 1.",
+        "four checkpoints of the Qwen3-4B runs on AIME24,\nAIME25 and MATH500 in both modes.",
+        "four checkpoints, in thinking (left three columns) and non-thinking mode\n(right three); the dashed line is the base model.",
+        "50, with the best-checkpoint series ordered\nthe same way."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "reasoning",
+        "in-context-learning",
+        "self-consistency",
+        "neural-network-reasoning",
+        "alignment",
+        "generalization",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "arxiv",
+          97
+        ],
+        [
+          "teacher",
+          72
+        ],
+        [
+          "models",
+          44
+        ],
+        [
+          "reasoning",
+          43
+        ],
+        [
+          "preprint",
+          43
+        ],
+        [
+          "rollouts",
+          41
+        ],
+        [
+          "u-opsd",
+          38
+        ],
+        [
+          "on-policy",
+          37
+        ],
+        [
+          "thinking",
+          34
+        ],
+        [
+          "student",
+          34
+        ],
+        [
+          "supervision",
+          33
+        ],
+        [
+          "distillation",
+          33
+        ]
+      ],
+      "read_s": 0.05
+    },
+    {
+      "arxiv_id": "a64bbf8fb466b2fa",
+      "pdf_bytes": 67881,
+      "text_chars": 67477,
+      "takeaway": "To address this limitation, we introduce QuanTiMedAI, a\nquantum-agentic framework developed for cardiac arrest mortality prediction us-\ning agentic AI guided quantum enhancement time series model.",
+      "techniques": [
+        "QuanTiMedAI, a\nquantum-agentic framework developed for cardiac arrest mortality prediction us-\ning agentic AI guided quantum enhancement time series model.",
+        "QuanTiMedAI, a quantum-agentic time-series framework for in-hospital car-\ndiac arrest mortality prediction on MIMIC-IV that integrates agentic LLM-guided feature\nselection, an engineered clinical severity-score channel, and a compact quantum recurrent\nnetwork for sequential modeling of ICU data.",
+        "and Objective\nFeature selection was performed using an agentic framework driven by a large language model\n(LLM), accessed locally via Ollama."
+      ],
+      "chain_steps": [
+        "day of ICU admission.",
+        "24 hours of ICU admission into a static feature vec-\ntor, discarding the temporal dimension entirely.",
+        "-day feature aggregations, leaving how a pa-\ntient\u2019s condition changes over time entirely unmodeled.",
+        ", no prior study identified in our review has\napplied any sequential time-series model to in-hospital mortality prediction in cardiac arrest patients\non MIMIC-IV .",
+        "to apply sequential deep learning to in-hospital cardiac\narrest mortality prediction on MIMIC-IV ."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Privilege Escalation",
+        "File Inclusion",
+        "Cloud Security"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "mechanistic-interpretability",
+        "reasoning",
+        "in-context-learning",
+        "neural-network-reasoning",
+        "mechanistic",
+        "activation-analysis",
+        "emergent-abilities",
+        "generalization",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "feature",
+          63
+        ],
+        [
+          "mortality",
+          53
+        ],
+        [
+          "quantum",
+          53
+        ],
+        [
+          "classical",
+          52
+        ],
+        [
+          "prediction",
+          49
+        ],
+        [
+          "arrest",
+          47
+        ],
+        [
+          "auroc",
+          47
+        ],
+        [
+          "cardiac",
+          42
+        ],
+        [
+          "quantimedai",
+          39
+        ],
+        [
+          "selection",
+          37
+        ],
+        [
+          "features",
+          37
+        ],
+        [
+          "clinical",
+          36
+        ]
+      ],
+      "read_s": 0.05
+    },
+    {
+      "arxiv_id": "58ebc6fc3bf46cb0",
+      "pdf_bytes": 42190,
+      "text_chars": 42033,
+      "takeaway": "We proposeNeSy-RAG, a modular neuro-symbolic RAG framework that synthesizes\nattributable Prolog modules from retrieved text chunks.",
+      "techniques": [
+        "symbolic\nknowledge-gap detection mechanism that identifies missing user facts whose truth values\naffect the query outcome and automatically triggers follow-up interactions.",
+        "symbolicknowledge-gap detectionmechanism that enables the system to\nrecognize and interactively resolve missing user information via follow-up questions.",
+        "a unified framework spanning logic programming, first-order logic,\nand constraint satisfaction problems, each realizable by different programming languages.",
+        "simulates a setting in which the system must actively recover\nmissing user information through follow-up questions."
+      ],
+      "chain_steps": [
+        "-order logic,\nand constraint satisfaction problems, each realizable by different programming languages.",
+        "selects relevant snippets\nfrom the synthetic retrieval set, then predicts an answer to thequestionusing only those\nsnippets.",
+        "instructed to compose\na queryonlyfrom the most relevant subset of these rules.",
+        "filtering relevant 0-arity rules within their corresponding modules) ensures that the query-\ngenerating LLM is exposed only to a small, question-relevant subset of the knowledge base.",
+        "predicts an answer to thequestionusing only those\nsnippets."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "File Inclusion",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "reasoning",
+        "planning",
+        "in-context-learning",
+        "neural-network-reasoning",
+        "faithfulness",
+        "alignment",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "question",
+          62
+        ],
+        [
+          "prolog",
+          62
+        ],
+        [
+          "nesy-rag",
+          48
+        ],
+        [
+          "knowledge",
+          48
+        ],
+        [
+          "allowance",
+          37
+        ],
+        [
+          "information",
+          36
+        ],
+        [
+          "answer",
+          35
+        ],
+        [
+          "snippet",
+          33
+        ],
+        [
+          "rules",
+          32
+        ],
+        [
+          "reasoning",
+          31
+        ],
+        [
+          "questions",
+          30
+        ],
+        [
+          "query",
+          28
+        ]
+      ],
+      "read_s": 0.03
+    },
+    {
+      "arxiv_id": "10be6c7897e5f272",
+      "pdf_bytes": 71002,
+      "text_chars": 69751,
+      "takeaway": "BaKron: Efficient Quantization with Kronecker-Factored Hessians\nJohann Birnick\nDepartment of Mathematics\nUniversity of California San Diego\nLa Jolla, California, United States\njbirnick@ucsd.edu\nRayan Saab\nDepartment of Mathematics and HDSI\nUniversity of California San Diego\nLa Jolla, California, Uni",
+      "techniques": [
+        "recursive technique that finds a sweet spot for compute and memory requirements."
+      ],
+      "chain_steps": [
+        "or the last index, so that for example\nA:,j = Aj.",
+        "insight, as already observed by Kim et al.",
+        ",V1,1 is simply chosen asround(W1,1).",
+        "shown by Tseng\net al.",
+        "half of the problem, propagate the introduced errors to the second half, and then\nsolve the second half of the problem."
+      ],
+      "vuln_classes": [
+        "File Inclusion",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "mechanistic-interpretability",
+        "reasoning",
+        "planning",
+        "decomposition",
+        "mechanistic",
+        "activation-analysis",
+        "alignment",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "matrix",
+          68
+        ],
+        [
+          "hessian",
+          58
+        ],
+        [
+          "bakron",
+          47
+        ],
+        [
+          "entries",
+          44
+        ],
+        [
+          "hessians",
+          40
+        ],
+        [
+          "quantization",
+          32
+        ],
+        [
+          "total",
+          30
+        ],
+        [
+          "arxiv",
+          28
+        ],
+        [
+          "single",
+          26
+        ],
+        [
+          "steps",
+          25
+        ],
+        [
+          "calibration",
+          24
+        ],
+        [
+          "memory",
+          24
+        ]
+      ],
+      "read_s": 0.05
+    },
+    {
+      "arxiv_id": "33e86ac98586d0a8",
+      "pdf_bytes": 66312,
+      "text_chars": 65065,
+      "takeaway": "Konstantinov\nHigher School of Artificial Intelligence Technologies\nPeter the Great St.Petersburg Polytechnic University, St.Petersburg, Russia\nAbstract\nThis work presents a novel attention-based framework for estimating the Indi-\nvidual Probability of Treatment Benefit (IPTB) in survival analysis co",
+      "techniques": [
+        "the following approach to leverage these\npairs: we estimate soft class probabilities\u03d5 i,j for (i, j)\u2208 T\u2212 (Case 3) and\u03c1 i,j for (i, j)\u2208 C+\n(Case 4)."
+      ],
+      "chain_steps": [
+        "50 epochs followed by a\ngradual stabilization, with shaded areas indicating variance or confidence intervals.",
+        "implemetation, Surv-IPTB, supposes that\n\u03c0(r,s), (r, s)\u2208 T\u2212 \u222a C+, is trained in accordance with the given loss functions jointly with\nparameters of the attentionW Q andW K.",
+        "we can write\np+(z,x) =\nX\n(i,j)\u2208R+\na(z,x,z i,x j)\u00b71\n+\nX\n(l,k)\u2208T +\na(z,x,z l,x k)\u00b71\n+\nX\n(v,w)\u2208T \u2212\na(z,x,z v,x w)\u00b7[0,1]\n+\nX\n(r,s)\u2208C+\na(z,x,z r,x s)\u00b7[0,1].",
+        "the probabilityp +(z,x)\ncan be rewritten as follows:\np+(z,x) =\nX\n(i,j)\u2208R+\u222aT +\na(z,x,z i,x j)\n+\nX\n(r,s)\u2208T \u2212\u222aC+\na(z,x,z r,x s)\u00b7\u03c0 (r,s),(20)\nwhere P\n(r,s)\u2208G a(z,x,z r,x s) = 1.",
+        "a(z,x,z i,x j) =\nexp\n\u0010\n1\u221a\n2d q\u22a4kij\n\u0011\nP\n(s,r)\u2208G exp\n\u0010\n1\u221a\n2d q\u22a4ksr\n\u0011 ."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "File Inclusion",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "mechanistic-interpretability",
+        "reasoning",
+        "planning",
+        "in-context-learning",
+        "self-consistency",
+        "mechanistic",
+        "alignment",
+        "generalization",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "treatment",
+          142
+        ],
+        [
+          "survival",
+          70
+        ],
+        [
+          "censoring",
+          58
+        ],
+        [
+          "effect",
+          48
+        ],
+        [
+          "surv-iptb",
+          47
+        ],
+        [
+          "values",
+          43
+        ],
+        [
+          "models",
+          42
+        ],
+        [
+          "probability",
+          38
+        ],
+        [
+          "control",
+          30
+        ],
+        [
+          "dataset",
+          30
+        ],
+        [
+          "censored",
+          28
+        ],
+        [
+          "analysis",
+          25
+        ]
+      ],
+      "read_s": 0.05
+    },
+    {
+      "arxiv_id": "2263d275e31e91bf",
+      "pdf_bytes": 149194,
+      "text_chars": 139310,
+      "takeaway": "We introduce the Subgradient Tamed Unadjusted Langevin\nAlgorithm (SG-TULA), a discretisation of the Langevin diffusion that operates directly on subgradients, without\nrelying on computationally demanding smoothing procedures.",
+      "techniques": [
+        "the Subgradient Tamed Unadjusted Langevin\nAlgorithm (SG-TULA), a discretisation of the Langevin diffusion that operates directly on subgradients, without\nrelying on computationally demanding smoothing procedures.",
+        "the Perturbed Langevin Monte Carlo (P-LMC) algorithm, which addresses the non-\nsmoothness ofuby injecting noise into the argument of the gradient."
+      ],
+      "chain_steps": [
+        "and subgradients for the second, and each has been analyzed in isolation.",
+        ", developed in Dareiotis and Gerencs \u00b4er [2020], Dareiotis et\nal.",
+        "established by Dalalyan\n[2017] and Durmus and Moulines [2017], with refined bounds later provided in Durmus and Moulines [2019].",
+        "studied in Brosse et al.",
+        "setting and the highest CORE under its second, the two differing in\nwarmup, in weight decay and in the final learning rate fraction."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "mechanistic-interpretability",
+        "planning",
+        "in-context-learning",
+        "decomposition",
+        "mechanistic",
+        "activation-analysis",
+        "emergent-abilities",
+        "alignment",
+        "generalization",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "proof",
+          109
+        ],
+        [
+          "lemma",
+          106
+        ],
+        [
+          "langevin",
+          75
+        ],
+        [
+          "under",
+          65
+        ],
+        [
+          "convex",
+          55
+        ],
+        [
+          "remark",
+          49
+        ],
+        [
+          "assumptions",
+          48
+        ],
+        [
+          "inequality",
+          46
+        ],
+        [
+          "gradient",
+          45
+        ],
+        [
+          "since",
+          42
+        ],
+        [
+          "theorem",
+          42
+        ],
+        [
+          "constant",
+          42
+        ]
+      ],
+      "read_s": 0.11
+    },
+    {
+      "arxiv_id": "15ed121ce458b13a",
+      "pdf_bytes": 79492,
+      "text_chars": 77929,
+      "takeaway": "We introduce a reinforcement learning framework for stochastic\ndynamics on PD space, where diagrams evolve through topology aware local edit operations.",
+      "techniques": [
+        "reinforcement learning framework for stochastic\ndynamics on PD space, where diagrams evolve through topology aware local edit operations."
+      ],
+      "chain_steps": [
+        "consider a controlled synthetic experiment designed to test whether policy ontrolled PD dynamics\ncan recover a low probability topological event.",
+        "15 edited states were treated as burn-in and excluded, and the remainingT= 40 states were\nreindexed asD 1, .",
+        "term measures the topological distortion introduced by the deletions, while the second term rewards\nreduction in diagram cardinality.",
+        "panel compares the strict upper-triangular\nentries of the original and compressed pairwise persistence-diagram Wasserstein distance matrices for the\ncomplete cohort.",
+        "adding\na point and then deleting that point."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "Cloud Security",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "mechanistic-interpretability",
+        "planning",
+        "self-consistency",
+        "mechanistic",
+        "alignment",
+        "robustness",
+        "efficiency"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "policy",
+          108
+        ],
+        [
+          "persistence",
+          82
+        ],
+        [
+          "diagram",
+          74
+        ],
+        [
+          "probability",
+          54
+        ],
+        [
+          "space",
+          50
+        ],
+        [
+          "learning",
+          49
+        ],
+        [
+          "topological",
+          43
+        ],
+        [
+          "diagrams",
+          40
+        ],
+        [
+          "objective",
+          37
+        ],
+        [
+          "distribution",
+          36
+        ],
+        [
+          "points",
+          36
+        ],
+        [
+          "point",
+          32
+        ]
+      ],
+      "read_s": 0.06
+    },
+    {
+      "arxiv_id": "d351ab3d08a416d2",
+      "pdf_bytes": 87298,
+      "text_chars": 86119,
+      "takeaway": "The Illusion of Visual Tool-Use: A Causal Audit of Thinking with Images\nZhiheng Wang1,2, Bo Peng1,2,3, Lai Wei2, Chaochao Lu1*\n1Shanghai Artificial Intelligence Laboratory\n2Shanghai Jiao Tong University\n3Shanghai Innovation Institute\n{wangzhiheng,pengbo,luchaochao}@pjlab.org.cn\nAbstract\nThe \u201cthinkin",
+      "techniques": [],
+      "chain_steps": [
+        "-call probability gap g0 (+\u221e if n=\n0); the peak per-call VEG V max = maxi VEGi;\nHitMax\u2208 {0,1} (whether the tool-call limit is\nhit); and POER\u2208 {0,1} (Eq.",
+        ", we extract the final answer from the last\n<answer>.",
+        "-of-turnconvention: when a turn emits\nmultiple parallel tool calls, only the first call is\ncounted and k is indexed by turn.",
+        "turn), so all k\u22652 cells are empty\nby construction; correspondingly, POER (Eq.",
+        "ex-\nplicit answer expression in the pre-call <think>\nblock (e."
+      ],
+      "vuln_classes": [
+        "RCE",
+        "SSO/OAuth"
+      ],
+      "themes": [
+        "chain-of-thought",
+        "mechanistic-interpretability",
+        "reasoning",
+        "planning",
+        "in-context-learning",
+        "decomposition",
+        "neural-network-reasoning",
+        "mechanistic",
+        "activation-analysis",
+        "faithfulness",
+        "alignment",
+        "robustness"
+      ],
+      "cves": [],
+      "top_terms": [
+        [
+          "visual",
+          70
+        ],
+        [
+          "answer",
+          68
+        ],
+        [
+          "calls",
+          58
+        ],
+        [
+          "mini-o",
+          56
+        ],
+        [
+          "policy",
+          48
+        ],
+        [
+          "tool-use",
+          47
+        ],
+        [
+          "deepeyes",
+          42
+        ],
+        [
+          "evidence",
+          38
+        ],
+        [
+          "intervention",
+          37
+        ],
+        [
+          "trajectories",
+          34
+        ],
+        [
+          "models",
+          33
+        ],
+        [
+          "causal",
+          32
+        ]
+      ],
+      "read_s": 0.07
+    }
+  ],
+  "duration_s": 1.59,
+  "telemetry_file": "/home/yaser/raphael-2.0-rbsv2r/evaluations/campaign/student_neural_read_session_20260808T193454Z.jsonl"
+}

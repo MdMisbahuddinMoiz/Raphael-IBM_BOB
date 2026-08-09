@@ -1,0 +1,16 @@
+TERMINAL D3 RECOMPUTATION DIFF
+==============================================
+date_utc:           2026-08-08T07:11:19Z
+analysis script    : scripts/terminal_analysis.py (frozen, loaded verbatim)
+input jsonl        : evaluations/campaign/rbs_v4_holdout.jsonl (1200 rows)
+reference artifact : TERMINAL_ANALYSIS_RESULTS_pre_D3_reference.json
+recomputed artifact: TERMINAL_ANALYSIS_RESULTS_RECOMPUTED.json
+
+comparison key     : full JSON payload EXCEPT generated_at_utc (volatile timestamp)
+result             : IDENTICAL (byte-for-byte, minus timestamp)
+
+sha256(TERMINAL_ANALYSIS_RESULTS_pre_D3_reference.json) = 29af5028da4c630d11da08bdbbef2bb37cdeae9afc4e4140b38a5b595ed7ad41
+sha256(TERMINAL_ANALYSIS_RESULTS_RECOMPUTED.json) = f0bfccdbffa3fd3143e65614916bd2a2b7bac4185873058bfb72e4fd8899f7da
+
+NOTE: full-file sha256 differs only due to generated_at_utc; the
+stripped JSON above is verified byte-identical by comparison.

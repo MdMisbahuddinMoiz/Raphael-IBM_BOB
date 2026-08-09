@@ -8,7 +8,12 @@ Design invariants:
   - INVOKED trace is recorded before the provider call.
   - PRODUCED trace is recorded only for SemanticInferenceSuccess.
   - Failures produce SemanticInferenceFailure but never count as PRODUCED.
-  - No retries, no fallback, no provider switching.
+  - Transport: REPAIR-VAL-01 dual-key NVIDIA failover with bounded retry
+    (AMENDMENT-MODEL-550B-2026-08-09). call_llm_provider routes through
+    llm_transport.call_chat_completion (byte-identical payload retries,
+    KEY_A -> KEY_B failover, backoff base 1s cap 8s, 2 attempts/key/cycle,
+    2 cycles). NEVER retried: 2xx (semantic failures downstream), 4xx/3xx
+    client errors, cognitive failures.
 """
 
 import json
@@ -19,6 +24,7 @@ from typing import Optional
 import requests
 
 from arena.ablation import ComponentTrace
+from arena.llm_transport import call_chat_completion, TransportOutcome
 from arena.semantic_inference import (
     ENVELOPE_VERSION,
     ENVELOPE_SYSTEM_PROMPT,
@@ -44,16 +50,22 @@ class RawResponse:
     After parsing, only the typed SemanticInferenceResult enters cognition.
     """
 
-    def __init__(self, status_code: int, response_text: str, elapsed: float):
+    def __init__(self, status_code: int, response_text: str, elapsed: float,
+                 input_tokens: Optional[int] = None,
+                 output_tokens: Optional[int] = None):
         self.status_code = status_code
         self.response_text = response_text
         self.elapsed = elapsed
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.total_tokens: Optional[int] = None
+        self.transport_telemetry: Optional[dict] = None
         self._parsed_json: Optional[dict] = None
         self._parse_error: Optional[str] = None
         self._parse()
 
     def _parse(self) -> None:
-        """Attempt to parse response_text as JSON."""
+        """Attempt to parse response_text as JSON + extract usage tokens."""
         if not self.response_text or not self.response_text.strip():
             self._parse_error = "empty response"
             return
@@ -61,6 +73,23 @@ class RawResponse:
             self._parsed_json = json.loads(self.response_text)
         except json.JSONDecodeError as e:
             self._parse_error = f"JSON parse error: {e}"
+            return
+        # Usage extraction: present -> real counts (0 is genuine zero);
+        # absent -> None (never conflated with zero-token success).
+        if isinstance(self._parsed_json, dict):
+            usage = self._parsed_json.get("usage")
+            if isinstance(usage, dict):
+                pt = usage.get("prompt_tokens")
+                ct = usage.get("completion_tokens")
+                tt = usage.get("total_tokens")
+                if pt is not None:
+                    self.input_tokens = pt
+                if ct is not None:
+                    self.output_tokens = ct
+                if tt is None and pt is not None and ct is not None:
+                    tt = pt + ct
+                if tt is not None:
+                    self.total_tokens = tt
 
     @property
     def is_valid_json(self) -> bool:
@@ -185,54 +214,58 @@ def call_llm_provider(
         "temperature": config.temperature,
     }
 
+    # REPAIR-VAL-01 transport seam (AMENDMENT-MODEL-550B-2026-08-09):
+    # serialized payload bytes reused verbatim across every attempt;
+    # KEY_A -> KEY_B failover; retry only on mechanical classes
+    # (rate_limit/server_error/timeout/connection); backoff base 1s cap 8s;
+    # 2 attempts/key/cycle, 2 cycles. Credentials env-resolved, never logged.
     try:
         start = time.time()
-        resp = requests.post(
-            url,
-            headers=headers,
-            json=payload,
-            timeout=config.timeout_seconds,
+        outcome: TransportOutcome = call_chat_completion(
+            url=url,
+            payload=payload,
+            headers_template=headers,
+            timeout_seconds=config.timeout_seconds,
+            config_api_key=config.api_key or "",
         )
         elapsed = time.time() - start
 
         raw = RawResponse(
-            status_code=resp.status_code,
-            response_text=resp.text,
-            elapsed=elapsed,
+            status_code=outcome.status_code,
+            response_text=outcome.response_text,
+            elapsed=outcome.elapsed,
         )
+        # Attach transport telemetry for LLMService accumulation.
+        raw.transport_telemetry = outcome.to_telemetry_dict()
 
-        if resp.status_code != 200:
+        if not outcome.success:
             error_detail = (
-                f"HTTP {resp.status_code}: {resp.text[:200]}"
+                f"HTTP {outcome.status_code}: {outcome.response_text[:200]}"
+                if outcome.status_code else
+                (outcome.error or "provider call failed")
             )
             return raw, error_detail
 
         return raw, None
 
-    except requests.exceptions.Timeout:
+    except Exception as e:  # transport-level / unexpected
         elapsed = config.timeout_seconds
         raw = RawResponse(
             status_code=0,
             response_text="",
             elapsed=elapsed,
         )
-        return raw, f"timeout after {elapsed}s"
-
-    except requests.exceptions.ConnectionError as e:
-        raw = RawResponse(
-            status_code=0,
-            response_text="",
-            elapsed=0.0,
-        )
-        return raw, f"connection error: {e}"
-
-    except requests.exceptions.RequestException as e:
-        raw = RawResponse(
-            status_code=0,
-            response_text="",
-            elapsed=0.0,
-        )
-        return raw, f"request failed: {e}"
+        raw.transport_telemetry = {
+            "logical_llm_calls": 1,
+            "provider_attempts": 1,
+            "provider_failures": 1,
+            "failover_count": 0,
+            "retries_by_key_alias": {},
+            "final_key_alias": None,
+            "failure_class": "connection",
+            "final_provider_status": 0,
+        }
+        return raw, f"transport failure: {e}"
 
 
 # ── Response Processing ────────────────────────────────────────────────
@@ -351,10 +384,26 @@ class LLMService:
         config: Optional[LLMProviderConfig] = None,
         tracer: Optional['TraceCollector'] = None,
         diagnostic_log: Optional[DiagnosticEpisodeLog] = None,
+        system_prompt: str = None,
     ):
         self.config = config or LLMProviderConfig()
         self.tracer = tracer
         self.diagnostic_log = diagnostic_log or DiagnosticEpisodeLog()
+        self.system_prompt = system_prompt
+        # Telemetry counters (for RunMetrics integration)
+        self.call_count: int = 0
+        self.provider_failures: int = 0
+        self.logical_llm_calls: int = 0
+        self.input_tokens: int = 0
+        self.output_tokens: int = 0
+        self.envelope_failures: int = 0
+        # Transport telemetry (REPAIR-VAL-01 / AMENDMENT-MODEL-550B-2026-08-09)
+        self.provider_attempts: int = 0
+        self.failover_count: int = 0
+        self.retries_by_key_alias: dict = {}
+        self.final_key_alias: Optional[str] = None
+        self.failure_class: Optional[str] = None
+        self.final_provider_status: int = 0
 
     def run_inference(
         self,
@@ -372,10 +421,14 @@ class LLMService:
         Returns:
             SemanticInferenceSuccess or SemanticInferenceFailure.
         """
+        # Increment logical call counter
+        self.logical_llm_calls += 1
+        
         # ── Stage 1: Build envelope ──
         try:
-            messages = build_envelope(observation_text)
+            messages = build_envelope(observation_text, system_prompt=self.system_prompt)
         except ValueError as e:
+            self.envelope_failures += 1
             result = SemanticInferenceFailure(
                 attempt_id=f"si_fail_{hash(observation_text) & 0xFFFFFFFF:08x}",
                 source_evidence_ids=source_evidence_ids,
@@ -393,7 +446,31 @@ class LLMService:
         self._trace_invoked(source_evidence_ids, run_id)
 
         # ── Stage 3: Call provider ──
+        self.call_count += 1
         raw_response, error = call_llm_provider(messages, self.config)
+
+        # ── Stage 3b: Accumulate transport telemetry (REPAIR-VAL-01) ──
+        telem = getattr(raw_response, "transport_telemetry", None)
+        if isinstance(telem, dict):
+            self.provider_attempts += int(telem.get("provider_attempts", 0) or 0)
+            self.failover_count += int(telem.get("failover_count", 0) or 0)
+            rk = telem.get("retries_by_key_alias") or {}
+            for alias, n in rk.items():
+                self.retries_by_key_alias[alias] = self.retries_by_key_alias.get(alias, 0) + int(n or 0)
+            if telem.get("final_key_alias") is not None:
+                self.final_key_alias = telem["final_key_alias"]
+            self.failure_class = telem.get("failure_class")
+            self.final_provider_status = int(telem.get("final_provider_status", 0) or 0)
+            if not telem.get("logical_llm_calls"):
+                self.logical_llm_calls += 1
+        else:
+            # No transport telemetry (mock mode / legacy callers): the
+            # envelope path already counted logical calls above.
+            pass
+        if raw_response.input_tokens is not None:
+            self.input_tokens += int(raw_response.input_tokens or 0)
+        if raw_response.output_tokens is not None:
+            self.output_tokens += int(raw_response.output_tokens or 0)
 
         # ── Stage 4: Process response ──
         result = process_llm_response(
@@ -403,6 +480,15 @@ class LLMService:
             provider=self.config.provider,
             raw_response_text=raw_response.response_text,
         )
+
+        # Track provider failures: only INFRA-class final outcomes count
+        # (FREEZE-02 taxonomy). Envelope failures are counted separately.
+        # Mock mode (empty api_base) returns status 200 + an informational
+        # error string — a 2xx is NEVER a provider failure.
+        if telem is not None:
+            self.provider_failures += int(telem.get("provider_failures", 0) or 0)
+        elif error and raw_response.status_code != 200:
+            self.provider_failures += 1
 
         # ── Stage 5: Record diagnostic ──
         self._record_diagnostic(result, raw_response)
@@ -470,5 +556,8 @@ class LLMService:
             response_hash=str(hash(raw_response.response_text) & 0xFFFFFFFF),
             envelope_version=ENVELOPE_VERSION,
             result_type=result_type,
+            input_tokens=raw_response.input_tokens,
+            output_tokens=raw_response.output_tokens,
+            total_tokens=raw_response.total_tokens,
         )
         self.diagnostic_log.record(record)

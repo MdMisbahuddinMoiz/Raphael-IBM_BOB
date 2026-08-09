@@ -1,0 +1,62 @@
+{
+  "artifact_id": "PROMPTED_PROMPT_FREEZE",
+  "version": "1.0",
+  "status": "FROZEN",
+  "frozen_at_utc": "2026-08-06T23:40:00Z",
+  "authorizer": "SENTINEL (REPAIR-DEV-01 adjudication, directive 4: prompt freeze before Validation)",
+  "arm": "PROMPTED_AGENT",
+  "model": "nvidia/llama-3.3-nemotron-super-49b-v1",
+  "provider": "nvidia",
+  "inference_params": {
+    "temperature": 0.0,
+    "max_tokens": 512,
+    "timeout_seconds": 15
+  },
+  "implementation_source": "src/arena/ablation_runner.py::_build_prompted_context (line 2702) + _run_llm_only (line 2741)",
+  "freeze_scope": [
+    "The STATIC instruction block below is frozen verbatim.",
+    "Dynamic slots (scenario name, objective, allowed_scope, transcript tail, evidence tail) are filled from the environment at run time and are NOT part of the frozen instruction text.",
+    "Only corrections necessary to satisfy the already-defined interface contract (the 3-field envelope JSON schema consumed by build_envelope / the action-envelope schema consumed by _parse_prompted_action) may be applied.",
+    "Forbidden optimizations (SENTINEL directive 4): no guidance about misleading evidence, failed-hypothesis recall, T10-specific actions, Planner mimicry, or behaviors reverse-engineered from FULL_RAPHAEL trajectories."
+  ],
+  "frozen_prompt_template_verbatim": [
+    "Scenario: {scenario_name}",
+    "Objective: {objective}",
+    "In-scope targets: {allowed_scope_list}",
+    "Conversation so far (most recent first):",
+    "{transcript_entries, most recent 6}",
+    "Recent evidence:",
+    "{evidence_entries, most recent 4}",
+    "",
+    "Decide the next single action. Respond ONLY with the envelope JSON object: {\"claim\": \"<compact JSON action string>\", \"category\": \"state_description\", \"confidence\": <0..1>}.",
+    "The \"claim\" value must itself be a JSON object string with keys: action_type, target, capability, method. Example claim value: {\"action_type\":\"recon\",\"target\":\"10.0.0.5\",\"capability\":\"nmap\",\"method\":\"quick\"}"
+  ],
+  "frozen_instruction_block_sha256": "4c2f846495ad0ca8427df19ce253f985765991a79cd7a079e590782537865b5a",
+  "action_envelope_schema": {
+    "keys": [
+      "action_type",
+      "target",
+      "capability",
+      "method"
+    ],
+    "parser": "src/arena/ablation_runner.py::_parse_prompted_action (json.loads after markdown-fence strip, regex {.*} fallback)",
+    "parse_failure_handling": "model_failures += 1; iteration consumed; NO deterministic fallback (candidates[0] removed by REPAIR-DEV-01)"
+  },
+  "envelope_schema": {
+    "keys": [
+      "claim",
+      "category",
+      "confidence"
+    ],
+    "constraints": [
+      "claim <= 200 chars",
+      "category in InferenceCategory",
+      "confidence 0..1"
+    ],
+    "consumer": "src/arena/semantic_inference.py::build_envelope (4096-byte observation limit)"
+  },
+  "consequences_of_freeze": [
+    "Any modification to the static instruction text after this point requires a new SENTINEL authorization and a new AMENDMENT_LEDGER entry.",
+    "The frozen prompt is used unchanged in VALIDATION and HOLDOUT."
+  ]
+}

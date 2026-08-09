@@ -37,6 +37,8 @@ class RawObservation:
     observed_at: float = 0.0
     target: str = ""              # What was observed (IP, hostname, URL)
     observation_type: str = ""    # "port_scan", "service_detection", "http_response", etc.
+    is_tool_failure: bool = False
+    trust_level: str = "MEDIUM"
 
 
 # ── Observation Normalizer ────────────────────────────────────

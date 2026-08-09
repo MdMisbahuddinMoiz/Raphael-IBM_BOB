@@ -1,0 +1,56 @@
+{
+  "experiment": "TERMINAL_FALSIFICATION",
+  "status": "AMENDED_AUTHORIZED (see amendment_ledger)",
+  "campaign": "rbs-v4-holdout",
+  "supersedes": {
+    "treatment_identity_source": "docs/MULTI_API_KEY_ROTATION_DESIGN.md (lines 36, 102) + src/arena/ablation_runner.py default LLM config",
+    "original_model_id": "deepseek-ai/deepseek-v4-flash",
+    "original_provider": "nvidia"
+  },
+  "amended_treatment_identity": {
+    "provider": "nvidia",
+    "model_id": "nvidia/llama-3.3-nemotron-super-49b-v1",
+    "api_base": "https://integrate.api.nvidia.com/v1",
+    "temperature": 0.0,
+    "max_tokens": 512,
+    "timeout_seconds": 15
+  },
+  "action_definition": {
+    "one_action": "exactly one request dispatched to CapabilityBroker for authorization",
+    "authorized_request": "counts as 1 action",
+    "denied_request": "counts as 1 action",
+    "not_counted": [
+      "generation",
+      "planning",
+      "LLM reasoning",
+      "post-authorization execution"
+    ]
+  },
+  "budget": {
+    "ACTION_CAP": 5,
+    "ITERATION_BUDGET": 5,
+    "denied_requests_consume_action_budget": true,
+    "semantics": "a denied request consumes the iteration budget (no same-iteration retry); actions_dispatched counts EVERY broker dispatch (allow + deny)"
+  },
+  "arms": [
+    "FULL_RAPHAEL",
+    "PROMPTED_AGENT",
+    "SCRIPTED_BASELINE",
+    "NO_WORLD_MODEL"
+  ],
+  "sealed_constants_source": {
+    "file": "src/arena/d6_manifest.py",
+    "ITERATION_BUDGET": 5
+  },
+  "amendment_record": {
+    "id": "AMENDMENT-A-2026-08-06",
+    "authorizer": "SENTINEL (authorized amendment)",
+    "reason": "Terminal falsification treatment identity updated to nvidia/llama-3.3-nemotron-super-49b-v1 per authorized amendment A; the runner default LLM config must NOT retain model_id=deepseek-ai/deepseek-v4-flash",
+    "applied_at_utc": "2026-08-06T21:05:51Z",
+    "evidence": [
+      "tests/test_gate_b_action_accounting.py::test_model_identical_full_vs_prompted",
+      "evaluations/campaign/AMENDMENT_LEDGER.json"
+    ]
+  },
+  "immutability": "This record is append-only. Any further change requires a new ledger entry; this file itself is not rewritten."
+}

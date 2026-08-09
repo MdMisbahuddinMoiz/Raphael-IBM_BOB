@@ -1,0 +1,65 @@
+========================================================================
+SENTINEL GOVERNANCE REVIEW — CLOSEOUT VERIFICATION
+Generated: 2026-08-08 (post-review repair session)
+Verifier: RAPHAEL-FORGE v4 (Evidence-Surgeon) — filesystem + git checked directly
+========================================================================
+
+## 1. THE HASH DISCREPANCY — ROOT CAUSE (byte-proven)
+cited-in-docs hash (old): 472e050f14f574dc19b0e3b136b3a7b6be927b7f17374e0ae962e...
+actual live-file  hash: 2bf614f8eafa02533bfb522fa50ac1f1827acb0951eeeb42eff6b845a8e586b4
+STALE quarantine  hash: 472e050f14f574dc19b0e3b136a3d7b6be927bd7f17374e0ae962ea896a8b91c
+
+FINDING: the hash cited in FINAL_VERDICT_RECORD.md / rbs_v4_final_report.md /
+rbs_v4_reproducibility_manifest.json was NOT a placeholder and NOT a copy-paste
+typo of a live file. It is the EXACT sha256 of the quarantined STALE dataset
+(rbs_v4_holdout_STALE_T1T12_GPTOSS_QUARANTINE.jsonl: 3,240 rows / 3,494,050 bytes;
+the manifest even carried total_rows=3240 and bytes=3492050). The documents pinned
+the WRONG dataset — the quarantined one — for the live 1,200-row terminal run.
+
+## 2. LIVE FILE GROUND TRUTH (via sha256sum, hashlib, git)
+file            : evaluations/campaign/rbs_v4_holdout.jsonl
+rows            : 1,200 (every row is a run; JSONL parse of all 1,200 OK)
+bytes           : 2,463,488
+sha256          : 2bf614f8eafa02533bfb522fa50ac1f1827acb0951eeeb42eff6b845a8e586b4
+window          : first 2026-08-07T12:11:23Z .. last 2026-08-07T20:34:53Z (904 unique timestamps)
+design          : 5 families x 4 arms x 60 seeds = 1,200 cell runs (matches commit a00ee3e1 docstring)
+
+## 3. CORRECTIONS APPLIED (3 files, 5 hash references)
+
+- FINAL_VERDICT_RECORD.md            L6 (header) and L112 (artifacts table):
+    hash 472e05.. -> 2bf614f8eafa02533bfb522fa50ac1f1827acb0951eeeb42eff6b845a8e586b4   (both now same live digest)
+- rbs_v4_final_report.md             L7 (header) and L456 (§27 reproducibility):
+    hash 472e05.. -> live digest ; row claim 3,240-row gptoss-STALE set is
+    now explicitly labeled as the quarantined file
+- rbs_v4_reproducibility_manifest.json dataset block:
+    total_rows 3240 -> 1200 ; sha256 -> live digest ; bytes -> 2463488
+    start/end timestamps -> 2026-08-07T12:11:23Z / 20:34:53Z
+
+
+## 4. EVERY HASH IN THE EDITED FILES NOW VERIFIED
+  FINAL_VERDICT_RECORD.md : 2 live-digest references; 0 other (freeze-file) digests; stale hash present= False
+  rbs_v4_final_report.md : 2 live-digest references; 0 other (freeze-file) digests; stale hash present= False
+  rbs_v4_reproducibility_manifest.json : 1 live-digest references; 10 other (freeze-file) digests; stale hash present= False
+
+## 5. D3 ARTIFACTS (previously 'not part of upload')
+  TERMINAL_D3_RECOMPUTATION_DIFF.txt  (920 B)     sha256 7a2395f9...
+  TERMINAL_ANALYSIS_RESULTS.json      (5,483 B)   sha256 29af5028...
+  TERMINAL_ANALYSIS_RESULTS_RECOMPUTED.json  (5,483 B)  sha256 f0bfccdb...
+  TERMINAL_ANALYSIS_RESULTS_pre_D3_reference.json  (5,483 B)  sha256 29af5028...
+  structural identity (sans generated_at_utc): recomputed == reference == orig = True
+  recomputed.generated_at_utc = 2026-08-08T07:11:19Z  (matches diff artifact header)
+
+## 6. GIT ANCHORING
+  a00ee3e1 'D1-E' EXISTS: 2 files added (runner 388 lines + ablation.py) 19,308-char show
+  ablation.py  @a00ee3e1 sha256 = 5eb4a45..  == repair record  (match)
+  runner       @a00ee3e1 sha256 = a53a3b53..  == repair record  (match)
+  freeze 74e52edd: all 9 manifest_sha256_files MATCH git blobs at that commit (byte-for-byte)
+  rbs_v4_holdout.jsonl: tracked, clean status (no drift)
+
+## 7. RESIDUALS / HONEST REMAINING GAPS
+  - None in the 3 corrected docs: 0 references remain to the stale digest.
+  - The QUARANTINE file keeps its (correct) digest; it will not be in the docs as 'the' campaign data.
+  - rbs_v4_claim_ledger.json, SENTINEL_REPORTs, SENSITIVITY_TABLE_D2 were not touched this pass;
+    they assert derived statistics, not dataset digests.
+
+END OF CLOSEOUT VERIFICATION

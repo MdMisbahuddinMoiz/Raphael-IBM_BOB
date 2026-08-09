@@ -3,8 +3,15 @@
 import sys, json, os
 from pathlib import Path
 _REPO_ROOT = str(Path(__file__).resolve().parent.parent)
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
+_SCRIPTS = str(Path(__file__).resolve().parent)
+_SRC = _REPO_ROOT + "/src"
+# Path juggling — scripts/arena.py shadows src/arena/ (same fix as run_experiment0.py)
+for p in (_SCRIPTS, _SRC, _REPO_ROOT):
+    while p in sys.path:
+        sys.path.remove(p)
+sys.path.insert(0, _REPO_ROOT)
+sys.path.insert(0, _SCRIPTS)
+sys.path.insert(0, _SRC)
 
 from arena.ablation_runner import AblationRunner
 from arena.d6_manifest import D6_SCENARIO_FACTORIES, SCENARIO_TEMPLATES

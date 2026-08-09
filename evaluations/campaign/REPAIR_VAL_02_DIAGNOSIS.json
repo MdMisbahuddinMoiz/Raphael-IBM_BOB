@@ -1,0 +1,62 @@
+{
+  "amendment_id": "REPAIR-VAL-02",
+  "phase": "PHASE_1_DIAGNOSIS",
+  "protocol_status": "ACCEPTED",
+  "root_cause_status": "DIAGNOSED_BOUNDARY_ESTABLISHED",
+  "source_modification": "NONE",
+  "holdout": "BLOCKED",
+  "generated_at_utc": "2026-08-07T09:52:00Z",
+  "scope": "10 known-observable INFRA_INVALID matched comparisons; 20 raw failing cells (FULL_RAPHAEL s0-9, NO_WORLD_MODEL s0-9)",
+  "failure_boundary": {
+    "exception": "BrokenPipeError",
+    "message": "[Errno 32] Broken pipe",
+    "recorded_phase": "run",
+    "failing_frame": "src/arena/ablation_runner.py:1398 and :1405",
+    "failing_operation": "print('[D14-DEBUG] ...', file=_sys.stderr) -> sys.stderr.write(io.TextIOWrapper.write)",
+    "code_window": "after planner referenced_plan_decision trace (line 1370, ts=1786087996.6980536 for FULL s0) and before planner decision_relevant trace (line 1411) which NEVER fired; the only I/O in this window is the D14-DEBUG stderr print",
+    "run_state_at_failure": "iteration 0, actions_dispatched=0, actions_started=0, actions_succeeded=0, episodes.jsonl EMPTY (0 bytes) -> cell died before any tool dispatch",
+    "llm_transport_exonerated": "all 20 failing rows: provider_failures=0, model_failures=0, final_provider_status=200, provider_attempts=1, failover_count=0, failure_class=null, retries_by_key_alias={KEY_A:0,KEY_B:0}; single LLM semantic inference succeeded then planner ran deterministically"
+  },
+  "root_cause_class": "HARNESS_OUTPUT_PIPE_EPIPE",
+  "boundary": "PROCESS_STDERR_DEBUG_WRITE",
+  "tool_transport": "EXCLUDED",
+  "llm_transport": "EXCLUDED",
+  "subprocess_stdin": "EXCLUDED",
+  "duplicate_execution_risk": "NONE_OBSERVED",
+  "mechanical_classification": {
+    "boundary_localization_note": "Boundary localized by trace adjacency and source inspection to the D14 stderr debug-output write (ablation_runner.py lines 1394-1405 original numbering); NOT directly traceback-proven because the framework swallowed the original traceback (ablation_runner.py:727 records only str(e)).",
+    "decision": "HARNESS_OUTPUT_PIPE_EPIPE",
+    "rationale": "The failing operation is diagnostic output to the process's OWN stderr stream (io.TextIOWrapper.write) whose capture pipe read end was closed by the harness reader. Mechanism = write to dead pipe (EPIPE). This is Hypothesis-B-family (write-to-dead-pipe) on the OUTPUT side; there is no subprocess and no shell stdin involved.",
+    "hypothesis_A_excluded": "httpx/httpcore/urllib3/socket.send NOT in failing frame; arena execution chain contains NO network/socket library (verified imports of ablation_runner.py, runner.py, environment.py); LLM transport is the only network op and it SUCCEEDED (status 200) -> stale HTTP connection is impossible at this boundary",
+    "hypothesis_B_literal_excluded": "SENTINEL's literal B repair (spawn_shell on subprocess stdin) targets a kali-tools subprocess bridge. NO subprocess exists in this path (verified). The dead pipe is the process's OWN stderr output stream.",
+    "nonreproducibility": "Isolated reproduction (same cell, stderr read-end closed mid-run; truncating-reader harness reading 51200B then closing): returned CORRECT, 0 infra failures, 0 probe write failures. EPIPE only manifests under the full 200-cell harness capture process -> trigger specific to the full capture harness rather than ordinary Arena execution.",
+    "therefore": "REPAIR_TARGET_IDENTIFIED: the only shared execution boundary that may change is the arena planner debug-output path (ablation_runner.py D14-DEBUG stderr prints). Repair = make the two implicated D14 diagnostic writes EPIPE-tolerant (guard the sys.stderr write) so a closed harness capture pipe cannot abort a cell. NO automatic replay, NO duplicate execution, NO transport retry: the action never dispatched (actions_dispatched=0), so nothing to duplicate."
+  },
+  "per_cell_evidence": [
+    {"arm": "FULL_RAPHAEL", "seed": 0, "abs_seed": 1000, "trace_anchor": "ablation_runner.py:1398", "last_trace": "planner referenced_plan_decision", "ts": 1786087996.6980536, "decision_relevant_fired": false},
+    {"arm": "FULL_RAPHAEL", "seed": 1, "abs_seed": 1001, "trace_anchor": "ablation_runner.py:1398", "last_trace": "planner referenced_plan_decision", "decision_relevant_fired": false},
+    {"arm": "FULL_RAPHAEL", "seed": 2, "abs_seed": 1002, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "FULL_RAPHAEL", "seed": 3, "abs_seed": 1003, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "FULL_RAPHAEL", "seed": 4, "abs_seed": 1004, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "FULL_RAPHAEL", "seed": 5, "abs_seed": 1005, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "FULL_RAPHAEL", "seed": 6, "abs_seed": 1006, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "FULL_RAPHAEL", "seed": 7, "abs_seed": 1007, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "FULL_RAPHAEL", "seed": 8, "abs_seed": 1008, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "FULL_RAPHAEL", "seed": 9, "abs_seed": 1009, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "NO_WORLD_MODEL", "seed": 0, "abs_seed": 1000, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "NO_WORLD_MODEL", "seed": 1, "abs_seed": 1001, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "NO_WORLD_MODEL", "seed": 2, "abs_seed": 1002, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "NO_WORLD_MODEL", "seed": 3, "abs_seed": 1003, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "NO_WORLD_MODEL", "seed": 4, "abs_seed": 1004, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "NO_WORLD_MODEL", "seed": 5, "abs_seed": 1005, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "NO_WORLD_MODEL", "seed": 6, "abs_seed": 1006, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "NO_WORLD_MODEL", "seed": 7, "abs_seed": 1007, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "NO_WORLD_MODEL", "seed": 8, "abs_seed": 1008, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false},
+    {"arm": "NO_WORLD_MODEL", "seed": 9, "abs_seed": 1009, "trace_anchor": "ablation_runner.py:1398", "decision_relevant_fired": false}
+  ],
+  "integrity_checks_required_after_repair": {
+    "unique_tool_call_ids": "unique(tool_call_id) == tool_execution_count for successfully dispatched executions",
+    "no_replay": "actions_dispatched=0 in all failing cells -> no action was dispatched, so the repair introduces NO replay risk; the transport never retries on this path",
+    "action_budget_semantics": "Gate B audit: iteration limit (not ACTION_BUDGET=20) is the binding constraint; this repair must not alter action accounting (only the debug output path may change)"
+  }
+}

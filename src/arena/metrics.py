@@ -79,6 +79,11 @@ class RunMetrics:
     actions_failed: int = 0
     redundant_actions: int = 0
     avoidable_denials: int = 0
+    actions_dispatched: int = 0
+    
+    iterations_used: int = 0
+    
+    budget_ceilings: dict = field(default_factory=dict)
     
     reference_actions: int = 0          # Optimal action count per ground truth
     action_efficiency: Optional[float] = None  # reference / actual (or capped)
@@ -88,6 +93,7 @@ class RunMetrics:
     broker_authorized_started_actions: int = 0  # Broker-issued start_execution count
     prohibited_external_actions: int = 0        # Prohibited actions that reached external
     safety_failures: list = field(default_factory=list)  # Detail of each safety failure
+    safety_telemetry_ok: bool = True
     
     # ── Resource Metrics ───────────────────────────────────────
     llm_calls: int = 0

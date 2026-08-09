@@ -1,0 +1,95 @@
+{
+  "campaign": "rbs-v4-holdout",
+  "instrument_tag": "v4-benchmark-frozen",
+  "dataset": {
+    "file": "evaluations/campaign/rbs_v4_holdout.jsonl",
+    "total_rows": 1200,
+    "sha256": "2bf614f8eafa02533bfb522fa50ac1f1827acb0951eeeb42eff6b845a8e586b4",
+    "bytes": 2463488,
+    "format": "JSONL append-only, one run per line",
+    "modification_policy": "UNCHANGED raw dataset; no rewrite/reorder/normalize/delete",
+    "start_timestamp": "2026-08-07T12:11:23Z",
+    "end_timestamp": "2026-08-07T20:34:53Z"
+  },
+  "frozen_instrument": {
+    "git_commit": "74e52eddff698919e5776d8b6cb1ee75dc3159f8",
+    "git_tag": "v4-benchmark-frozen",
+    "manifest_file": "evaluations/campaign/rbs_v4_benchmark_frozen-F.json",
+    "manifest_sha256_files": {
+      "src/arena/d6_manifest.py": "1059bb342c3b13e8c9dde613b0c44f3a94063ce15f324fb0b762de0f468fa984",
+      "src/arena/environment.py": "a12f7c42ea02e44a7dbe2c0b28f5c48f6d98a70706da893e024b11009917c694",
+      "src/arena/ablation_runner.py": "22a4617cbca1dbde6da00d247e5c4ade53346397b98f91e018866537d89ff3ea",
+      "src/orchestrator/brain/action.py": "e3e8cdba55d78a6a2509fd3fdd0593b710956582ce6d827e32d87867274d49de",
+      "src/orchestrator/student/stack_matcher.py": "de67061bf08c3bf047453cf3864469db5c2b73aa772f2cf8ce2fb35d222dd39e",
+      "src/orchestrator/brain/capability_broker.py": "0906db747ecbe9ea15ca2076c2059d5b270a19239b63cf1d16888450cf0f30d0",
+      "src/orchestrator/brain/candidate_generators/student_generator.py": "22282327d4ea9cf1a1c063980405b5f19c6517752c01d883fbdc58624c307b12",
+      "src/arena/ablation.py": "678c997aec7685f6df7cdd017dac997ceb656a88221a6e4c43e8f30244c6095c",
+      "src/arena/runner.py": "9f1bb10897f5ed614b356bb91d07024b40e3a753a24638b234b6642362a16e20"
+    },
+    "files_in_manifest": 9
+  },
+  "model_provider": {
+    "provider": "ollama (cloud) via localhost:11434/v1",
+    "model_id": "gpt-oss:20b-cloud",
+    "api_key": "ollama",
+    "temperature": 0.0,
+    "max_tokens": 16384,
+    "timeout_seconds": 180
+  },
+  "limits": {
+    "max_iterations_per_run": 5,
+    "max_candidates_per_generation": 15,
+    "action_budget_per_run": "5 iterations (loop bound)",
+    "student_boost": "+1.0",
+    "student_min_confidence": 0.2,
+    "student_max_candidates": 8
+  },
+  "design": {
+    "templates": 12,
+    "configs": 9,
+    "seeds_per_cell": 30,
+    "total_cells": 108,
+    "total_runs_expected": 3240,
+    "holdout_seed_range": "1072-1101 inclusive",
+    "excluded": [
+      "T8_DVWA_LIVE (live integration)"
+    ],
+    "unregistered_presets": [
+      "LLM_ONLY (not registered in HOLDOUT_CONFIGS)"
+    ]
+  },
+  "interruption_resume": [
+    {
+      "record": "evaluations/campaign/rbs_v4_holdout_interruption1.json",
+      "classification": "INFRASTRUCTURE_INTERRUPTION \u2014 RECOVERED",
+      "pre_interruption_rows": 579,
+      "resume_point": "NO_HYPOTHESIS T3_FALSIFICATION_SENSITIVE s1081",
+      "duplicates_created": 0,
+      "missing_cells": 0,
+      "config_changed": false
+    }
+  ],
+  "provider_events": [
+    {
+      "record": "evaluations/campaign/rbs_v4_holdout_provider_event1.json",
+      "classification": "INFRASTRUCTURE/PROVIDER EVENT \u2014 RECOVERED",
+      "affected_rows": 90,
+      "window_utc": "2026-08-05T16:32:36Z to 16:35:47Z",
+      "flag": "PROVIDER_EVENT: LLM_QUOTA_EXHAUSTED_FAST_FAIL",
+      "terminal_impact": "NONE (T6 is LLM-insensitive; affected cells all score 1.0)"
+    }
+  ],
+  "protocol_deviations": [
+    "Early holdout inspection at 550/3240 (documented)",
+    "One execution interruption (INFRASTRUCTURE_INTERRUPTION \u2014 RECOVERED)",
+    "One provider quota event (RECOVERED)"
+  ],
+  "verification": {
+    "integrity_gate": "evaluations/campaign/rbs_v4_holdout_integrity_gate.json",
+    "gate_result": "PASS",
+    "gate_script_sha256": "3b6e47489f118722d7899785fa805f021e93335b93c8101c934baa384329b014",
+    "gate_run_at_utc": "2026-08-05T23:23:13Z"
+  },
+  "test_suite_state": "127/127 passing (pre-campaign)",
+  "reproducibility_command": ".venv/bin/python scripts/run_rbs_v4_holdout.py 2>&1 | tee evaluations/campaign/rbs_v4_holdout_run3.log"
+}

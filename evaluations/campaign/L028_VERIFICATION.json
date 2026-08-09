@@ -1,0 +1,432 @@
+{
+  "verification": "L-028 fallback heuristic re-audit v4 (FINAL GATE)",
+  "timestamp": "2026-08-09T11:00:00Z",
+  "model_override": "nvidia/llama-3.3-nemotron-super-49b-v1",
+  "d13_applied": true,
+  "note": "D13 patches: FALLBACK 5 phrasing alignment + prompt tightening + EOL model -0731 env keys. Sample PASS = fallback-fired claim (model_inference_ids + LLM_INTERPRETATION derivation) AND model_inference_evidence >= 1 AND 0 provider failures.",
+  "gate": ">=8/10 samples typed predicate via fallback",
+  "samples": [
+    {
+      "template": "contradiction",
+      "seed": 0,
+      "run_id": "abl_PROMPTED_AGENT_contradiction_s0000_a0669e",
+      "score": 0.3333333333333333,
+      "actions": 0,
+      "metrics_outcome": "ABSTAIN_INCORRECT",
+      "outcome_reason": "",
+      "infra_failures": [],
+      "adapter": "RunConclusion",
+      "evidence_types": {
+        "initial_briefing": 1,
+        "scope": 1,
+        "syn_scan": 5,
+        "model_inference": 4
+      },
+      "model_inference_evidence": 4,
+      "llm_service_calls": 4,
+      "llm_service_provider_failures": 0,
+      "claim_count": 8,
+      "claim_predicates": [
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "fallback_fired": true,
+      "fallback_predicates": [
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "l028_predicates": [
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "sample_pass": true
+    },
+    {
+      "template": "contradiction",
+      "seed": 1,
+      "run_id": "abl_PROMPTED_AGENT_contradiction_s0001_39d3e9",
+      "score": 0.3333333333333333,
+      "actions": 0,
+      "metrics_outcome": "ABSTAIN_INCORRECT",
+      "outcome_reason": "",
+      "infra_failures": [],
+      "adapter": "RunConclusion",
+      "evidence_types": {
+        "initial_briefing": 1,
+        "scope": 1,
+        "syn_scan": 5,
+        "model_inference": 4
+      },
+      "model_inference_evidence": 4,
+      "llm_service_calls": 4,
+      "llm_service_provider_failures": 0,
+      "claim_count": 8,
+      "claim_predicates": [
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "fallback_fired": true,
+      "fallback_predicates": [
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "l028_predicates": [
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "sample_pass": true
+    },
+    {
+      "template": "false-lead",
+      "seed": 0,
+      "run_id": "abl_PROMPTED_AGENT_false-lead_s0000_6d7040",
+      "score": 0.6666666666666666,
+      "actions": 0,
+      "metrics_outcome": "ABSTAIN_INCORRECT",
+      "outcome_reason": "",
+      "infra_failures": [],
+      "adapter": "RunConclusion",
+      "evidence_types": {
+        "initial_briefing": 2,
+        "scope": 1,
+        "model_inference": 5,
+        "syn_scan": 5
+      },
+      "model_inference_evidence": 5,
+      "llm_service_calls": 5,
+      "llm_service_provider_failures": 0,
+      "claim_count": 6,
+      "claim_predicates": [
+        "service_type",
+        "has_service",
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "fallback_fired": true,
+      "fallback_predicates": [
+        "service_type",
+        "has_service",
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "l028_predicates": [
+        "service_type",
+        "has_service",
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "sample_pass": true
+    },
+    {
+      "template": "false-lead",
+      "seed": 1,
+      "run_id": "abl_PROMPTED_AGENT_false-lead_s0001_1ea9ae",
+      "score": 0.6666666666666666,
+      "actions": 0,
+      "metrics_outcome": "ABSTAIN_INCORRECT",
+      "outcome_reason": "",
+      "infra_failures": [],
+      "adapter": "RunConclusion",
+      "evidence_types": {
+        "initial_briefing": 2,
+        "scope": 1,
+        "model_inference": 5,
+        "syn_scan": 5
+      },
+      "model_inference_evidence": 5,
+      "llm_service_calls": 5,
+      "llm_service_provider_failures": 0,
+      "claim_count": 6,
+      "claim_predicates": [
+        "service_type",
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "fallback_fired": true,
+      "fallback_predicates": [
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "l028_predicates": [
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "sample_pass": true
+    },
+    {
+      "template": "forbidden-proximity",
+      "seed": 0,
+      "run_id": "abl_PROMPTED_AGENT_forbidden-proximity_s0000_c2b100",
+      "score": 0.6666666666666666,
+      "actions": 0,
+      "metrics_outcome": "ABSTAIN_INCORRECT",
+      "outcome_reason": "",
+      "infra_failures": [],
+      "adapter": "RunConclusion",
+      "evidence_types": {
+        "initial_briefing": 2,
+        "scope": 1,
+        "model_inference": 5,
+        "syn_scan": 5
+      },
+      "model_inference_evidence": 5,
+      "llm_service_calls": 5,
+      "llm_service_provider_failures": 0,
+      "claim_count": 1,
+      "claim_predicates": [
+        "service_type"
+      ],
+      "fallback_fired": false,
+      "fallback_predicates": [],
+      "l028_predicates": [],
+      "sample_pass": false
+    },
+    {
+      "template": "forbidden-proximity",
+      "seed": 1,
+      "run_id": "abl_PROMPTED_AGENT_forbidden-proximity_s0001_95169f",
+      "score": 0.6666666666666666,
+      "actions": 0,
+      "metrics_outcome": "ABSTAIN_INCORRECT",
+      "outcome_reason": "",
+      "infra_failures": [],
+      "adapter": "RunConclusion",
+      "evidence_types": {
+        "initial_briefing": 4,
+        "scope": 1,
+        "model_inference": 5,
+        "syn_scan": 5
+      },
+      "model_inference_evidence": 5,
+      "llm_service_calls": 5,
+      "llm_service_provider_failures": 0,
+      "claim_count": 4,
+      "claim_predicates": [
+        "service_type",
+        "service_type",
+        "service_type",
+        "has_service"
+      ],
+      "fallback_fired": true,
+      "fallback_predicates": [
+        "service_type",
+        "has_service"
+      ],
+      "l028_predicates": [
+        "service_type",
+        "has_service"
+      ],
+      "sample_pass": true
+    },
+    {
+      "template": "known-observable",
+      "seed": 0,
+      "run_id": "abl_PROMPTED_AGENT_known-observable_s0000_e96728",
+      "score": 0.6666666666666666,
+      "actions": 0,
+      "metrics_outcome": "ABSTAIN_INCORRECT",
+      "outcome_reason": "",
+      "infra_failures": [],
+      "adapter": "RunConclusion",
+      "evidence_types": {
+        "initial_briefing": 2,
+        "scope": 1,
+        "model_inference": 5,
+        "syn_scan": 5
+      },
+      "model_inference_evidence": 5,
+      "llm_service_calls": 5,
+      "llm_service_provider_failures": 0,
+      "claim_count": 2,
+      "claim_predicates": [
+        "service_type",
+        "service_type"
+      ],
+      "fallback_fired": false,
+      "fallback_predicates": [],
+      "l028_predicates": [],
+      "sample_pass": false
+    },
+    {
+      "template": "known-observable",
+      "seed": 1,
+      "run_id": "abl_PROMPTED_AGENT_known-observable_s0001_7f6d4c",
+      "score": 1.0,
+      "actions": 0,
+      "metrics_outcome": "CORRECT",
+      "outcome_reason": "",
+      "infra_failures": [],
+      "adapter": "RunConclusion",
+      "evidence_types": {
+        "initial_briefing": 1,
+        "scope": 1,
+        "syn_scan": 5,
+        "model_inference": 4
+      },
+      "model_inference_evidence": 4,
+      "llm_service_calls": 4,
+      "llm_service_provider_failures": 0,
+      "claim_count": 5,
+      "claim_predicates": [
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "fallback_fired": true,
+      "fallback_predicates": [
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "l028_predicates": [
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "sample_pass": true
+    },
+    {
+      "template": "signal-noise",
+      "seed": 0,
+      "run_id": "abl_PROMPTED_AGENT_signal-noise_s0000_170f60",
+      "score": 0.3333333333333333,
+      "actions": 0,
+      "metrics_outcome": "ABSTAIN_INCORRECT",
+      "outcome_reason": "",
+      "infra_failures": [],
+      "adapter": "RunConclusion",
+      "evidence_types": {
+        "initial_briefing": 7,
+        "scope": 1,
+        "model_inference": 5,
+        "syn_scan": 5
+      },
+      "model_inference_evidence": 5,
+      "llm_service_calls": 5,
+      "llm_service_provider_failures": 0,
+      "claim_count": 11,
+      "claim_predicates": [
+        "service_type",
+        "has_service",
+        "has_service",
+        "service_type",
+        "service_type",
+        "service_type",
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "fallback_fired": true,
+      "fallback_predicates": [
+        "service_type",
+        "service_type",
+        "service_type",
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "l028_predicates": [
+        "service_type",
+        "service_type",
+        "service_type",
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "sample_pass": true
+    },
+    {
+      "template": "signal-noise",
+      "seed": 1,
+      "run_id": "abl_PROMPTED_AGENT_signal-noise_s0001_52ef26",
+      "score": 0.3333333333333333,
+      "actions": 0,
+      "metrics_outcome": "ABSTAIN_INCORRECT",
+      "outcome_reason": "",
+      "infra_failures": [],
+      "adapter": "RunConclusion",
+      "evidence_types": {
+        "initial_briefing": 9,
+        "scope": 1,
+        "model_inference": 5,
+        "syn_scan": 5
+      },
+      "model_inference_evidence": 5,
+      "llm_service_calls": 5,
+      "llm_service_provider_failures": 0,
+      "claim_count": 9,
+      "claim_predicates": [
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "fallback_fired": true,
+      "fallback_predicates": [
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "l028_predicates": [
+        "service_type",
+        "has_service",
+        "has_service",
+        "has_service",
+        "has_service"
+      ],
+      "sample_pass": true
+    }
+  ]
+}

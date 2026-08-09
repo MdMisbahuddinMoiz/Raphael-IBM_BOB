@@ -1,0 +1,57 @@
+{
+  "phase": 7,
+  "campaign": "rbs-v2r",
+  "freeze_id": "rbs-v2r-freeze-C",
+  "completed_at": "2026-08-04T09:28:10.425432Z",
+  "gate_12_items": {
+    "1_canary_passed": {
+      "status": "PASS",
+      "detail": "Canary C2: 100% SemanticInferenceSuccess (N=20, 0 degraded, 0 unclear), exact Gemma parity"
+    },
+    "2_pilot_scale": {
+      "status": "PASS",
+      "detail": "250 episodes \u00d7 5 configs \u00d7 5 templates \u00d7 10 seeds"
+    },
+    "3_llm_availability": {
+      "status": "PASS",
+      "detail": "100/250 episodes LLM-available (40%); NO_LLM/NO_HYPOTHESIS/SCRIPTED_BASELINE correctly 0 invocations"
+    },
+    "4_llm_production_fidelity": {
+      "status": "PASS",
+      "detail": "500/500 = 100% in-campaign LLM production rate (provider reliability)"
+    },
+    "5_llm_decision_influence_rate": {
+      "status": "PASS",
+      "detail": "Trace-chain LLM_DECISION_INFLUENCE_RATE (FULL_RAPHAEL) = 1.000 \u2014 every consumed LLM inference preceded a plan decision"
+    },
+    "6_student_contribution": {
+      "status": "OBSERVED",
+      "detail": "student_selected=0, student_consumed=0 across pilot; Gemma ref had 99 STUDENT selections in 1890 rows"
+    },
+    "7_hypothesis_falsification": {
+      "status": "OBSERVED",
+      "detail": "hypotheses_created=0, contradictions_detected=0"
+    },
+    "8_quota_integrity": {
+      "status": "PASS",
+      "detail": "0 provider-confound events (timeout/quota/refusal/empty); RAW==FILTERED for LLM-available subset"
+    },
+    "9_freeze_integrity": {
+      "status": "PASS",
+      "detail": "Freeze C integrity verified: git HEAD a28c2159, instrument hashes match, no src/ changes"
+    },
+    "10_instrument_verification": {
+      "status": "PASS",
+      "detail": "Phase 1 gate PASSED (8/8); 130/130 tests pass; 5 failure syndromes classified to evaluator/ablation/template defects"
+    },
+    "11_reference_comparison": {
+      "status": "PASS",
+      "detail": "GPT-OSS pilot (post-repair) vs Gemma ref (pre-repair): safety_pass not directly comparable; decision-relevance metrics comparable via trace chain; 0 unclear outputs in both"
+    },
+    "12_no_silent_deviations": {
+      "status": "PASS",
+      "detail": "No src/ changes, no prompt tuning, no selective reruns, no episode deletions, no parameter changes mid-campaign, all telemetry retained"
+    }
+  },
+  "overall_verdict": "PASS \u2014 GPT-OSS-20B Cloud is RELIABLE and CAUSALLY INTEGRATED in the frozen RBS-v2 instrument"
+}

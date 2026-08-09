@@ -1,0 +1,27 @@
+{
+  "validation_id": "ERRORSQLI_VALIDATION_001",
+  "target": "vulnerableapp:9090 (172.18.0.17)",
+  "module": "ErrorBasedSQLInjectionVulnerability",
+  "mode": "READ_ONLY reachability check (no parameters sent, no payloads)",
+  "executed_at_utc": "2026-08-08T08:29:00Z",
+  "method": "GET via kali-tools (docker exec curl), responses saved to evaluations/campaign/errorbasedsqli_validation/",
+  "results": [
+    {"route": "/VulnerableApp/ErrorBasedSQLInjectionVulnerability", "status": 404, "note": "module root not routed (levels only) - expected SPA routing behavior", "size_bytes": null},
+    {"route": ".../LEVEL_1", "status": 200, "size_bytes": 24, "body": "{\"isCarPresent\": false}", "content_type": "text/plain"},
+    {"route": ".../LEVEL_2", "status": 200, "size_bytes": 359, "content_type": "text/plain", "observations": ["response LEAKS backend error text: H2 JDBC \"select * from cars where id='null'\"", "SQL error code 22018-214 present", "confirms H2 in-memory DB backend"]},
+    {"route": ".../LEVEL_3", "status": 500, "size_bytes": 41, "body": "System Error Occurred. please check logs.", "content_type": "text/plain"},
+    {"route": ".../LEVEL_4", "status": 500, "size_bytes": 41, "body": "System Error Occurred. please check logs.", "content_type": "text/plain"},
+    {"route": ".../LEVEL_5", "status": 200, "size_bytes": 24, "body": "{\"isCarPresent\": false}", "content_type": "text/plain"}
+  ],
+  "observations": {
+    "oracle_available": true,
+    "leakage_found": "LEVEL_2 200-body error text includes unbatted H2 JDBC error with SQL statement and error code 22018-214",
+    "db_fingerprint": "org.h2 (H2 in-memory), cars table, id column",
+    "levels_requiring_param": ["LEVEL_3", "LEVEL_4"],
+    "exploitation_attempted": false
+  },
+  "artifacts": {
+    "dir": "evaluations/campaign/errorbasedsqli_validation/",
+    "files": {"LEVEL_1.html": 24, "LEVEL_2.html": 359, "LEVEL_3.html": 41, "LEVEL_4.html": 41, "LEVEL_5.html": 24}
+  }
+}

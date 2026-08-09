@@ -1,0 +1,265 @@
+{
+  "ledger": "RBS-v4 TERMINAL_FALSIFICATION AMENDMENT LEDGER",
+  "immutability": "APPEND-ONLY. Entries are never modified or deleted. A new entry supersedes prior entries. This file is the single source of truth for authorized amendments to the frozen v2.1.1 treatment.",
+  "source_of_truth": [
+    "evaluations/campaign/TERMINAL_FALSIFICATION_PREREGISTRATION.json",
+    "src/arena/d6_manifest.py (ITERATION_BUDGET = 5)",
+    "src/arena/metrics.py (ACTION_CAP = 5, actions_dispatched counts every broker dispatch)"
+  ],
+  "entries": [
+    {
+      "amendment_id": "AMENDMENT-A-2026-08-06",
+      "title": "Terminal treatment model identity: deepseek-ai/deepseek-v4-flash -> nvidia/llama-3.3-nemotron-super-49b-v1",
+      "authorizer": "SENTINEL (authorized amendment)",
+      "applied_at_utc": "2026-08-06T21:05:51Z",
+      "reason": "Per SENTINEL item 13: the TERMINAL_FALSIFICATION preregistration model must be nvidia/llama-3.3-nemotron-super-49b-v1; the runner default LLM config must not retain model_id=deepseek-ai/deepseek-v4-flash.",
+      "files_changed": [
+        "src/arena/ablation_runner.py: model_id in _llm_service init block (line ~644) and _run_raphael LLM service block (line ~855); comment above init block updated (line ~636-637)"
+      ],
+      "superseded_state": "model_id = deepseek-ai/deepseek-v4-flash (provider nvidia, api_base https://integrate.api.nvidia.com/v1)",
+      "amended_state": "model_id = nvidia/llama-3.3-nemotron-super-49b-v1 (provider nvidia, api_base https://integrate.api.nvidia.com/v1, temperature 0.0, max_tokens 512, timeout 15)",
+      "verification": "grep confirms no deepseek-ai/deepseek-v4-flash remains in ablation_runner.py; only nvidia/llama-3.3-nemotron-super-49b-v1 at both config sites",
+      "out_of_scope_untouched": [
+        "src/orchestrator/providers.py:22 (NVIDIA_DEFAULT_MODEL env default)",
+        "src/arena/semantic_inference.py:281 (default parameter)",
+        "src/cli/** TypeScript catalogs",
+        "src/arena/ablation_runner.py.bak",
+        "sealed manifests (D6B_R1_SEAL.json, D6B_R2_LOCKFILE.json, D6C_HOLDOUT_MANIFEST.json, D6C_LLM_RETEST_PREREG.json)",
+        "docs/MULTI_API_KEY_ROTATION_DESIGN.md (historical design record; superseded by this ledger)"
+      ]
+    },
+    {
+      "amendment_id": "AMENDMENT-B-2026-08-06",
+      "title": "Action definition and budget accounting: ACTION_CAP = 5 broker dispatches, denied requests consume action budget",
+      "authorizer": "SENTINEL (Gate B repair, authorized)",
+      "applied_at_utc": "2026-08-06T21:05:51Z",
+      "reason": "Per SENTINEL items 1-6 and item 13: one action = exactly one CapabilityBroker authorization request; ACTION_CAP = 5 = ITERATION_BUDGET = 5; denied requests consume the action/iteration budget (no same-iteration retry); actions_dispatched counts EVERY broker dispatch (allow + deny).",
+      "files_changed": [
+        "src/arena/ablation_runner.py: three dispatch loops bound by ACTION_CAP = 5 (lines ~952-972, ~2704-2715, ~2870-2881); actions_dispatched incremented at every dispatch site (~1447, ~2757, ~2906); budget_action_ceiling/ACTION_CAP recorded (~969-970, ~2712-2713, ~2878-2879, ~1793, ~2826, ~2976)",
+        "src/arena/metrics.py: ACTION_CAP: int = 5 (line 87), actions_dispatched: int = 0 (line 86), budget_action_ceiling (line 99)"
+      ],
+      "superseded_state": "action budget previously keyed to ACTION_BUDGET (iteration-style budget); denied requests did not consume the action budget",
+      "amended_state": "action budget = ACTION_CAP = 5 broker dispatches (allow+deny); denied consumes the iteration budget; loops exit at actions_dispatched >= ACTION_CAP or iteration >= ITERATION_BUDGET",
+      "verification": [
+        "tests/test_gate_b_action_accounting.py: 10/10 passing",
+        "4-arm parity (FULL_RAPHAEL, PROMPTED_AGENT, SCRIPTED_BASELINE, NO_WORLD_MODEL): forced-ALLOW -> dispatched=5/authorized=5/denied=0; forced-DENY -> dispatched=5/authorized=0/denied=5",
+        "proof actions_dispatched <= ACTION_CAP across all arms"
+      ]
+    },
+    {
+      "amendment_id": "DEV-01",
+      "title": "PROMPTED_AGENT implementation did not invoke the registered LLM and therefore did not instantiate the preregistered experimental arm",
+      "authorizer": "SENTINEL (REPAIR-DEV-01 authorized; REPAIR-DEV-02 rejected)",
+      "applied_at_utc": "2026-08-06T23:06:14Z",
+      "reason": "DEV instrument validation found PROMPTED_AGENT (_run_llm_only) used TracedLLM, a keyword-matching simulation; the response was discarded in favor of candidates[0] (deterministic), so the arm never made real provider calls and was not the preregistered prompted-LLM agent. SENTINEL adjudicated DEV-01 as a CRITICAL INSTRUMENT DEFECT and authorized REPAIR-DEV-01.",
+      "files_changed": [
+        "src/arena/ablation_runner.py: _run_llm_only (replaced TracedLLM with self.llm_service \u2014 the same real LLMService/provider path as FULL_RAPHAEL; no candidates[0] fallback; malformed action -> model_failures); added _parse_prompted_action + _build_prompted_context (textual-only cognition); denial returned to LLM as textual observation",
+        "src/arena/metrics.py: RunMetrics.model_failures: int = 0 (additive; recorded separately from provider_failures)"
+      ],
+      "superseded_state": "PROMPTED_AGENT = deterministic TracedLLM simulation (0 real LLM calls, sd=0.000 across all DEV families)",
+      "amended_state": "PROMPTED_AGENT = genuine LLM agent (5 real nemotron calls/cell; provider-reported tokens via identical sync path; model_failures/parser failures counted; no deterministic fallback)",
+      "verification": [
+        "tests/test_prompted_agent_repair.py: acceptance items A-J, 10/10 passing",
+        "tests/test_gate_b_action_accounting.py: 10/10 passing (PROMPTED cells provision _PromptedFakeService; forced CapabilityBroker remains the single ALLOW/DENY authority)",
+        "full regression: 215 passed",
+        "gen2 DEV rerun (50 PROMPTED cells): all cells llm_invocations=5, provider tokens > 0, model_failures total 0, provider_failures total 30 (23 rows)",
+        "evaluations/campaign/rbs_v4_dev_prompted_gen2.jsonl + rbs_v4_dev_prompted_gen2_report.json (raw telemetry + REPORT items 1-11)"
+      ],
+      "out_of_scope_untouched": [
+        "FULL_RAPHAEL cognition (src/orchestrator/brain/** untouched; ablation_runner.py _run_raphael untouched)",
+        "scenario templates + evaluators (src/arena/d6_manifest.py untouched)",
+        "SCRIPTED_BASELINE / NO_WORLD_MODEL arms",
+        "ACTION_CAP=5 / ITERATION_BUDGET=5 semantics",
+        "Validation/Holdout seeds and result files (never opened)"
+      ]
+    },
+    {
+      "amendment_id": "FREEZE-01",
+      "title": "PROMPTED_AGENT prompt frozen verbatim with SHA-256 (Validation/Holdout instrument)",
+      "authorizer": "SENTINEL (REPAIR-DEV-01 adjudication; Validation AUTHORIZED with freeze directives)",
+      "applied_at_utc": "2026-08-07T05:40:00Z",
+      "reason": "SENTINEL freeze directive: the PROMPTED_AGENT prompt must be frozen verbatim (static instruction block from _build_prompted_context, lines 2725-2734) so that Validation/Holdout measure the frozen v2.1.1 contract. Artifact: evaluations/campaign/PROMPTED_PROMPT_FREEZE.json with instruction block SHA-256 4c2f846495ad0ca8427df19ce253f985765991a79cd7a079e590782537865b5a (380 bytes). Scope: only interface-contract corrections allowed; NO optimization from T8-T12 failures or from Validation data.",
+      "files_changed": [
+        "evaluations/campaign/PROMPTED_PROMPT_FREEZE.json (NEW)"
+      ],
+      "superseded_state": "None - prompt existed only inside _build_prompted_context (src/arena/ablation_runner.py:2702-2734)",
+      "amended_state": "Frozen artifact records the verbatim static instruction block + dynamic slot template (scenario_name/objective/allowed_scope_list/transcript/evidence)",
+      "verification": "scripts/_chk2.py validated artifact hash == live instruction block hash == 4c2f8464...",
+      "out_of_scope_untouched": "src/ frozen; no code change; no prompt content change"
+    },
+    {
+      "amendment_id": "FREEZE-02",
+      "title": "Provider-failure taxonomy (INFRA vs EXPERIMENTAL) and paired infrastructure validity policy frozen",
+      "authorizer": "SENTINEL (REPAIR-DEV-01 adjudication; Validation AUTHORIZED with freeze directives)",
+      "applied_at_utc": "2026-08-07T05:40:00Z",
+      "reason": "Mechanical arm-neutral classification of provider failures for paired comparisons. INFRA = provider_timeout (status_code==0 AND empty text; llm_service.py:300-309, covers timeout :240 / connection :248 / request exception :256) OR provider_api_error (status not in (0,200); llm_service.py:285-297, covers HTTP 429/5xx). EXPERIMENTAL = malformed_output/semantically_unusable/refused_response/wrong action/loop/reasoning failure/budget exhaustion - never reclassified. Paired validity: if ANY network arm (FULL_RAPHAEL, PROMPTED_AGENT, NO_WORLD_MODEL) in a matched (family, seed) comparison has >=1 qualifying INFRA event -> whole comparison INFRA_INVALID, excluded from primary FULL-vs-PROMPTED comparison; no selective rerun; no key/model fallback.",
+      "files_changed": [
+        "evaluations/campaign/PROVIDER_TAXONOMY_AND_INFRA_POLICY.json (NEW)"
+      ],
+      "superseded_state": "None - policy existed implicitly (D-6C: no selective retry)",
+      "amended_state": "Frozen mechanical taxonomy with exact code-site mapping + paired INFRA_INVALID handling",
+      "verification": "Artifact validated: code sites llm_service.py:285-297/:300-309/:158-257 confirmed in source; policy applied in run_rbs_v4_validation.py report section 5b",
+      "out_of_scope_untouched": "src/ frozen; taxonomy is observational, no behavioral change"
+    },
+    {
+      "amendment_id": "REPAIR-VAL-01",
+      "title": "Dual-key NVIDIA failover transport with bounded retry (provider reliability repair)",
+      "authorizer": "SENTINEL (REPAIR-VAL-01 authorized; Validation re-run AUTHORIZED)",
+      "applied_at_utc": "2026-08-07T08:35:00Z",
+      "reason": "Prior Validation run (200 cells) had 89 provider failures across arms (FULL_RAPHAEL 37, NO_WORLD_MODEL 29, PROMPTED_AGENT 23) causing 42/50 matched comparisons INFRA_INVALID. REPAIR-VAL-01 implements a dual-key failover transport (KEY_A -> KEY_B) with mechanical retry on 429/5xx/timeout/connection only, client recreation after connection failure, payload byte-equivalence, and full telemetry (never credentials). Keys resolved ONLY from gitignored .env (NVIDIA_API_KEY_A/B); no credentials in src/. Frozen default LLMProviderConfig() resolves to nemotron.",
+      "files_changed": [
+        "src/arena/llm_transport.py (NEW): transport engine with classify_failure, execute_with_failover, call_chat_completion, resolve_keys, TransportOutcome telemetry",
+        "src/arena/llm_service.py: call_llm_provider rewired through transport; RawResponse.transport_telemetry attached; LLMService counters added (logical_llm_calls, provider_attempts, failover_count, retries_by_key_alias, final_key_alias, failure_class, final_provider_status); provider_failures now uses amended logical-call INFRA unit (final outcome in {rate_limit,server_error,timeout,connection})",
+        "src/arena/ablation_runner.py: hardcoded api_key removed from both LLMService construction sites (lines ~647, ~858); metrics copy site updated to carry new telemetry fields",
+        "src/arena/metrics.py: RunMetrics additive telemetry fields (logical_llm_calls, provider_attempts, failover_count, retries_by_key_alias, final_key_alias, failure_class, final_provider_status)",
+        "src/arena/semantic_inference.py: LLMProviderConfig.model_id frozen default confirmed nemotron; api_key default \"\"",
+        "scripts/run_rbs_v4_validation.py: .env loader added; row construction carries transport telemetry",
+        "scripts/smoke_llm_usage.py: stale model removed, hardcoded key removed, .env loader added",
+        "tests/test_llm_transport.py (NEW): 20 test cases (A succeeds; A retry; A->B failover; transient->success; exhausted; 429/timeout/5xx/connection classification; client recreation; 200 not retried; 4xx not retried; byte-equivalence; secrets absent; LLMService telemetry; FULL/PROMPTED seam parity; frozen default regression)"
+      ],
+      "superseded_state": "No retries, no fallback, no provider switching (llm_service.py:11). Hardcoded nvapi key in ablation_runner.py (2 sites). Provider failures counted per-attempt (legacy INFRA = single attempt). 89 provider failures / 200 cells (42/50 matched comparisons INFRA_INVALID).",
+      "amended_state": "Dual-key failover transport (KEY_A -> KEY_B) with ATTEMPTS_PER_KEY_PER_CYCLE=2, MAX_CYCLES=2, bounded exponential backoff (base 1s, cap 8s). Retry ONLY on mechanical classes (429/5xx/timeout/connection). Client recreated after connection failure. Credentials ONLY from .env (NVIDIA_API_KEY_A/B); api_key=\"\" in config. Provider failures = logical-call INFRA unit (final outcome in INFRA_FINAL_CLASSES). 200 cells fresh re-run: 0 provider failures across all arms (FULL_RAPHAEL 0, NO_WORLD_MODEL 0, PROMPTED_AGENT 0, SCRIPTED_BASELINE 0). Transport telemetry recorded per logical call (logical_llm_calls, provider_attempts, failover_count, retries_by_key_alias, final_key_alias, failure_class, final_provider_status). One real failover observed (KEY_A -> KEY_B).",
+      "verification": [
+        "All 235 tests pass (215 existing + 20 new transport tests)",
+        "Live smoke test: PASS (input=506, output=43, total=549 tokens)",
+        "Live failover test: KEY_A forced 503 -> KEY_B succeeds (attempts=3, failover=1, status=200)",
+        "Full regression: 0/200 cells provider_failures (0 FULL, 0 NO_WORLD, 0 PROMPTED, 0 SCRIPTED)",
+        "Provider-specific gate: 50/50 infra-valid matched comparisons (0 provider failures in any network arm)",
+        "Frozen default regression: LLMProviderConfig().model_id == nvidia/llama-3.3-nemotron-super-49b-v1",
+        "No hardcoded credentials in src/ (grep confirms)",
+        "Prior validation jsonl quarantined: rbs_v4_validation_PRE_REPAIR_VAL_01_QUARANTINE.jsonl"
+      ],
+      "out_of_scope_untouched": [
+        "src/orchestrator/brain/** (D-Series frozen)",
+        "INFRA taxonomy in FREEZE-02 (observational; provider_failures now counts logical-call INFRA unit per FREEZE-02 amendment)",
+        "Known-observable family \"Broken pipe\" infra failures (kali-tools/broker; 10/50 matched comparisons INFRA_INVALID; separate from provider transport)",
+        "Holdout seeds and result files (never opened)",
+        "Prompt freeze SHA-256 4c2f8464... (untouched)"
+      ]
+    },
+    {
+      "amendment_id": "AMENDMENT-HOLDOUT-LAUNCH-2026-08-07",
+      "title": "Terminal holdout model identity + stale-artifact reconciliation",
+      "authorizer": "SENTINEL (terminal authorization) + principal methodological ruling",
+      "applied_at_utc": "2026-08-07T12:00:22Z",
+      "reason": "The 2026-08-07 SENTINEL terminal directive described the holdout model as gpt-oss:20b-cloud with 50k-token / 15-action budgets. That contradicts the FROZEN preregistration and AMENDMENT-A-2026-08-06 (treatment identity = nvidia/llama-3.3-nemotron-super-49b-v1, ACTION_CAP=5, ITERATION_BUDGET=5). Authorized methodological ruling: the requirement is MODEL PARITY (FULL_RAPHAEL == PROMPTED_AGENT on the exact same frozen provider), stability, and preregistration discipline (Rule/Freeze Discipline) - NOT gpt-oss specifically. Because the real terminal holdout had NOT started, the FROZEN Nemotron identity governs; a pre-start model switch to gpt-oss would be unjustified.",
+      "decisions": [
+        "Holdout model = nvidia/llama-3.3-nemotron-super-49b-v1 @ https://integrate.api.nvidia.com/v1, temp 0.0, max_tokens 512, timeout 15 (frozen, AMENDMENT-A-2026-08-06). gpt-oss directive values (50k tokens / 15 actions) NOT adopted; ACTION_CAP=5 / ITERATION_BUDGET=5 remain frozen.",
+        "Model parity for FULL_RAPHAEL == PROMPTED_AGENT on the same provider path: VERIFIED (parity probe PASS, all arms resolve to identical LLMProviderConfig).",
+        "Frozen instrument verified byte-identical: all 9 SHA-256 source hashes in TERMINAL_VALIDATION_FREEZE.json PASS."
+      ],
+      "quarantine": "evaluations/campaign/rbs_v4_holdout.jsonl (3,240 rows, Aug 5) is CONTAMINATED telemetry from a DISCONTINUED instrument: burned T1-T12 templates, 9 configs (NO PROMPTED_AGENT arm), gpt-oss:20b-cloud via ollama, seeds 1072-1101 (DEV range 1000-1999, NOT HOLDOUT 2000-9999). It does NOT represent a started frozen holdout. Moved to rbs_v4_holdout_STALE_T1T12_GPTOSS_QUARANTINE.jsonl; excluded from all analysis.",
+      "standards_scope": [
+        "Frozen terminal campaign: 4 arms x 5 fresh families x 60 holdout seeds = 1,200 runs, HOLDOUT split (relative 0-59 -> absolute 2000-9999), Nemotron identity, ACTION_CAP=5.",
+        "Collection-only: monitor experiment HEALTH only (completed/expected, infra failures, provider availability, manifest/hash integrity, duplicate run IDs, missing artifacts, budget enforcement). NO arm-level performance/success-rate inspection until collection closes and integrity verifies."
+      ],
+      "superseded_state": "None (append-only; reconciliation clarification of AMENDMENT-A-2026-08-06 against the 2026-08-07 SENTINEL gpt-oss directive).",
+      "amended_state": "Terminal holdout model identity = nvidia/llama-3.3-nemotron-super-49b-v1 (frozen). gpt-oss directive not adopted.",
+      "verification": [
+        "model identity parity probe PASS (all 4 arms identical Nemotron LLMConfig)",
+        "TERMINAL_VALIDATION_FREEZE.json source hashes 9/9 PASS"
+      ]
+    },
+    {
+      "amendment_id": "AMENDMENT-MODEL-EOL-2026-08-09",
+      "title": "EOL model replacement (deepseek-ai/deepseek-v4-flash -> deepseek-ai/deepseek-v4-flash-0731), env-sourced keys, D13 L-028 parser alignment + prompt tightening",
+      "authorizer": "SENTINEL (GLM-5.2 governance review, 2026-08-09: Fix 1 + Fix 2 + EOL ruling AUTHORIZED)",
+      "applied_at_utc": "2026-08-09T10:30:00Z",
+      "reason": "Frozen default model deepseek-ai/deepseek-v4-flash reached END OF LIFE on 2026-08-07T09:00:00Z and returns HTTP 410 Gone; the frozen hardcoded api key cannot access the NVIDIA catalog ('Function not found for account'). Verified live: deepseek-ai/deepseek-v4-flash-0731 (same family, newer snapshot) with .env keys NVIDIA_API_KEY_A/B. Additionally, the L-028 fallback parser never fired on real model phrasing ('runs an Apache service on port 80' vs pattern 'port N open') and the prompt's '{}' escape hatch let the model emit empty structured_conclusion.",
+      "files_changed": [
+        "src/arena/semantic_inference.py: LLMProviderConfig.model_id default -> deepseek-ai/deepseek-v4-flash-0731 (line ~281); PROMPTED_AGENT_SYSTEM_PROMPT Rules block rewritten (deduplicated rules 1-7, escape hatch removed, mandatory has_service/service_type/version/cve population when evidence supports)",
+        "src/arena/conclusion_adapters.py: _parse_fallback_heuristic FALLBACK 5 (a) added second pattern '(?:runs? an? [\\w-]+ service )?on port (\\d+)'; (b) svc_type mapping extended (apache/nginx/tomcat -> http)",
+        "src/arena/ablation_runner.py: added _resolve_nvidia_api_key() helper (env NVIDIA_API_KEY_A/B/legacy + .env file fallback); all 3 LLMProviderConfig creation sites (lines ~633-641, ~844-852, ~2638-2646) now use model -0731 and api_key=_resolve_nvidia_api_key(); hardcoded nvapi key removed"
+      ],
+      "superseded_state": "model_id = deepseek-ai/deepseek-v4-flash (EOL 2026-08-07, HTTP 410); api_key hardcoded in 3 sites (unsubscribed account); PROMPTED_AGENT_SYSTEM_PROMPT allowed 'structured_conclusion: {}' escape and duplicated rules 4/5; FALLBACK 5 matched only 'port N open|tcp|udp'",
+      "amended_state": "model_id = deepseek-ai/deepseek-v4-flash-0731 (live); api_key resolved from environment only (never hardcoded); prompt requires mandatory predicate population with 'never invent' guard; fallback extracts has_service from 'runs an <svc> service on port <n>' phrasing",
+      "verification": [
+        "compile: all 3 files OK",
+        "tracked suite: 127/127 PASS (unchanged baseline)",
+        "forge/verify_d13_patch.py: all content checks PASS",
+        "forge/verify_l028_fix.py D13 unit test: real phrasing 'Host 10.0.248.10 runs an Apache service on port 80.' -> has_service {port: 80, type: http} via REAL _parse_fallback_heuristic (was 0 claims pre-patch, proven in forge/prove_parser_gap.py)",
+        "live probe: deepseek-ai/deepseek-v4-flash-0731 chat completion OK with .env keys A and B"
+      ],
+      "out_of_scope_untouched": [
+        "src/orchestrator/brain/** (D-Series frozen)",
+        "cognitive loop logic in _run_raphael / _run_llm_only (only config construction sites touched)",
+        "scenario templates + evaluators",
+        "llm_transport.py (REPAIR-VAL-01; unchanged)",
+        "driver scripts forge/* (historical tooling unchanged)"
+      ]
+    },
+    {
+      "amendment_id": "D13-EXT-2026-08-09",
+      "title": "D13 Fix 1 extension (FALLBACK 6 service_type extraction) + final gate result",
+      "authorizer": "SENTINEL (Fix 1 authorization covers parser phrasing alignment; extension documented for audit)",
+      "applied_at_utc": "2026-08-09T12:10:00Z",
+      "reason": "Re-audit v4 showed model phrasing variance: 'runs an HTTP service on Linux', 'host with MySQL service', 'runs HTTP and SSH services on Windows' \u2014 service identified without a port, so FALLBACK 5 (has_service, port-required) extracted nothing. FALLBACK 6 emits SERVICE_TYPE (L-028 predicate) from port-less phrasings; accumulates across all three patterns (dedupe), never invents a port. Bug fixed during validation: p3 pattern returns tuples -> flattened before dedupe (was swallowed by parser's except-pass).",
+      "files_changed": [
+        "src/arena/conclusion_adapters.py: _parse_fallback_heuristic FALLBACK 6 added after FALLBACK 5 (service_type from 'runs? an? <svc> service', 'with <svc> service', 'runs <svc> and <svc> services'; svc map http/https/apache/nginx/tomcat/web->http, ssh, mysql, dns, ftp, smtp, netlogon, samba, postgresql)"
+      ],
+      "superseded_state": "FALLBACK 5 only (port-required has_service); port-less phrasings yielded 0 fallback claims",
+      "amended_state": "FALLBACK 5 + FALLBACK 6 (service_type); port-less phrasings yield typed L-028 predicates with LLM_INTERPRETATION provenance",
+      "verification": [
+        "forge/verify_l028_fix.py: D13 unit test PASS (has_service {80, http}) + extension test PASS (mysql, dns, ssh from 'with MySQL service; runs DNS and SSH services')",
+        "tracked suite: 127/127 PASS",
+        "FINAL GATE (10 samples, live -0731, key rotation): fallback-sourced typed predicates 9/10 (>= 8/10), MECHANICAL 0/10 (< 2/10) -> GATE PASSED",
+        "known-observable s=1: score 1.0 CORRECT (first CORRECT outcome in PROMPTED_AGENT campaign)",
+        "2/10 samples had 1 transient provider 503 (INFRA per FREEZE-02) but still produced fallback predicates",
+        "evaluations/campaign/L028_VERIFICATION.json (v4) with gate_verdict recorded"
+      ],
+      "out_of_scope_untouched": [
+        "Fix 3 (syn_scan method='all' version-bearing evidence) \u2014 DEFERRED by SENTINEL",
+        "cognitive loop, broker, environment, evaluators",
+        "AMENDMENT-MODEL-EOL-2026-08-09 entry (unchanged, append-only)"
+      ]
+    },
+    {
+      "amendment_id": "AMENDMENT-MODEL-550B-2026-08-09",
+      "title": "Model hierarchy: 550B primary, 49B fallback; DeepSeek removed; transport wiring restored",
+      "authorizer": "SENTINEL (GLM-5.2 governance review, 2026-08-09)",
+      "applied_at_utc": "2026-08-09T13:30:00Z",
+      "reason": "DeepSeek removed entirely from the fallback chain (frozen deepseek-v4-flash EOL 2026-08-07; -0731 variant not functioning in environment). New hierarchy: PRIMARY nvidia/nemotron-3-ultra-550b-a55b, FALLBACK nvidia/llama-3.3-nemotron-super-49b-v1 (campaign-level only, NEVER mid-run). Transport policy frozen: KEY_A -> KEY_B failover (same model), exponential backoff base 1s cap 8s, 2 retries/key/cycle, 2 cycles, temperature 0.0, max_tokens 16384, timeout 180s. REPAIR-VAL-01 llm_transport wiring into LLMService.call_llm_provider restored (was present at 2026-08-07 holdout launch, lost since; holdout showed 900 rows of failover telemetry proving prior wiring).",
+      "files_changed": [
+        "src/arena/ablation_runner.py: 3 LLMProviderConfig sites -> model nvidia/nemotron-3-ultra-550b-a55b, timeout_seconds=180, max_tokens=16384 (temperature 0.0 kept); api_key stays _resolve_nvidia_api_key()",
+        "src/arena/semantic_inference.py: LLMProviderConfig default model_id -> nvidia/nemotron-3-ultra-550b-a55b, timeout_seconds=180, max_tokens=16384",
+        "src/arena/llm_service.py: call_llm_provider routes through llm_transport.call_chat_completion (byte-identical payload retries, KEY_A->KEY_B failover, bounded backoff); LLMService exposes provider_attempts, failover_count, retries_by_key_alias, final_key_alias, failure_class, final_provider_status, envelope_failures, input/output tokens; RawResponse parses usage; DiagnosticRawRecord carries tokens",
+        "backups: src/arena/llm_service.py.forge_backup.550b; ablation_runner.py/.semantic_inference.py .forge_backup.d13 (pre-D13)"
+      ],
+      "supersedes": "AMENDMENT-MODEL-EOL-2026-08-09 (model choice portion); AMENDMENT-A-2026-08-06 (nemotron-49b as PRIMARY superseded -> 49b is FALLBACK only)",
+      "transport_policy_freeze": {
+        "provider": "NVIDIA NIM",
+        "primary_model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "fallback_model": "nvidia/llama-3.3-nemotron-super-49b-v1 (campaign-level only, NOT mid-run)",
+        "keys": {
+          "primary": "KEY_A (env NVIDIA_API_KEY_A)",
+          "secondary": "KEY_B (env NVIDIA_API_KEY_B)"
+        },
+        "allowed_failover": [
+          "550B(KEY_A) -> 550B(KEY_B)",
+          "49B(KEY_A) -> 49B(KEY_B)"
+        ],
+        "forbidden": [
+          "550B -> 49B mid-run",
+          "any -> DeepSeek",
+          "any -> other provider"
+        ],
+        "retry_policy": "exponential backoff base 1s cap 8s; max 2 retries/key/cycle; max 2 cycles; KEY_B only after KEY_A exhaustion",
+        "temperature": 0.0,
+        "max_tokens": 16384,
+        "timeout_seconds": 180
+      },
+      "prompt_freeze": {
+        "note": "D13 Fix 2 rewrote PROMPTED_AGENT_SYSTEM_PROMPT (v2.0). PROMPTED_PROMPT_FREEZE.json remains the frozen v1.0 record and is NOT modified. New runtime prompt SHA recorded for runner telemetry.",
+        "runtime_prompt_sha256": "e9d6a0fdb4a9a5462dd5a8e7d95f82affea082c8bb1aaec887e5b1b89412bb67",
+        "old_frozen_instruction_block_sha256": "4c2f846495ad0ca8427df19ce253f985765991a79cd7a079e590782537865b5a"
+      },
+      "seed_scheme_ruling": "SENTINEL CLARIFICATION: earlier '1072-1101' reference factually incorrect (VALIDATION band, used by quarantined stale T1T12 GPTOSS run). Authoritative: pre-registered HOLDOUT split, relative 0..59 -> absolute 2000..2059 (TERMINAL_FALSIFICATION_PREREGISTRATION + frozen runner guard).",
+      "verification": [
+        "compile OK: ablation_runner.py, llm_service.py, semantic_inference.py, llm_transport.py",
+        "tests/test_llm_transport.py contract: seam source contains llm_transport, no nvapi",
+        "tracked suite 127/127 re-verified post-patch",
+        "gate on 550B: 10 stratified samples, >= 8/10 fallback-sourced typed predicates, < 2/10 MECHANICAL (pending execution)"
+      ]
+    }
+  ]
+}

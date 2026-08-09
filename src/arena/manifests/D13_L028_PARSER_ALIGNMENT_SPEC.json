@@ -1,0 +1,47 @@
+{
+  "spec_id": "D13-L028-PARSER-ALIGNMENT",
+  "title": "L-028 Completion: Parser-Phrasing Alignment + Prompt Tightening",
+  "author": "Student (Raphael Forge)",
+  "date": "2026-08-09",
+  "status": "AWAITING_SENTINEL_APPROVAL",
+  "defect_statement": "L-028 fallback parser is wired and invoked (conclusion_adapters.py:1563-1570) and model_inference evidence flows (10/10 samples, live model deepseek-ai/deepseek-v4-flash-0731), yet 0/10 re-audit samples produce fallback-sourced typed predicates. Measured causes: (a) the model's free-text claim phrasing 'Host 10.0.248.10 runs an Apache service on port 80.' matches no fallback pattern (FALLBACK 5 requires 'port N open|tcp|udp'); (b) the model returns structured_conclusion {} because the prompt's escape hatch ('If you cannot determine any structured conclusion, use: {}') permits it and the prompt never requires has_service/service_type for service_identification claims. Proven: real _parse_fallback_heuristic on real model phrasing -> 0 claims; proposed pattern -> ('Apache', '80').",
+  "scope": "Two frozen-src files, two minimal edits each. No cognitive-loop logic changes.",
+  "fix_1": {
+    "file": "src/arena/conclusion_adapters.py",
+    "location": "FALLBACK 5 block (lines 961-983) — has_service extraction",
+    "change_a": "Add second pattern for 'on port N' phrasing",
+    "before": "port_matches = _re.findall(r'port\\s+(\\d+)\\s+(?:open|tcp|udp)', claim_lower)",
+    "after": "port_matches = _re.findall(r'port\\s+(\\d+)\\s+(?:open|tcp|udp)', claim_lower)\n            if not port_matches:\n                # Model phrasing: 'runs an Apache service on port 80.' / 'on port 443'\n                port_matches = _re.findall(\n                    r'(?:runs?\\s+an?\\s+[\\w-]+\\s+service\\s+)?on\\s+port\\s+(\\d+)', claim_lower)",
+    "change_b": "Extend svc_type mapping so service names map to types",
+    "before": "if 'http' in claim_lower or 'web' in claim_lower:\n                    svc_type = \"http\"",
+    "after": "if 'http' in claim_lower or 'web' in claim_lower or 'apache' in claim_lower \\\n                        or 'nginx' in claim_lower or 'tomcat' in claim_lower:\n                    svc_type = \"http\"",
+    "rationale": "Closes the exact phrasing gap proven in forge/prove_parser_gap.py. Extracts only what the LLM explicitly stated ('Apache service on port 80'). No invention: type inferred from the service name the model itself wrote.",
+    "no_hallucination_check": "Pattern requires the port number to be present in the LLM's own claim text; svc_type only derived from service names present in the same claim."
+  },
+  "fix_2": {
+    "file": "src/arena/semantic_inference.py",
+    "location": "PROMPTED_AGENT_SYSTEM_PROMPT Rules block (lines 374-397)",
+    "change_a": "Remove duplicated rule lines (383-384 duplicate 394-395; duplicate 'cve' line 391) and renumber rules 1-7",
+    "before": "Rules 1-5 with duplication: '4. If none of the categories apply...' twice, two rule-5s, duplicate '\"cve\": string or null'",
+    "after": "Single clean numbered rules 1-7.",
+    "change_b": "Replace the {} escape hatch with a requirement + guard",
+    "before": "\"5. If you cannot determine any structured conclusion, use:\\n\"\n    '   \"structured_conclusion\": {}\\n'",
+    "after": "\"5. structured_conclusion is REQUIRED and must contain every predicate\\n\"\n    \"   you can determine from evidence. Leave a predicate null only when\\n\"\n    \"   the evidence does not support it. Never invent values not in evidence.\\n\"\n    \"6. If your claim identifies a service (Apache, nginx, SSH, ...) and a port,\\n\"\n    \"   you MUST populate has_service with {\\\"port\\\": N, \\\"type\\\": \\\"http\\\"/\\\"ssh\\\"/...}\\n\"\n    \"   and set service_type to the service name's type.\\n\"\n    \"7. If version strings (e.g., Apache/2.4.50) appear in evidence, you MUST\\n\"\n    \"   populate version. If CVE references appear, you MUST populate cve.\\n\"\n    \"   Otherwise set them to null.\\n\"",
+    "rationale": "Removes the permission to emit {} while preserving the no-hallucination constraint (rule 5 keeps 'never invent'). Makes the L-028 mandated predicates a hard requirement whenever evidence supports them.",
+    "risk": "Model compliance on -0731 snapshot unknown until re-tested; the fallback parser (Fix 1) remains the safety net for free-text extraction."
+  },
+  "fix_3": {
+    "file": "NOT INCLUDED — deferred",
+    "rationale": "Version-bearing evidence (syn_scan method='all') is a candidate-generation behavior change affecting ALL llm_only templates. Recommend adjudicating separately AFTER Fix 1+2 gate result. If Fix 2 causes the model to extract versions that ARE present in evidence, Fix 3 may be unnecessary for the 10-sample gate (contradiction template evidence currently lacks version strings entirely, so version predicates will still be 0 — gate measures has_service/service_type availability).",
+    "status": "DEFERRED_PENDING_GATE"
+  },
+  "verification_plan": {
+    "step_1": "Extend forge/verify_l028_fix.py unit test: real model phrasing 'Host 10.0.248.10 runs an Apache service on port 80.' must yield has_service {port: 80, type: http} via REAL _parse_fallback_heuristic (no src change to test yet — simulate expected post-fix behavior).",
+    "step_2": "Apply Fix 1+2 via forge/patch script; compile check; tracked suite 127/127 must stay green; .forge_backup snapshots created.",
+    "step_3": "Re-run 10-sample re-audit (forge/verify_l028.py, live -0731, key rotation A/B) -> gate >= 8/10 fallback-sourced typed predicates; halt if >= 2/10 MECHANICAL.",
+    "step_4": "If gate passes: per Option A directive, proceed to 1,200-row holdout.",
+    "step_5": "Report raw telemetry (L028_VERIFICATION.json v4) with the result — no claim without JSONL/JSON telemetry (Strike 2 rule)."
+  },
+  "blast_radius": "Low. Parser edits are additive regex branches inside an existing except-guarded block; prompt edits alter only the system prompt string. No changes to cognitive loop, broker, environment, or evidence pipeline. Tracked tests verify no regression (127/127).",
+  "requested_ruling": "Approve Fix 1 + Fix 2 as specified. Defer Fix 3. Rule on the frozen EOL model default (semantic_inference.py:281, ablation_runner.py:844-852) — recommend updating default model_id to deepseek-ai/deepseek-v4-flash-0731 and documenting .env key sourcing, since the frozen default is 410-EOL since 2026-08-07 and the frozen hardcoded key cannot access the catalog."
+}

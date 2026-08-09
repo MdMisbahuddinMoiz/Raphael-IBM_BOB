@@ -1,0 +1,95 @@
+{
+  "campaign": "rbs-v2r",
+  "freeze_id": "rbs-v2r-freeze-B",
+  "phase": 2,
+  "revision": "B",
+  "abort_reason": "freeze-A (gpt-oss:20b-cloud @ max_tokens=4096) failed canary at 85% (thinking-budget trap: empty content on 2/20 calls)",
+  "authorization": "SENTINEL GLM-5.2 governance review 2026-08-04",
+  "frozen_at": "2026-08-04T07:15:23Z",
+  "git_head": "a28c2159a09261c516bbce01ef94bb4e8152139b",
+  "provider": {
+    "name": "nvidia_nim",
+    "model_id": "openai/gpt-oss-120b",
+    "api_base": "https://integrate.api.nvidia.com/v1",
+    "api_key_source": "env: sentinel-provided nvapi key (verified 3/3 HTTP 200 reachability probe)",
+    "context_length": null,
+    "capabilities": [
+      "completion",
+      "reasoning",
+      "thinking"
+    ],
+    "ollama_version": null,
+    "python_version": "3.12.13"
+  },
+  "inference": {
+    "temperature": 0.0,
+    "top_p": null,
+    "top_k": null,
+    "reasoning_effort": "default (no disable parameter used; budget increase is mitigation)",
+    "max_tokens": 16384,
+    "timeout_seconds": 180,
+    "timeout_precedent": "baseline/rbs_v3_manifest.json (NVIDIA path, 180s); ollama-local precedent was 120s",
+    "retry_policy": {
+      "health_probe_retries": 5,
+      "health_probe_delay_seconds": 5.0,
+      "per_run_retries": 3,
+      "per_run_delay_seconds": 8.0,
+      "campaign_abort_after_consecutive_zero_llm": 3
+    },
+    "action_budget": 5,
+    "random_seed_policy": "fixed seeds 1042-1071 (RBS-v2 set); pilot uses first 10"
+  },
+  "prompt_hashes": {
+    "envelope_version": "d4-envelope-v2",
+    "envelope_system_prompt_sha256": "7d98e494e06f2fb856a1f511e76b46428867e4ab00e66be79857bab8363d029b",
+    "d6_template_info_sha256": {
+      "T1_NEGATIVE_CONTROL": {
+        "scenario_id": "arena-d6-001",
+        "description_sha256": "46d54598f4b0d7041c2013202aefc731d84d6f1011a903a0e7ecd3f87b7d7099"
+      },
+      "T2_HYPOTHESIS_SENSITIVE": {
+        "scenario_id": "arena-d6-002",
+        "description_sha256": "8b174d30e9e762abcc14f0fcf27ae395b8f90a399ae790cb0d65e14dc2aa6e81"
+      },
+      "T3_FALSIFICATION_SENSITIVE": {
+        "scenario_id": "arena-d6-003",
+        "description_sha256": "2a86fe95a332259a88609850be0ba22ca63f4b7be0ba0bca0418b9622712906f"
+      },
+      "T4_WORLD_MODEL_IDENTITY": {
+        "scenario_id": "arena-d6-004",
+        "description_sha256": "e6ec2dff6f11f201b7abcc710cee53b1dffb0c24b4e2cac3d78cf817b8d57746"
+      },
+      "T5_PLANNING_COST": {
+        "scenario_id": "arena-d6-005",
+        "description_sha256": "1f3887f8dba813ac31b9cc340d3b0fff0d3a264f7f4a917c702334f23d9679fb"
+      },
+      "T6_SEMANTIC_LLM": {
+        "scenario_id": "arena-d6-006",
+        "description_sha256": "fc19bdf3dfb032d93cbe09f3a703cde83e9183d9e02efeb136e7e8b4adf5a977"
+      },
+      "T7_DEFEATER_SENSITIVE": {
+        "scenario_id": "arena-d6-007",
+        "description_sha256": "9e06a6fd77a2ba15d6df086a1aaa98071b6130d4fd0868a6d608acfd94bc74d9"
+      },
+      "T8_DVWA_LIVE": {
+        "scenario_id": "arena-d6-008",
+        "description_sha256": "8613eeec0bff02b20a1d794f2bd7693345e069da08b92c820048970bd7416599"
+      }
+    }
+  },
+  "instrument_file_hashes": {
+    "src/arena/ablation.py": "678c997aec7685f6df7cdd017dac997ceb656a88221a6e4c43e8f30244c6095c",
+    "src/arena/ablation_runner.py": "01777fb8b90b2d1ce938cb8aa1b850df604810cc47764e4a933a9a2b4de7065d",
+    "src/arena/runner.py": "9f1bb10897f5ed614b356bb91d07024b40e3a753a24638b234b6642362a16e20",
+    "src/arena/semantic_inference.py": "2c62634535e37d2bd88488da4c8f0906992b0466e7123fb28e4937cbee05e29c",
+    "src/arena/llm_service.py": "49da4d6d0cd41c1b9b47105309cfbd834f1841ef53d6740e773dc96183754d2f",
+    "src/arena/d6_manifest.py": "04d8aefd2b2274b50b15a225197b431733fa6d5dfd50ac5519937369a1400c27",
+    "src/orchestrator/brain/action.py": "b346bf6a7abf76303cc709ea3f7a35eb59a02068ae2c798f65dff3f68b54d847",
+    "scripts/run_rbsv2_campaign.py": "026bb0024c288d0b75e27e677867ddad92435a7236cf44d699bd69e4e8e040c7"
+  },
+  "freeze_integrity": {
+    "no_parameter_change_after": true,
+    "abort_policy": "any change -> ABORT -> new campaign ID -> preregister again",
+    "parser_constraint": "llm_service.py reads ONLY message.content (frozen, verified); no src/ change authorized"
+  }
+}

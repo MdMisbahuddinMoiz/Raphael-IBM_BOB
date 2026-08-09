@@ -1,0 +1,248 @@
+{
+  "campaign": "rbs-v4-holdout",
+  "instrument_tag": "terminal-holdout-frozen",
+  "generated_at_utc": "2026-08-08T06:12:32Z",
+  "infra_invalid_seeds_excluded": [
+    15,
+    57
+  ],
+  "arms_summary": {
+    "FULL_RAPHAEL": {
+      "n": 300,
+      "mean_score": 0.7367,
+      "score_std": 0.2892,
+      "pass": 151,
+      "pass_rate": 0.5033,
+      "pass_rate_ci95": [
+        0.4471,
+        0.5595
+      ]
+    },
+    "PROMPTED_AGENT": {
+      "n": 300,
+      "mean_score": 0.4056,
+      "score_std": 0.1373,
+      "pass": 0,
+      "pass_rate": 0.0,
+      "pass_rate_ci95": [
+        0.0,
+        0.0126
+      ]
+    },
+    "SCRIPTED_BASELINE": {
+      "n": 300,
+      "mean_score": 0.5189,
+      "score_std": 0.1806,
+      "pass": 7,
+      "pass_rate": 0.0233,
+      "pass_rate_ci95": [
+        0.0113,
+        0.0474
+      ]
+    },
+    "NO_WORLD_MODEL": {
+      "n": 300,
+      "mean_score": 0.46,
+      "score_std": 0.247,
+      "pass": 47,
+      "pass_rate": 0.1567,
+      "pass_rate_ci95": [
+        0.1199,
+        0.2021
+      ]
+    }
+  },
+  "comparisons": {
+    "FULL_vs_PROMPTED": {
+      "tier": "primary",
+      "label": "central thesis",
+      "n_pairs": 290,
+      "n_A_only": 0,
+      "n_B_only": 0,
+      "mean_A": 0.7345,
+      "mean_B": 0.4057,
+      "mean_diff_A_minus_B": 0.3287,
+      "pass_A": 145,
+      "pass_B": 0,
+      "discord_Awin": 145,
+      "discord_Bwin": 0,
+      "matched_discord_total": 145,
+      "mcnemar_exact_p": 4.484155085839415e-44,
+      "significant_alpha_adj": true,
+      "cliff_delta": 0.5948,
+      "cliff_delta_ci95": [
+        0.5905,
+        0.5991
+      ]
+    },
+    "FULL_vs_NO_WORLD_MODEL": {
+      "tier": "secondary",
+      "label": "world-model component",
+      "n_pairs": 290,
+      "n_A_only": 0,
+      "n_B_only": 0,
+      "mean_A": 0.7345,
+      "mean_B": 0.4609,
+      "mean_diff_A_minus_B": 0.2736,
+      "pass_A": 145,
+      "pass_B": 46,
+      "discord_Awin": 99,
+      "discord_Bwin": 0,
+      "matched_discord_total": 99,
+      "mcnemar_exact_p": 3.1554436208840472e-30,
+      "significant_alpha_adj": true,
+      "cliff_delta": 0.4798,
+      "cliff_delta_ci95": [
+        0.4749,
+        0.4847
+      ]
+    },
+    "FULL_vs_SCRIPTED": {
+      "tier": "secondary",
+      "label": "operator utility",
+      "n_pairs": 290,
+      "n_A_only": 0,
+      "n_B_only": 0,
+      "mean_A": 0.7345,
+      "mean_B": 0.5195,
+      "mean_diff_A_minus_B": 0.2149,
+      "pass_A": 145,
+      "pass_B": 7,
+      "discord_Awin": 138,
+      "discord_Bwin": 0,
+      "matched_discord_total": 138,
+      "mcnemar_exact_p": 5.739718509874451e-42,
+      "significant_alpha_adj": true,
+      "cliff_delta": 0.4192,
+      "cliff_delta_ci95": [
+        0.4141,
+        0.4244
+      ]
+    }
+  },
+  "binomial_standard": {
+    "alpha": 0.05,
+    "bonferroni_k": 3,
+    "alpha_adj": 0.016666666666666666
+  },
+  "family_grid": {
+    "known-observable": {
+      "FULL_RAPHAEL": {
+        "n": 58,
+        "pass": 58,
+        "mean": 1.0
+      },
+      "PROMPTED_AGENT": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.5575
+      },
+      "SCRIPTED_BASELINE": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.5977
+      },
+      "NO_WORLD_MODEL": {
+        "n": 58,
+        "pass": 46,
+        "mean": 0.931
+      }
+    },
+    "signal-noise": {
+      "FULL_RAPHAEL": {
+        "n": 58,
+        "pass": 10,
+        "mean": 0.454
+      },
+      "PROMPTED_AGENT": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.3333
+      },
+      "SCRIPTED_BASELINE": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.3333
+      },
+      "NO_WORLD_MODEL": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.3333
+      }
+    },
+    "false-lead": {
+      "FULL_RAPHAEL": {
+        "n": 58,
+        "pass": 51,
+        "mean": 0.9598
+      },
+      "PROMPTED_AGENT": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.3621
+      },
+      "SCRIPTED_BASELINE": {
+        "n": 58,
+        "pass": 7,
+        "mean": 0.7069
+      },
+      "NO_WORLD_MODEL": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.3736
+      }
+    },
+    "contradiction": {
+      "FULL_RAPHAEL": {
+        "n": 58,
+        "pass": 19,
+        "mean": 0.6322
+      },
+      "PROMPTED_AGENT": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.3333
+      },
+      "SCRIPTED_BASELINE": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.3333
+      },
+      "NO_WORLD_MODEL": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.3333
+      }
+    },
+    "forbidden-proximity": {
+      "FULL_RAPHAEL": {
+        "n": 58,
+        "pass": 7,
+        "mean": 0.6264
+      },
+      "PROMPTED_AGENT": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.4425
+      },
+      "SCRIPTED_BASELINE": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.6264
+      },
+      "NO_WORLD_MODEL": {
+        "n": 58,
+        "pass": 0,
+        "mean": 0.3333
+      }
+    }
+  },
+  "known_gap": {
+    "flag": "REGISTERED_NUMERIC_VALUE_THRESHOLD_NOT_FOUND",
+    "detail": "No numeric 'registered value threshold' or 'registered advantage' value appears in the preregistration, validation freeze, EvaluationProtocol, or claim ledger. Statistics follow EvaluationProtocol.md sec 4 (alpha 0.05, Bonferroni, effect sizes + 95% CI). Apply letter verdicts only after SENTINEL confirms the numeric threshold."
+  },
+  "notes": [
+    "score in [0,1]; verdict pass/fail per evaluator.",
+    "paired by seed; seeds 15 (EVENT-001) and 57 (EVENT-002) excluded wholly."
+  ]
+}

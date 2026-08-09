@@ -1,0 +1,68 @@
+{
+  "artifact_id": "PROVIDER_TAXONOMY_AND_INFRA_POLICY",
+  "version": "1.0",
+  "status": "FROZEN",
+  "frozen_at_utc": "2026-08-06T23:45:00Z",
+  "authorizer": "SENTINEL (REPAIR-DEV-01 adjudication, directive 7-8: mechanical provider-failure taxonomy + arm-neutral infrastructure handling)",
+  "applicability": "VALIDATION and HOLDOUT phases of the TERMINAL_FALSIFICATION campaign",
+  "purpose": "Distinguish infrastructure events from experimental failures MECHANICALLY so provider instability cannot be misread as an architectural or prompting failure.",
+  "mechanism_source": "src/arena/llm_service.py::call_llm_provider + process_llm_response; failure_type enum in src/arena/semantic_inference.py::SemanticInferenceFailure",
+
+  "infrastructure_taxonomy": {
+    "INFRA_events": {
+      "provider_timeout": {
+        "mechanical_detection": "RawResponse.status_code == 0 AND response_text == ''",
+        "code_site": "llm_service.py:300-309",
+        "covers": ["request timeout", "connection error (requests.exceptions.ConnectionError)", "other request exceptions (status collapses to 0)"],
+        "example_http": null
+      },
+      "provider_api_error": {
+        "mechanical_detection": "RawResponse.status_code != 200 AND status_code != 0",
+        "code_site": "llm_service.py:285-297",
+        "covers": ["HTTP 429 rate-limit", "HTTP 5xx server error", "HTTP 4xx auth/other"],
+        "example_http": [429, 500, 502, 503, 504]
+      }
+    },
+    "qualifying_infra_event": "any LLM call in a network-dependent arm that returns SemanticInferenceFailure with failure_type in {provider_timeout, provider_api_error} (equivalently: runner.metrics.provider_failures increments)",
+    "non_qualifying_events": [
+      "malformed_output (SemanticInferenceFailure.failure_type == 'malformed_output')",
+      "semantically_unusable (failure_type == 'semantically_unusable')",
+      "refused_response (failure_type == 'refused_response')"
+    ]
+  },
+
+  "experimental_taxonomy": {
+    "EXPERIMENTAL_failures": [
+      "malformed model action (PROMPTED_AGENT: _parse_prompted_action returns None -> model_failures += 1)",
+      "refusal",
+      "wrong action",
+      "loop",
+      "reasoning failure",
+      "budget exhaustion (actions_dispatched >= ACTION_CAP=5 or iterations_used >= ITERATION_BUDGET=5 with objective unmet)"
+    ],
+    "rule": "EXPERIMENTAL failures are NEVER reclassified as INFRA. They are architectural/behavioral outcomes of the arm."
+  },
+
+  "paired_infrastructure_validity": {
+    "definition": "A MATCHED COMPARISON is the set of all 4 arms at a fixed (family, seed) instance.",
+    "rule": "If ANY network-dependent arm (FULL_RAPHAEL, PROMPTED_AGENT, NO_WORLD_MODEL) in the matched comparison records >= 1 QUALIFYING INFRA event, the entire matched comparison is marked INFRA_INVALID.",
+    "handling": [
+      "INFRA_INVALID matched comparisons are excluded from the primary architecture-vs-prompting confirmatory comparison.",
+      "They are NOT counted as architectural failures and do NOT contribute to any arm's failure rate.",
+      "They are REPORTED in the validation/holdout provider-stability section (count, distribution by family, by arm).",
+      "No selective rerun of INFRA_INVALID cells.",
+      "No opportunistic key/model fallback."
+    ],
+    "rationale": "Per SENTINEL: the DEV gap (PROMPTED 4.4 mean dispatches, 19/50 below-cap) is asymmetric provider starvation, not architecture-vs-prompting signal. Paired validity removes the confound without reruns."
+  },
+
+  "prohibited_actions": [
+    "Selectively retrying failed PROMPTED runs",
+    "Inspecting a bad result and rerunning it",
+    "Opportunistic key/model fallback",
+    "Reclassifying model refusal / malformed action / loop / poor reasoning / wrong action / budget exhaustion as infrastructure",
+    "Reclassifying timeout / HTTP 429 / HTTP 5xx / connection failure as experimental"
+  ],
+
+  "pre_registered_anchor": "D-6C provider_failure_policy (no selective retry; PROVIDER_CONFOUNDED flagging) — extended to paired-comparison validity per SENTINEL directive 7."
+}

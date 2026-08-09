@@ -33,17 +33,39 @@ from arena.ablation import (
     ABLATION_PRESETS,
 )
 from arena.evaluator import evaluate_generic
+
+import sys
+import errno
+
+def _safe_debug_stderr(msg: str) -> None:
+    """Write debug message to stderr, swallowing EPIPE (dead capture pipe).
+
+    Under the full capture harness the stderr pipe may be closed by the reader,
+    causing EPIPE on write. This helper swallows only EPIPE so debug output
+    availability never aborts the cognitive path. All other OSErrors propagate.
+    """
+    try:
+        print(msg, file=sys.stderr)
+    except BrokenPipeError:
+        # Dead capture pipe — swallow and continue. Debug output availability
+        # must never affect episode execution, broker dispatch, tool execution,
+        # evaluation, or terminal verdict.
+        pass
+    except OSError as exc:
+        # Only EPIPE is swallowed; all other OSErrors surface.
+        if exc.errno != errno.EPIPE:
+            raise
 from arena.conclusion_adapters import get_adapter
 from arena.conclusion_evaluator import evaluate_runconclusion
 from arena.environment import ScenarioEnvironment, RawObservation, ObservationNormalizer
 
-from orchestrator.brain.evidence import Evidence
+from orchestrator.brain.evidence import Evidence, TrustLevel
 from orchestrator.brain.world import WorldModel, Entity, EntityType, Relationship, RelationshipType
 from orchestrator.brain.hypothesis import HypothesisManager, HypothesisStatus
 from orchestrator.brain.contradiction import ContradictionManager, create_contradiction_manager
 from orchestrator.brain.capability_broker import CapabilityBroker
 from arena.llm_service import LLMService, LLMProviderConfig, SemanticInferenceSuccess
-from arena.semantic_inference import build_evidence_context
+from arena.semantic_inference import build_evidence_context, PROMPTED_AGENT_SYSTEM_PROMPT
 from arena.defeater import DefeaterGenerator, DefeaterEvaluator, DefeaterTrigger
 
 
@@ -496,6 +518,14 @@ class NoOpWorldModel:
     
     def query_why(self, *args, **kwargs):
         return []
+    
+    def get_entity(self, entity_id: str):
+        """No-op: world model is disabled in this ablation config."""
+        return None
+    
+    def get_entities_by_type(self, entity_type: str):
+        """No-op: world model is disabled in this ablation config."""
+        return []
 
 
 class NoOpContradictionManager:
@@ -552,6 +582,34 @@ class NoOpPlanner:
 
 # ── Ablation Runner ───────────────────────────────────────────
 
+def _resolve_nvidia_api_key() -> str:
+    """Resolve NVIDIA API key from environment — AMENDMENT-MODEL-EOL-2026-08-09.
+
+    Keys are NEVER hardcoded. Resolution order: NVIDIA_API_KEY_A,
+    NVIDIA_API_KEY_B, NVIDIA_API_KEY (legacy), then repo .env file.
+    """
+    import os as _os
+    for name in ("NVIDIA_API_KEY_A", "NVIDIA_API_KEY_B", "NVIDIA_API_KEY"):
+        val = _os.environ.get(name)
+        if val:
+            return val
+    try:
+        env_path = _os.path.join(
+            _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+            ".env",
+        )
+        with open(env_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("NVIDIA_API_KEY_") and "=" in line:
+                    k, v = line.split("=", 1)
+                    if k in ("NVIDIA_API_KEY_A", "NVIDIA_API_KEY_B") and v.strip():
+                        return v.strip()
+    except Exception:
+        pass
+    return ""
+
+
 class AblationRunner:
     """Drives a single ablation run: build → execute → verify → collect metrics.
     
@@ -601,13 +659,13 @@ class AblationRunner:
             llm_config = self._llm_config_override
         else:
             llm_config = LLMProviderConfig(
-                model_id="deepseek-ai/deepseek-v4-flash",
+                model_id="nvidia/llama-3.3-nemotron-super-49b-v1",
                 provider="nvidia",
                 api_base="https://integrate.api.nvidia.com/v1",
-                api_key="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",
-                timeout_seconds=15,
+                api_key=_resolve_nvidia_api_key(),
+                timeout_seconds=180,
                 temperature=0.0,
-                max_tokens=512,
+                max_tokens=16384,
             )
         self.llm_service = LLMService(
             config=llm_config,
@@ -635,6 +693,12 @@ class AblationRunner:
         
         # Broker reference for safety verification (used by LLM_ONLY/SCRIPTED paths)
         self._broker_for_safety = None
+        
+        # Track semantic inference evidence IDs for inclusion in next episode.
+        # Initialized here (NOT only in the Raphael loop) because the LLM-only
+        # path also creates model_inference evidence and reads this list.
+        # (L-028 wiring fix; G-05 follow-up.)
+        self._pending_si_evidence_ids = []
     
     def run(self) -> RunMetrics:
         """Execute the full ablation run: build → execute → verify → collect."""
@@ -699,6 +763,12 @@ class AblationRunner:
             self.metrics.llm_calls = self._llm.call_count
             self.metrics.input_tokens = self._llm.input_tokens
             self.metrics.output_tokens = self._llm.output_tokens
+
+        # L-028 Option A: include LLMService semantic-inference calls in
+        # telemetry for the LLM-only path (PROMPTED_AGENT / LLM_ONLY).
+        # Scoped by flag: FULL_RAPHAEL telemetry semantics are untouched.
+        if getattr(self, '_llm_service_llm_only', False) and getattr(self, '_llm_service', None):
+            self.metrics.llm_calls += self._llm_service.call_count
         
         return self.metrics
     
@@ -800,17 +870,18 @@ class AblationRunner:
                 llm_config = self._llm_config_override
             else:
                 llm_config = LLMProviderConfig(
-                    model_id="deepseek-ai/deepseek-v4-flash",
+                    model_id="nvidia/llama-3.3-nemotron-super-49b-v1",
                     provider="nvidia",
                     api_base="https://integrate.api.nvidia.com/v1",
-                    api_key="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",
-                    timeout_seconds=15,
+                    api_key=_resolve_nvidia_api_key(),
+                    timeout_seconds=180,
                     temperature=0.0,
-                    max_tokens=512,
+                    max_tokens=16384,
                 )
             self._llm_service = LLMService(
                 config=llm_config,
                 tracer=self.tracer,
+                system_prompt=PROMPTED_AGENT_SYSTEM_PROMPT if self.config.config_id == "PROMPTED_AGENT" else None,
             )
         else:
             self._llm = None
@@ -905,6 +976,8 @@ class AblationRunner:
         self._executed_targets = set()
         self._actions_per_target = {}
         self._known_services = {}
+        # Track semantic inference evidence IDs for inclusion in next episode
+        self._pending_si_evidence_ids = []
         
         while iteration < max_iterations:
             iteration += 1
@@ -1069,6 +1142,32 @@ class AblationRunner:
                             entity_ids=entity_ids,
                             evidence_ids=list(all_evidence_ids),
                         )
+                        # Create Evidence from SemanticInferenceSuccess for model_inference evidence
+                        # This enables the L-028 structured conclusion parser to find the structured_conclusion
+                        si_evidence = Evidence.create(
+                            raw_content=json.dumps({
+                                "claim": result.claim,
+                                "category": result.category.value,
+                                "confidence": result.confidence,
+                                "structured_conclusion": getattr(result, 'structured_conclusion', {}) or {}
+                            }),
+                            trust_level=TrustLevel.MODEL_INFERENCE,
+                            source_detail=f"LLM semantic inference (category: {result.category.value})",
+                            target=result.category.value,
+                            evidence_type="model_inference",
+                            description=f"LLM semantic inference: {result.claim[:100]}",
+                            structured_content={
+                                "claim": result.claim,
+                                "category": result.category.value,
+                                "confidence": result.confidence,
+                                "structured_conclusion": getattr(result, 'structured_conclusion', {}) or {}
+                            },
+                            collected_by="llm_service",
+                        )
+                        runner.evidence_graph.add_evidence(si_evidence)
+                        # Track the semantic inference evidence ID for inclusion in next episode
+                        self._pending_si_evidence_ids.append(si_evidence.evidence_id)
+                        
                         h_sources.append(
                             f"SEMANTIC INFERENCE: {result.claim} "
                             f"(category: {result.category.value}, "
@@ -1417,6 +1516,7 @@ class AblationRunner:
             
 # Action authorized
             self.metrics.actions_authorized += 1
+            self.metrics.actions_dispatched += 1
             
             # 2f. Execute action against environment
             self.metrics.pipeline_coverage["execution_count"] += 1
@@ -1699,11 +1799,13 @@ class AblationRunner:
                 authorization_result={"decision": "allow", "receipt_id": receipt_id},
                 execution_result={"success": True, "observation_count": len(observations)},
                 observations_created=[o.observation_id for o in observations],
-                evidence_created=obs_evidence_ids,
+                evidence_created=obs_evidence_ids + self._pending_si_evidence_ids,
                 belief_updates=[f"hypothesis_update_iteration_{iteration}"],
                 world_updates=[],
                 objective_progress=min(iteration / max_iterations, 1.0),
             )
+            # Clear pending semantic inference evidence IDs after use
+            self._pending_si_evidence_ids = []
             
             # 2j. Check contradiction if enabled
             if self.config.structured_reasoning_enabled:
@@ -2556,6 +2658,30 @@ class AblationRunner:
         
         self._llm = TracedLLM(self.tracer, self.config)
         
+        # LLMService for semantic inference (L-028 Option A — mirrors _run_raphael).
+        # PROMPTED_AGENT gets the PROMPTED_AGENT_SYSTEM_PROMPT envelope.
+        if self.config.llm_enabled:
+            if self._llm_config_override is not None:
+                llm_config = self._llm_config_override
+            else:
+                llm_config = LLMProviderConfig(
+                    model_id="nvidia/llama-3.3-nemotron-super-49b-v1",
+                    provider="nvidia",
+                    api_base="https://integrate.api.nvidia.com/v1",
+                    api_key=_resolve_nvidia_api_key(),
+                    timeout_seconds=180,
+                    temperature=0.0,
+                    max_tokens=16384,
+                )
+            self._llm_service = LLMService(
+                config=llm_config,
+                tracer=self.tracer,
+                system_prompt=PROMPTED_AGENT_SYSTEM_PROMPT if self.config.config_id == "PROMPTED_AGENT" else None,
+            )
+        else:
+            self._llm_service = None
+        self._llm_service_llm_only = bool(self._llm_service)
+        
         # Create ArenaRunner with fresh state (same interface as Raphael)
         evidence_graph = EG()
         world_model = NoOpWorldModel()
@@ -2596,6 +2722,48 @@ class AblationRunner:
         
         while iteration < max_iterations:
             iteration += 1
+            
+            # Semantic inference on current evidence (L-028 Option A —
+            # mirrors _run_raphael 2a-LLM block). Produces model_inference
+            # evidence that the L-028 parsers consume.
+            if self.config.llm_enabled and self._llm_service:
+                _llm_ev = runner.evidence_graph.get_all_evidence()
+                if len(_llm_ev) >= 3:
+                    _diverse_items = select_diverse_evidence(_llm_ev)
+                    if _diverse_items:
+                        _llm_evidence_ids = tuple(
+                            eid for item in _diverse_items for eid in item.get('evidence_ids', [])
+                        )
+                        if _llm_evidence_ids:
+                            _llm_text = build_evidence_context(_diverse_items)
+                            _llm_result = self._llm_service.run_inference(
+                                observation_text=_llm_text,
+                                source_evidence_ids=_llm_evidence_ids,
+                                run_id=self.run_id,
+                            )
+                            if isinstance(_llm_result, SemanticInferenceSuccess):
+                                si_evidence = Evidence.create(
+                                    raw_content=json.dumps({
+                                        "claim": _llm_result.claim,
+                                        "category": _llm_result.category.value,
+                                        "confidence": _llm_result.confidence,
+                                        "structured_conclusion": getattr(_llm_result, 'structured_conclusion', {}) or {}
+                                    }),
+                                    trust_level=TrustLevel.MODEL_INFERENCE,
+                                    source_detail=f"LLM semantic inference (category: {_llm_result.category.value})",
+                                    target=_llm_result.category.value,
+                                    evidence_type="model_inference",
+                                    description=f"LLM semantic inference: {_llm_result.claim[:100]}",
+                                    structured_content={
+                                        "claim": _llm_result.claim,
+                                        "category": _llm_result.category.value,
+                                        "confidence": _llm_result.confidence,
+                                        "structured_conclusion": getattr(_llm_result, 'structured_conclusion', {}) or {}
+                                    },
+                                    collected_by="llm_service",
+                                )
+                                runner.evidence_graph.add_evidence(si_evidence)
+                                self._pending_si_evidence_ids.append(si_evidence.evidence_id)
             
             # LLM proposes action based on current evidence
             all_ev = runner.evidence_graph.get_all_evidence()
@@ -2658,6 +2826,7 @@ class AblationRunner:
             self.metrics.pipeline_coverage["execution_count"] += 1
             self.metrics.actions_started += 1
             self.metrics.actions_authorized += 1
+            self.metrics.actions_dispatched += 1
             observations = env.handle_action(
                 target=selected["target"],
                 action_type=selected["action_type"],
@@ -2691,7 +2860,7 @@ class AblationRunner:
                 authorization_result={"decision": "allow", "receipt_id": receipt_id},
                 execution_result={"success": True, "observation_count": len(observations)},
                 observations_created=[o.observation_id for o in observations],
-                evidence_created=obs_evidence_ids,
+                evidence_created=obs_evidence_ids + self._pending_si_evidence_ids,
                 belief_updates=[],
                 world_updates=[],
                 objective_progress=iteration / max_iterations,
@@ -2700,6 +2869,11 @@ class AblationRunner:
         if iteration >= max_iterations:
             decision_outcome = "STOP_OBJECTIVE_REACHED"
         self.metrics.decision_outcome = decision_outcome
+        
+        # LLMService telemetry (L-028 Option A — provider status for PROMPTED_AGENT)
+        # NOTE: llm_calls merge happens in run() finalize (avoids clobber).
+        if getattr(self, '_llm_service', None):
+            self.metrics.provider_failures = self._llm_service.provider_failures
     
     def _run_scripted(self):
         """Scripted baseline: deterministic policy.
@@ -2795,6 +2969,7 @@ class AblationRunner:
             self.metrics.pipeline_coverage["execution_count"] += 1
             self.metrics.actions_started += 1
             self.metrics.actions_authorized += 1
+            self.metrics.actions_dispatched += 1
             observations = env.handle_action(
                 target=selected["target"],
                 action_type=selected["action_type"],
@@ -2828,7 +3003,7 @@ class AblationRunner:
                 authorization_result={"decision": "allow", "receipt_id": receipt_id},
                 execution_result={"success": True, "observation_count": len(observations)},
                 observations_created=[o.observation_id for o in observations],
-                evidence_created=obs_evidence_ids,
+                evidence_created=obs_evidence_ids + self._pending_si_evidence_ids,
                 belief_updates=[],
                 world_updates=[],
                 objective_progress=iteration / max_iterations,
@@ -2836,6 +3011,7 @@ class AblationRunner:
         
         if iteration >= max_iterations:
             decision_outcome = "STOP_OBJECTIVE_REACHED"
+        self._pending_si_evidence_ids = []
         self.metrics.decision_outcome = decision_outcome
     
     def _evaluate(self):

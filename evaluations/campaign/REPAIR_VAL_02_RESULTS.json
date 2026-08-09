@@ -1,0 +1,305 @@
+{
+  "amendment_id": "REPAIR-VAL-02",
+  "phase": "PHASE_3_RESULTS",
+  "protocol_status": "ACCEPTED",
+  "repair_applied": "EPIPE-tolerant _safe_debug_stderr guard for the two D14 planner debug stderr writes (ablation_runner.py); scope limited to diagnostic output path only",
+  "rerun_spec": {
+    "matrix": "200 cells = 4 arms x 5 families x 10 seeds (exact original instrument; identical arms/families/seeds/ordering/model/prompt/evaluator/budgets)",
+    "cell_identity_sha256_preregistered": "514ba4370de03750617b6ed82dd4b502cf815046d434233a8a9693854819a1d3",
+    "cell_identity_sha256_actual": "514ba4370de03750617b6ed82dd4b502cf815046d434233a8a9693854819a1d3",
+    "identity_match": true,
+    "model": "nvidia/llama-3.3-nemotron-super-49b-v1",
+    "elapsed_minutes": 64.0,
+    "rerun_log": "evaluations/campaign/REPAIR_VAL_02_RERUN.log",
+    "raw_telemetry": "evaluations/campaign/rbs_v4_validation.jsonl (200 rows)",
+    "baseline_pre_repair": "evaluations/campaign/rbs_v4_validation_PRE_REPAIR_VAL_02_FROZEN.jsonl (200 rows, 20 broken-pipe infra)"
+  },
+  "infra_table_by_arm": {
+    "FULL_RAPHAEL": {
+      "expected": 50,
+      "infra_valid": 50,
+      "infra_invalid": 0,
+      "failure_rate": 0.0
+    },
+    "NO_WORLD_MODEL": {
+      "expected": 50,
+      "infra_valid": 50,
+      "infra_invalid": 0,
+      "failure_rate": 0.0
+    },
+    "PROMPTED_AGENT": {
+      "expected": 50,
+      "infra_valid": 50,
+      "infra_invalid": 0,
+      "failure_rate": 0.0
+    },
+    "SCRIPTED_BASELINE": {
+      "expected": 50,
+      "infra_valid": 50,
+      "infra_invalid": 0,
+      "failure_rate": 0.0
+    }
+  },
+  "matched_paired_infra_validity": {
+    "policy": "any network arm with >=1 qualifying INFRA event invalidates the whole comparison",
+    "n_matched_comparisons": 50,
+    "n_valid": 50,
+    "n_invalid": 0,
+    "invalid_comparisons": []
+  },
+  "matched_gate": {
+    "full_infra_valid_ge_45": true,
+    "prompted_infra_valid_ge_45": true,
+    "abs_failure_rate_delta": 0.0,
+    "delta_is_zero": true
+  },
+  "gate_pass": true,
+  "previously_failing_20_cells": {
+    "n": 20,
+    "all_now_clean": true,
+    "cells": [
+      {
+        "arm": "FULL_RAPHAEL",
+        "seed": 0,
+        "abs_seed": 1000,
+        "actions_dispatched": 5,
+        "actions_started": 5,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "FULL_RAPHAEL",
+        "seed": 1,
+        "abs_seed": 1001,
+        "actions_dispatched": 5,
+        "actions_started": 4,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "FULL_RAPHAEL",
+        "seed": 2,
+        "abs_seed": 1002,
+        "actions_dispatched": 5,
+        "actions_started": 5,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "FULL_RAPHAEL",
+        "seed": 3,
+        "abs_seed": 1003,
+        "actions_dispatched": 5,
+        "actions_started": 5,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "FULL_RAPHAEL",
+        "seed": 4,
+        "abs_seed": 1004,
+        "actions_dispatched": 5,
+        "actions_started": 5,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "FULL_RAPHAEL",
+        "seed": 5,
+        "abs_seed": 1005,
+        "actions_dispatched": 5,
+        "actions_started": 4,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "FULL_RAPHAEL",
+        "seed": 6,
+        "abs_seed": 1006,
+        "actions_dispatched": 5,
+        "actions_started": 5,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "FULL_RAPHAEL",
+        "seed": 7,
+        "abs_seed": 1007,
+        "actions_dispatched": 5,
+        "actions_started": 5,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "FULL_RAPHAEL",
+        "seed": 8,
+        "abs_seed": 1008,
+        "actions_dispatched": 5,
+        "actions_started": 4,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "FULL_RAPHAEL",
+        "seed": 9,
+        "abs_seed": 1009,
+        "actions_dispatched": 5,
+        "actions_started": 5,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "NO_WORLD_MODEL",
+        "seed": 0,
+        "abs_seed": 1000,
+        "actions_dispatched": 5,
+        "actions_started": 3,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "NO_WORLD_MODEL",
+        "seed": 1,
+        "abs_seed": 1001,
+        "actions_dispatched": 5,
+        "actions_started": 3,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "NO_WORLD_MODEL",
+        "seed": 2,
+        "abs_seed": 1002,
+        "actions_dispatched": 5,
+        "actions_started": 3,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "NO_WORLD_MODEL",
+        "seed": 3,
+        "abs_seed": 1003,
+        "actions_dispatched": 5,
+        "actions_started": 3,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "fail",
+        "score": 0.6666666666666666
+      },
+      {
+        "arm": "NO_WORLD_MODEL",
+        "seed": 4,
+        "abs_seed": 1004,
+        "actions_dispatched": 5,
+        "actions_started": 3,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "NO_WORLD_MODEL",
+        "seed": 5,
+        "abs_seed": 1005,
+        "actions_dispatched": 5,
+        "actions_started": 3,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "NO_WORLD_MODEL",
+        "seed": 6,
+        "abs_seed": 1006,
+        "actions_dispatched": 5,
+        "actions_started": 3,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "fail",
+        "score": 0.6666666666666666
+      },
+      {
+        "arm": "NO_WORLD_MODEL",
+        "seed": 7,
+        "abs_seed": 1007,
+        "actions_dispatched": 5,
+        "actions_started": 4,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "fail",
+        "score": 0.6666666666666666
+      },
+      {
+        "arm": "NO_WORLD_MODEL",
+        "seed": 8,
+        "abs_seed": 1008,
+        "actions_dispatched": 5,
+        "actions_started": 3,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      },
+      {
+        "arm": "NO_WORLD_MODEL",
+        "seed": 9,
+        "abs_seed": 1009,
+        "actions_dispatched": 5,
+        "actions_started": 3,
+        "infra_failures": [],
+        "provider_failures": 0,
+        "verdict": "pass",
+        "score": 1.0
+      }
+    ]
+  },
+  "duplicate_execution_integrity": {
+    "definition": "unique authorization receipt per executed action; logical action_id may repeat across iterations by design (action_type+target) and is NOT an execution identity",
+    "runs_with_duplicate_receipt_within_run": 0,
+    "unique_receipts_by_arm": {
+      "FULL_RAPHAEL": 250,
+      "NO_WORLD_MODEL": 250,
+      "PROMPTED_AGENT": 188,
+      "SCRIPTED_BASELINE": 248
+    },
+    "total_actions_dispatched": 1000,
+    "total_actions_started": 799,
+    "total_actions_succeeded": 799,
+    "no_replay_evidence": "all 20 previously-failing cells dispatched 5 actions each post-repair (baseline: 0); no receipt duplication in any run"
+  },
+  "baseline_infra_cells": 20,
+  "post_repair_infra_cells": 0,
+  "regression_tests": {
+    "tests/test_debug_stderr_epipe.py": "4 passed (EPIPE nonfatal, healthy path, non-EPIPE OSError surfaces, exact-errno swallow)",
+    "full_suite": "239 passed (235 prior + 4 new)"
+  },
+  "generated_at_utc": "2026-08-07T12:00:00Z",
+  "holdout": "STILL BLOCKED \u2014 infra asymmetry zero achieved; holdout authorization remains with SENTINEL"
+}

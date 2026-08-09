@@ -1,0 +1,36 @@
+{
+  "event_id": "HOLDOUT-INFRA-002",
+  "detected_at_utc": "2026-08-07T19:09:31Z",
+  "cell": {"config": "PROMPTED_AGENT", "family": "contradiction", "seed": 57, "abs_seed": 2057},
+  "run_id": "abl_PROMPTED_AGENT_contradiction_s0057_holdout",
+  "classification": {
+    "qualifying_infra": true,
+    "taxonomy_basis": "provider_failures=1 > 0 in a network arm (frozen taxonomy)",
+    "type": "transient provider outage, recovered via preregistered dual-key failover",
+    "evidence": {
+      "provider_attempts": 12,
+      "failover_count": 2,
+      "retries_by_key_alias": {"KEY_A": 4, "KEY_B": 4},
+      "final_key_alias": "KEY_A",
+      "final_provider_status": 200,
+      "logical_llm_calls": 5,
+      "elapsed_seconds": 207.9,
+      "adapter_error_events": 0,
+      "envelope_failures": 0
+    }
+  },
+  "handling": {
+    "per_preregistration": "matched comparison (contradiction, seed 57) tagged INFRA_INVALID and EXCLUDED from primary FULL-vs-PROMPTED inference at integrity gate",
+    "selective_rerun": "FORBIDDEN",
+    "key_or_model_fallback": "NOT APPLIED (failover is the frozen transport design)",
+    "row_retained_in_jsonl": true,
+    "intervention": "NONE — collection continues unchanged"
+  },
+  "cumulative_infra_events": 2,
+  "cumulative_affected_matched_comparisons_at_detection": [
+    {"family": "false-lead", "seed": 15},
+    {"family": "contradiction", "seed": 57}
+  ],
+  "note": "Infra arm identity (PROMPTED_AGENT) is infrastructure information, not architectural-performance evidence. Authoritative count of invalid matched comparisons computed by the integrity gate at closure.",
+  "status": "CLASSIFIED_NO_INTERVENTION"
+}

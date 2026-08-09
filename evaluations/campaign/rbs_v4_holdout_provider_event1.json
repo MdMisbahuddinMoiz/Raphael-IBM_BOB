@@ -1,0 +1,29 @@
+{
+  "record_type": "PROVIDER_EVENT — LLM QUOTA EXHAUSTION (FAST-FAIL WINDOW)",
+  "classification": "INFRASTRUCTURE/PROVIDER EVENT — RECOVERED",
+  "campaign": "rbs-v4-holdout",
+  "instrument_tag": "v4-benchmark-frozen",
+  "event_number": 1,
+  "event_window_utc": "2026-08-05T16:32:36Z to 2026-08-05T16:35:47Z (recovery at ~16:36Z)",
+  "root_cause": "Ollama cloud LLM account weekly quota exhausted. Provider returned fast failures (~0.4s per call, no real inference) for the gpt-oss:20b-cloud model. Operator switched to a second account (~69% usage remaining) at ~16:36Z, after which LLM inference resumed full production (5/5).",
+  "evidence": [
+    "Trace comparison: AFFECTED runs show 5 'llm_service/llm_inference' traces with 0 'produced_semantic_inference'; RECOVERED runs show 5 llm_inference + 5 produced_semantic_inference.",
+    "Elapsed-time signature: AFFECTED runs complete in ~2.1s total (0.4s per LLM call = fast failure, no inference); RECOVERED runs take 14-32s (real inference).",
+    "Timing correlation: T6 FULL_RAPHAEL (16:32:36-16:33:37), T6 NO_HYPOTHESIS (16:33:39-16:34:41), T6 NO_FALSIFICATION (16:34:43-16:35:47) all llm=0/5. First recovery signal at T6 NO_FALSIFICATION s1101 (llm=1/5, 16:35:47). Full recovery at T6 NO_WORLD_MODEL s1072 (llm=5/5, 32s, 16:36:20).",
+    "Other templates unaffected: T1/T3/T4/T5 cells all show llm=150/150 (real calls) — the event is window-scoped to T6 cells collected during quota exhaustion."
+  ],
+  "affected_rows": {
+    "count": 90,
+    "detail": "89 runs with llm_produced=0/5, 1 run (T6 NO_FALSIFICATION s1101) with llm_produced=1/5",
+    "cells": [
+      "T6_SEMANTIC_LLM FULL_RAPHAEL: s1072-1101 (30 runs)",
+      "T6_SEMANTIC_LLM NO_HYPOTHESIS: s1072-1101 (30 runs)",
+      "T6_SEMANTIC_LLM NO_FALSIFICATION: s1072-1101 (30 runs)"
+    ]
+  },
+  "disposition_applied": "CONTINUE COLLECTION UNCHANGED (per SENTINEL disposition precedent for the NO_WORLD_MODEL defect). No reruns during collection. Affected rows flagged post-hoc for sensitivity analysis. The frozen instrument code path is identical; the event is provider-side.",
+  "flag_to_apply_at_analysis": "PROVIDER_EVENT: LLM_QUOTA_EXHAUSTED_FAST_FAIL (T6 cells, window 16:32:36Z-16:35:47Z, 90 rows)",
+  "instrument_impact": "None. No frozen code modified. Append-only JSONL preserved.",
+  "threats_to_validity_note": "This provider event joins (a) early holdout inspection and (b) the execution interruption in the final threats-to-validity/reproducibility record. The T6_SEMANTIC_LLM template is the LLM-conditional template, so the quota window affects interpretation of 3 of its 9 cells; sensitivity analysis comparing affected vs unaffected T6 cells must be labeled exploratory.",
+  "integrity_gate_impact": "None mechanical: the gate verifies structure/hashes/duplicates, not provider behavior. The gate will still pass; the provider event is a separate provenance layer."
+}

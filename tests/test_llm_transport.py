@@ -36,9 +36,11 @@ from arena.llm_service import (
 )
 from arena.semantic_inference import LLMProviderConfig
 
-# AMENDMENT-MODEL-550B-2026-08-09: primary model is now
-# nvidia/nemotron-3-ultra-550b-a55b (49B is campaign-level fallback only).
-AMENDED_MODEL_ID = "nvidia/nemotron-3-ultra-550b-a55b"
+# C9 (W0.8): model identity reverted to the frozen-tree default. 550B failed
+# gate (6/10) and NEVER shipped in src/ (commit 1b6c24933: "gate passed on
+# 49B, holdout launched"); 49B gate-passed (8/10) and is the canonical frozen
+# model for the completed RBS-v4 campaign. Mirrors test_prompted_agent_repair.
+AMENDED_MODEL_ID = "nvidia/llama-3.3-nemotron-super-49b-v1"
 AMENDED_PROVIDER = "nvidia"
 
 URL = "https://integrate.api.nvidia.com/v1/chat/completions"

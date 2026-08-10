@@ -769,7 +769,17 @@ class AblationRunner:
         # Scoped by flag: FULL_RAPHAEL telemetry semantics are untouched.
         if getattr(self, '_llm_service_llm_only', False) and getattr(self, '_llm_service', None):
             self.metrics.llm_calls += self._llm_service.call_count
-        
+
+        # C9 (W0.8) model identity: sync the resolved provider config into
+        # metrics for LLM-enabled arms so the init placeholder ("simulated_v1")
+        # never leaks into non-mock telemetry. Mirrors the finalize contract
+        # documented in test_token_telemetry.py (model_id/provider from
+        # _llm_service.config). Non-LLM arms (_llm_service is None) keep the
+        # placeholder, which is correct for simulated baselines.
+        if getattr(self, '_llm_service', None) is not None:
+            self.metrics.model_id = self._llm_service.config.model_id
+            self.metrics.provider = self._llm_service.config.provider
+
         return self.metrics
     
     def _build_scenario(self) -> ArenaScenario:

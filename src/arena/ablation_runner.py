@@ -641,7 +641,9 @@ class AblationRunner:
         if issues:
             raise ValueError(f"Config validation failed: {'; '.join(issues)}")
         
-        self.run_id = f"abl_{config.config_id}_{template.family_id}_s{seed:04d}_{uuid.uuid4().hex[:6]}"
+        # C1 (W0.8): deterministic run_id from logical cell (config, template, seed, split)
+        # No random UUID suffix - same (config, template, seed, split) -> same run_id
+        self.run_id = f"abl_{config.config_id}_{template.family_id}_s{seed:04d}_{split}"
         
         # Metrics collector
         self.metrics = RunMetrics(

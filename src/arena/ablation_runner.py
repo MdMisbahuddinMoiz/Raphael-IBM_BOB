@@ -33,9 +33,14 @@ from arena.ablation import (
     ABLATION_PRESETS,
 )
 from arena.evaluator import evaluate_generic
+from arena.d6_manifest import ITERATION_BUDGET, ACTION_BUDGET
 
 import sys
 import errno
+
+# C6 (W0.8): Action budget cap for Gate B guard (broker dispatches cap = 5)
+# Distinct from manifest ACTION_BUDGET=20; ACTION_CAP bounds broker dispatches.
+ACTION_CAP = 5
 
 def _safe_debug_stderr(msg: str) -> None:
     """Write debug message to stderr, swallowing EPIPE (dead capture pipe).
@@ -978,7 +983,7 @@ class AblationRunner:
             self._student_generator = None
 
         # ── Phase 2: Cognitive Loop ──
-        max_iterations = 5  # Budget for pilot
+        max_iterations = ITERATION_BUDGET  # C6: bind to manifest constant
         iteration = 0
         decision_outcome = "ACT"
         # Track executed actions for diversity-aware selection
@@ -989,7 +994,7 @@ class AblationRunner:
         # Track semantic inference evidence IDs for inclusion in next episode
         self._pending_si_evidence_ids = []
         
-        while iteration < max_iterations:
+        while iteration < max_iterations and self.metrics.actions_dispatched < ACTION_CAP:
             iteration += 1
             
             # 2a-LLM. LLM semantic inference — gated on llm_enabled ONLY.
@@ -1833,6 +1838,11 @@ class AblationRunner:
                 decision_outcome = "STOP_INSUFFICIENT_EVIDENCE"
         
         self.metrics.decision_outcome = decision_outcome
+        
+        # C6 (W0.8): record budget consumption and ceilings
+        self.metrics.iterations_used = iteration
+        self.metrics.budget_iteration_ceiling = ITERATION_BUDGET
+        self.metrics.budget_action_ceiling = ACTION_CAP
     
     def _is_action_allowed(self, candidate: dict, view: dict) -> bool:
         """Check if a candidate action is allowed by the broker policy."""
@@ -2727,11 +2737,11 @@ class AblationRunner:
             self.metrics.pipeline_coverage["observation_ingestion_count"] += 1
         
         # Same iteration budget as Raphael
-        max_iterations = 5
+        max_iterations = ITERATION_BUDGET  # C6: bind to manifest constant
         iteration = 0
         decision_outcome = "ACT"
         
-        while iteration < max_iterations:
+        while iteration < max_iterations and self.metrics.actions_dispatched < ACTION_CAP:
             iteration += 1
             
             # Semantic inference on current evidence (L-028 Option A —
@@ -2880,6 +2890,11 @@ class AblationRunner:
             decision_outcome = "STOP_OBJECTIVE_REACHED"
         self.metrics.decision_outcome = decision_outcome
         
+        # C6 (W0.8): record budget consumption and ceilings
+        self.metrics.iterations_used = iteration
+        self.metrics.budget_iteration_ceiling = ITERATION_BUDGET
+        self.metrics.budget_action_ceiling = ACTION_CAP
+        
         # LLMService telemetry (L-028 Option A — provider status for PROMPTED_AGENT)
         # NOTE: llm_calls merge happens in run() finalize (avoids clobber).
         if getattr(self, '_llm_service', None):
@@ -2928,11 +2943,11 @@ class AblationRunner:
             self.metrics.pipeline_coverage["observation_ingestion_count"] += 1
         
         # Same iteration budget as Raphael
-        max_iterations = 5
+        max_iterations = ITERATION_BUDGET  # C6: bind to manifest constant
         iteration = 0
         decision_outcome = "ACT"
         
-        while iteration < max_iterations:
+        while iteration < max_iterations and self.metrics.actions_dispatched < ACTION_CAP:
             iteration += 1
             
             # Deterministic: scan each target in scope
@@ -3023,6 +3038,11 @@ class AblationRunner:
             decision_outcome = "STOP_OBJECTIVE_REACHED"
         self._pending_si_evidence_ids = []
         self.metrics.decision_outcome = decision_outcome
+        
+        # C6 (W0.8): record budget consumption and ceilings
+        self.metrics.iterations_used = iteration
+        self.metrics.budget_iteration_ceiling = ITERATION_BUDGET
+        self.metrics.budget_action_ceiling = ACTION_CAP
     
     def _evaluate(self):
         """Run the scenario evaluator.

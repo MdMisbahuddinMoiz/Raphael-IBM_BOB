@@ -87,7 +87,10 @@ class RunMetrics:
     
     # C5 (Gate B): action budget cap for invariant verification
     ACTION_CAP: int = 5
-    budget_action_ceiling: int = 5
+    budget_action_ceiling: Optional[int] = None
+    
+    # C6 (W0.8): iteration budget ceiling from manifest (ITERATION_BUDGET)
+    budget_iteration_ceiling: Optional[int] = None
     
     reference_actions: int = 0          # Optimal action count per ground truth
     action_efficiency: Optional[float] = None  # reference / actual (or capped)

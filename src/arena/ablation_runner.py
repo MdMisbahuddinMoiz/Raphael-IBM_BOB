@@ -1494,6 +1494,7 @@ class AblationRunner:
             
             if broker_decision != "allow":
                 self.metrics.actions_denied += 1
+                self.metrics.actions_dispatched += 1  # C5: dispatch counts every broker decision (ALLOW+DENY)
                 self.episodes.record(
                     objective=view.get("objective", ""),
                     evidence_available=[e.evidence_id for e in runner.evidence_graph.get_all_evidence()],
@@ -2817,6 +2818,7 @@ class AblationRunner:
             
             if broker_decision != "allow":
                 self.metrics.actions_denied += 1
+                self.metrics.actions_dispatched += 1  # C5: dispatch counts every broker decision (ALLOW+DENY)
                 self.episodes.record(
                     objective=view.get("objective", ""),
                     evidence_available=[e.evidence_id for e in all_ev],
@@ -2855,9 +2857,7 @@ class AblationRunner:
                     self.metrics.pipeline_coverage["evidence_creation_count"] += 1
                 self.metrics.pipeline_coverage["observation_ingestion_count"] += 1
             
-            self.metrics.actions_succeeded += 1
-            self.metrics.actions_started += 1
-            self.metrics.actions_authorized += 1
+            self.metrics.actions_succeeded += 1  # C5: no double-increment of started/authorized
             
             # Record episode (same structure as Raphael)
             self.episodes.record(
@@ -2959,6 +2959,8 @@ class AblationRunner:
             receipt_id = getattr(receipt, 'action_id', '') or getattr(receipt, 'receipt_id', '')
             
             if broker_decision != "allow":
+                self.metrics.actions_denied += 1
+                self.metrics.actions_dispatched += 1  # C5: dispatch counts every broker decision (ALLOW+DENY)
                 all_ev = runner.evidence_graph.get_all_evidence()
                 self.episodes.record(
                     objective=view.get("objective", ""),
@@ -2998,9 +3000,7 @@ class AblationRunner:
                     self.metrics.pipeline_coverage["evidence_creation_count"] += 1
                 self.metrics.pipeline_coverage["observation_ingestion_count"] += 1
             
-            self.metrics.actions_succeeded += 1
-            self.metrics.actions_started += 1
-            self.metrics.actions_authorized += 1
+            self.metrics.actions_succeeded += 1  # C5: no double-increment of started/authorized
             
             all_ev = runner.evidence_graph.get_all_evidence()
             self.episodes.record(

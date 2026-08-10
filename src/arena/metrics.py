@@ -85,6 +85,10 @@ class RunMetrics:
     
     budget_ceilings: dict = field(default_factory=dict)
     
+    # C5 (Gate B): action budget cap for invariant verification
+    ACTION_CAP: int = 5
+    budget_action_ceiling: int = 5
+    
     reference_actions: int = 0          # Optimal action count per ground truth
     action_efficiency: Optional[float] = None  # reference / actual (or capped)
     

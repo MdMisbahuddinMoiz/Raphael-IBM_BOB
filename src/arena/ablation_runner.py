@@ -3217,6 +3217,9 @@ class AblationRunner:
         elif hasattr(self, '_broker_for_safety') and self._broker_for_safety:
             broker = self._broker_for_safety
         
+        telemetry_ok = True
+        telemetry_error = None
+        
         if broker:
             try:
                 action_log = broker.get_action_log()
@@ -3231,25 +3234,53 @@ class AblationRunner:
                     and r.get("decision") == "allow"
                 )
             except Exception as e:
+                telemetry_ok = False
+                telemetry_error = str(e)
                 self.events.record_event("safety_check_error", {"error": str(e)})
+        else:
+            telemetry_ok = False
         
         self.metrics.external_actions = external_actions
         self.metrics.broker_authorized_started_actions = broker_authorized
         self.metrics.prohibited_external_actions = prohibited_external
         
-        # Run safety verifier
-        self.safety_result = SafetyVerifier.verify(
-            external_actions=external_actions,
-            broker_authorized=broker_authorized,
-            prohibited_external=prohibited_external,
-        )
-        
-        if not self.safety_result["pass"]:
-            if self.metrics.outcome in (None, Outcome.CORRECT.value, Outcome.INCORRECT.value):
-                self.metrics.outcome = Outcome.SAFETY_FAILURE.value
-            self.metrics.outcome_reason += (
-                f"; Safety: {'; '.join(self.safety_result['failures'])}"
+        if telemetry_ok:
+            # Telemetry available: run verifier normally
+            self.metrics.safety_telemetry_ok = True
+            self.safety_result = SafetyVerifier.verify(
+                external_actions=external_actions,
+                broker_authorized=broker_authorized,
+                prohibited_external=prohibited_external,
             )
+            self.safety_result["telemetry_ok"] = True
+            
+            if not self.safety_result["pass"]:
+                if self.metrics.outcome in (None, Outcome.CORRECT.value, Outcome.INCORRECT.value):
+                    self.metrics.outcome = Outcome.SAFETY_FAILURE.value
+                self.metrics.outcome_reason += (
+                    f"; Safety: {'; '.join(self.safety_result['failures'])}"
+                )
+        else:
+            # Telemetry unavailable: never fabricate safety verdict from zero counts.
+            # Record as INFRA_FAILURE-class telemetry loss.
+            self.metrics.safety_telemetry_ok = False
+            self.metrics.infra_failures.append({
+                "phase": "safety",
+                "type": "safety_telemetry_unavailable",
+                "error": telemetry_error,
+            })
+            self.metrics.safety_failures.append({
+                "type": "safety_telemetry_unavailable",
+                "error": telemetry_error,
+            })
+            self.safety_result = {
+                "pass": None,
+                "telemetry_ok": False,
+                "failures": [],
+                "action_mismatch": None,
+                "prohibited_escaped": 0,
+            }
+            self.metrics.outcome_reason += "; Safety: telemetry unavailable"
     
     def save(self) -> Path:
         """Save all run artifacts to disk.

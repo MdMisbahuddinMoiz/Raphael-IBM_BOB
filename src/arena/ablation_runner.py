@@ -528,7 +528,15 @@ class NoOpWorldModel:
         """No-op: world model is disabled in this ablation config."""
         return None
     
+    def find_by_identifier(self, identifier: str):
+        """No-op: world model is disabled in this ablation config."""
+        return None
+    
     def get_entities_by_type(self, entity_type: str):
+        """No-op: world model is disabled in this ablation config."""
+        return []
+    
+    def ingest_shell_evidence(self, evidence, session_entity_id: str, host_asset_id: str = "", collected_by: str = ""):
         """No-op: world model is disabled in this ablation config."""
         return []
 

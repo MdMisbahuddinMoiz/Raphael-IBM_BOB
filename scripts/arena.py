@@ -16,7 +16,7 @@ from enum import Enum
 from typing import Any, Optional
 from pathlib import Path
 
-from orchestrator.brain.evidence import EvidenceGraph, Evidence, set_evidence_graph, get_evidence_graph, TrustLevel
+from orchestrator.brain.evidence import EvidenceGraph, Evidence, set_evidence_graph, TrustLevel
 from orchestrator.brain.world import WorldModel, Entity, Relationship, EntityType, RelationshipType
 from orchestrator.brain.hypothesis import HypothesisManager, HypothesisStatus
 from orchestrator.brain.contradiction import ContradictionManager, create_contradiction_manager
@@ -101,7 +101,10 @@ class ArenaRunner:
         if self.broker is None:
             self.broker = CapabilityBroker(self.scenario.policy)
         
-        self.evidence_graph = self.evidence_graph or get_evidence_graph()
+        # C8 (W0.8): never fall back to the process-global evidence graph handle.
+        # The dataclass already mints a fresh EvidenceGraph via
+        # default_factory=EvidenceGraph; keep it fresh per ArenaEntry instance.
+        self.evidence_graph = self.evidence_graph or EvidenceGraph()
         self.evaluation.scenario_id = self.scenario.scenario_id
         self.evaluation.run_id = self.run_id
     

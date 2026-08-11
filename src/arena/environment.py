@@ -18,7 +18,7 @@ import ipaddress
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from orchestrator.brain.evidence import Evidence, get_evidence_graph, TrustLevel
+from orchestrator.brain.evidence import Evidence, TrustLevel
 
 
 # ── RawObservation ────────────────────────────────────────────

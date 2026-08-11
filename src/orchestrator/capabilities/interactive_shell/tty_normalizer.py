@@ -15,7 +15,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, List, Optional, Dict
 
-from orchestrator.brain.evidence import Evidence, TrustLevel, get_evidence_graph
+from orchestrator.brain.evidence import Evidence, TrustLevel, EvidenceGraph
 
 logger = logging.getLogger("tty_normalizer")
 
@@ -278,7 +278,13 @@ class EvidenceExtractor:
     """
 
     def __init__(self, evidence_graph=None):
-        self.evidence_graph = evidence_graph or get_evidence_graph()
+        # C8 (W0.8): fresh per-instance graph when none supplied.
+        # NEVER bind to the process-global get_evidence_graph() singleton —
+        # that was a run-to-run trait leakage vector (evidence from run A
+        # surfaced in run B's evaluation).
+        self.evidence_graph = (
+            evidence_graph if evidence_graph is not None else EvidenceGraph()
+        )
 
     def extract_from_command(
         self,

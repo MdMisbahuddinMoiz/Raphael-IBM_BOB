@@ -59,7 +59,7 @@ class ObservationNormalizer:
         """
         if trust_level is None:
             from orchestrator.brain.trust import TrustLevel as TL
-            trust_level = TL.TOOL_OBSERVATION
+            trust_level = TL.TOOL_FAILURE if obs.is_tool_failure else TL.TOOL_OBSERVATION
         
         evidence_list = []
         

@@ -29,6 +29,10 @@ class TrustLevel(str, Enum):
     TOOL_OBSERVATION      — Output from a security tool (nmap, nuclei, etc.).
                            Trusted as an accurate report of what the tool
                            observed, NOT as an accurate interpretation.
+    TOOL_FAILURE          — Output from a security tool indicating that the
+                           tool itself failed to execute (execution error,
+                           timeout, tool unavailable). Epistemic origin is the
+                           tool's failure mode, not a report of target state.
     TARGET_CONTROLLED     — Data originating from the target system (HTTP
                            response body, command output, file contents).
                            Epistemically untrusted: the target controls it.
@@ -40,6 +44,7 @@ class TrustLevel(str, Enum):
     OPERATOR_INSTRUCTION = "operator_instruction"
     ENGAGEMENT_CONFIG = "engagement_config"
     TOOL_OBSERVATION = "tool_observation"
+    TOOL_FAILURE = "tool_failure"
     TARGET_CONTROLLED = "target_controlled"
     MODEL_INFERENCE = "model_inference"
 

@@ -772,8 +772,14 @@ class ScenarioEnvironment:
             # Use stable MAC from asset_metadata if available, else generate
             mac = meta.get("mac_address", "")
             if not mac:
-                import random
-                mac = f"00:50:56:{random.randint(0x00, 0xff):02x}:{random.randint(0x00, 0xff):02x}:{random.randint(0x00, 0xff):02x}"
+                # C7 (W0.8): deterministic MAC from (scenario_id, seed) —
+                # NO global RNG. Same (scenario_id, seed) → same MAC across
+                # runs and instances (binding invariant).
+                import hashlib
+                scenario_id = getattr(self.scenario, "scenario_id", "") or ""
+                seed = getattr(self.scenario, "seed", 0) or 0
+                digest = hashlib.sha256(f"{scenario_id}|{seed}".encode()).digest()
+                mac = f"00:50:56:{digest[0]:02x}:{digest[1]:02x}:{digest[2]:02x}"
             obs_text = f"ARP reply from {target_ip}: {mac} (VMware, Inc.)"
         else:
             obs_text = f"No ARP response from {target}"

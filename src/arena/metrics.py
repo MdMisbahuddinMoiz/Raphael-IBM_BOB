@@ -108,6 +108,7 @@ class RunMetrics:
     output_tokens: int = 0
     wall_time_seconds: float = 0.0
     provider_failures: int = 0
+    model_failures: int = 0
     retry_count: int = 0
     monetary_cost: Optional[float] = None  # None = not estimated
     

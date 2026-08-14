@@ -69,7 +69,7 @@ from orchestrator.brain.world import WorldModel, Entity, EntityType, Relationshi
 from orchestrator.brain.hypothesis import HypothesisManager, HypothesisStatus
 from orchestrator.brain.contradiction import ContradictionManager, create_contradiction_manager
 from orchestrator.brain.capability_broker import CapabilityBroker
-from arena.llm_service import LLMService, LLMProviderConfig, SemanticInferenceSuccess
+from arena.llm_service import LLMService, LLMProviderConfig, SemanticInferenceSuccess, SemanticInferenceFailure
 from arena.semantic_inference import build_evidence_context, PROMPTED_AGENT_SYSTEM_PROMPT
 from arena.defeater import DefeaterGenerator, DefeaterEvaluator, DefeaterTrigger
 
@@ -784,6 +784,11 @@ class AblationRunner:
         # Scoped by flag: FULL_RAPHAEL telemetry semantics are untouched.
         if getattr(self, '_llm_service_llm_only', False) and getattr(self, '_llm_service', None):
             self.metrics.llm_calls += self._llm_service.call_count
+            # REPAIR-DEV-01 (test H): provider-reported tokens are the source
+            # of truth when an LLM service (or stand-in) reports them.
+            if hasattr(self._llm_service, "input_tokens"):
+                self.metrics.input_tokens += self._llm_service.input_tokens
+                self.metrics.output_tokens += self._llm_service.output_tokens
 
         # C9 (W0.8) model identity: sync the resolved provider config into
         # metrics for LLM-enabled arms so the init placeholder ("simulated_v1")
@@ -2690,28 +2695,35 @@ class AblationRunner:
         self._llm = TracedLLM(self.tracer, self.config)
         
         # LLMService for semantic inference (L-028 Option A — mirrors _run_raphael).
-        # PROMPTED_AGENT gets the PROMPTED_AGENT_SYSTEM_PROMPT envelope.
+        # PROMPTED_AGENT gets the PROMPTED_AGENT_SYSTEM_PROMPT envelope. REPAIR-DEV-01:
+        # a stand-in injected pre-run (not an LLMService instance) is honored verbatim —
+        # no provider config is resolved and no network I/O can occur during tests.
         if self.config.llm_enabled:
-            if self._llm_config_override is not None:
-                llm_config = self._llm_config_override
+            _injected_service = getattr(self, 'llm_service', None)
+            if _injected_service is not None and not isinstance(_injected_service, LLMService):
+                self._llm_service = _injected_service
             else:
-                llm_config = LLMProviderConfig(
-                    model_id="nvidia/llama-3.3-nemotron-super-49b-v1",
-                    provider="nvidia",
-                    api_base="https://integrate.api.nvidia.com/v1",
-                    api_key=_resolve_nvidia_api_key(),
-                    timeout_seconds=180,
-                    temperature=0.0,
-                    max_tokens=16384,
+                if self._llm_config_override is not None:
+                    llm_config = self._llm_config_override
+                else:
+                    llm_config = LLMProviderConfig(
+                        model_id="nvidia/llama-3.3-nemotron-super-49b-v1",
+                        provider="nvidia",
+                        api_base="https://integrate.api.nvidia.com/v1",
+                        api_key=_resolve_nvidia_api_key(),
+                        timeout_seconds=180,
+                        temperature=0.0,
+                        max_tokens=16384,
+                    )
+                self._llm_service = LLMService(
+                    config=llm_config,
+                    tracer=self.tracer,
+                    system_prompt=PROMPTED_AGENT_SYSTEM_PROMPT if self.config.config_id == "PROMPTED_AGENT" else None,
                 )
-            self._llm_service = LLMService(
-                config=llm_config,
-                tracer=self.tracer,
-                system_prompt=PROMPTED_AGENT_SYSTEM_PROMPT if self.config.config_id == "PROMPTED_AGENT" else None,
-            )
         else:
             self._llm_service = None
         self._llm_service_llm_only = bool(self._llm_service)
+        deny_feedback = []  # REPAIR-DEV-01: denials surfaced as text to next LLM call
         
         # Create ArenaRunner with fresh state (same interface as Raphael)
         evidence_graph = EG()
@@ -2757,7 +2769,7 @@ class AblationRunner:
             # Semantic inference on current evidence (L-028 Option A —
             # mirrors _run_raphael 2a-LLM block). Produces model_inference
             # evidence that the L-028 parsers consume.
-            if self.config.llm_enabled and self._llm_service:
+            if self.config.llm_enabled and isinstance(self._llm_service, LLMService):
                 _llm_ev = runner.evidence_graph.get_all_evidence()
                 if len(_llm_ev) >= 3:
                     _diverse_items = select_diverse_evidence(_llm_ev)
@@ -2796,34 +2808,53 @@ class AblationRunner:
                                 runner.evidence_graph.add_evidence(si_evidence)
                                 self._pending_si_evidence_ids.append(si_evidence.evidence_id)
             
-            # LLM proposes action based on current evidence
+            # LLM proposes action based on current evidence (REPAIR-DEV-01:
+            # real LLMService path — no TracedLLM simulation, no candidates[0] fallback).
             all_ev = runner.evidence_graph.get_all_evidence()
             ev_summary = "\n".join(
                 getattr(e, 'raw_content', '')[:100] for e in all_ev[-5:]
             )
+            if deny_feedback:
+                ev_summary += "\nFeedback: " + "; ".join(deny_feedback[-3:])
             prompt = (
                 f"Scenario: {view.get('name', '')}\n"
                 f"Objective: {view.get('objective', '')}\n"
                 f"Scope: {view.get('allowed_scope', [])}\n"
                 f"Recent evidence:\n{ev_summary}\n"
-                "Propose ONE action (action_type, target, capability)."
+                'Respond with a single JSON action object: '
+                '{"action_type", "target", "capability", "method"}'
             )
-            response = self._llm.call(prompt, {"view": view, "iteration": iteration})
-            
-            # Generate candidates from scope (same as Raphael)
-            candidates = self._generate_candidates(view, runner)
-            self.metrics.pipeline_coverage["candidate_generation_count"] = len(candidates)
-            
-            if not candidates:
-                decision_outcome = "STOP_NO_AUTHORIZED_PATH"
-                break
-            
-            selected = candidates[0] if candidates else {
-                "action_type": "recon",
-                "target": list(view.get("allowed_scope", ["10.0.0.0/24"]))[0],
-                "capability": "nmap",
-                "method": "quick",
-            }
+            _llm_result = self._llm_service.run_inference(
+                observation_text=prompt,
+                source_evidence_ids=tuple(e.evidence_id for e in all_ev[-5:]),
+                run_id=self.run_id,
+            )
+            if isinstance(_llm_result, SemanticInferenceFailure):
+                # Provider failure consumes the iteration — NO dispatch, NO fallback.
+                self.metrics.infra_failures.append({
+                    "location": "llm_only_action_proposal_provider_failure",
+                    "iteration": iteration,
+                    "text": getattr(_llm_result, "failure_text",
+                                    getattr(_llm_result, "diagnostic_detail", str(_llm_result))),
+                })
+                continue
+            try:
+                selected = json.loads(_llm_result.claim)
+            except (TypeError, ValueError):
+                selected = None
+            if not isinstance(selected, dict) or not all(
+                k in selected for k in ("action_type", "target", "capability")
+            ):
+                # Malformed model output → model failure; iteration consumed, NO fallback.
+                self.metrics.model_failures += 1
+                self.metrics.infra_failures.append({
+                    "location": "llm_only_action_proposal_parse_failure",
+                    "iteration": iteration,
+                    "text": str(getattr(_llm_result, "claim", ""))[:200],
+                })
+                continue
+            selected.setdefault("method", "auto")
+            candidates = [selected]
             
             # Broker
             self.metrics.pipeline_coverage["broker_invocation_count"] += 1
@@ -2839,6 +2870,7 @@ class AblationRunner:
             if broker_decision != "allow":
                 self.metrics.actions_denied += 1
                 self.metrics.actions_dispatched += 1  # C5: dispatch counts every broker decision (ALLOW+DENY)
+                deny_feedback.append(f"DENIED: {selected['target']} ({broker_decision})")
                 self.episodes.record(
                     objective=view.get("objective", ""),
                     evidence_available=[e.evidence_id for e in all_ev],

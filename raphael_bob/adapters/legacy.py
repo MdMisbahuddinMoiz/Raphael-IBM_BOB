@@ -11,25 +11,25 @@ documentation of:
       migrated)
     * what behavior is still missing (i.e., must be built in M2..M6)
 
-This file is the bridge from docs/migration/reuse-matrix.md to code. M2+
-implementations add real adapters in sub-modules such as
-`policy_legacy.py`, `broker_legacy.py`, etc.
+This file is the bridge from docs/migration/reuse-matrix.md to code.
 
-M2 update:
+M2 status:
     * Broker seam: raphael_bob/broker.py BOBBroker is now IMPLEMENTED.
     * Policy seam: raphael_bob/policy.py BOBPolicy is now IMPLEMENTED.
     * Runtime seam: raphael_bob/runtime.py BOBRuntime is now IMPLEMENTED.
     * Capabilities: raphael_bob/capabilities.py execute_capability is
       now IMPLEMENTED for READ/LIST/SEARCH/WRITE/RUN_TEST.
-    * Legacy CapabilityBroker, ScopeParser, RateLimiter: ADAPT path
-      documented but the actual rebound to BOB semantics is now done
-      by writing fresh code rather than importing the legacy modules.
+
+M3 status:
+    * Evidence seam: raphael_bob/evidence_ledger.py EvidenceLedger is
+      now IMPLEMENTED as a JSONL append-only ledger.
+    * Broker is wired to the ledger; every ActionRequest produces a
+      canonical record chain (request -> decision -> result -> evidence).
 
 Status language:
     IMPLEMENTED         - selection documented here.
-    PHYSICALLY VERIFIED - exercised by tests in tests/test_seam_*.py and
-                          tests/test_m2_*.py.
-    NOT IMPLEMENTED     - real adapter bodies, deferred to M2+.
+    PHYSICALLY VERIFIED - exercised by tests.
+    NOT IMPLEMENTED     - real adapter bodies, deferred.
     UNKNOWN             - insufficient evidence.
 """
 from __future__ import annotations
@@ -56,7 +56,8 @@ class AdapterSpec:
     why: str                 # evidence-backed justification
     legacy_behavior_remaining: str
     missing_for_target: str
-    m2_status: Optional[str] = None  # populated by M2 implementation notes
+    m2_status: Optional[str] = None
+    m3_status: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -67,6 +68,7 @@ class AdapterSpec:
             "legacy_behavior_remaining": self.legacy_behavior_remaining,
             "missing_for_target": self.missing_for_target,
             "m2_status": self.m2_status,
+            "m3_status": self.m3_status,
         }
 
 
@@ -99,6 +101,12 @@ BROKER_SPECS: tuple[AdapterSpec, ...] = (
             "the contract rather than wrapping the legacy module; the legacy "
             "offensive-RoE code path is ISOLATE."
         ),
+        m3_status=(
+            "M3: BOBBroker is now wired to EvidenceLedger; every submission "
+            "persists request -> decision -> evidence (and result -> "
+            "evidence on ALLOW). The M2 in-memory audit list is retained for "
+            "back-compat only."
+        ),
     ),
     AdapterSpec(
         seam="Broker",
@@ -120,6 +128,11 @@ BROKER_SPECS: tuple[AdapterSpec, ...] = (
             "M2: NOT IMPLEMENTED. BOB seam emits its own EvidenceReceipt "
             "(raphael_bob.contracts.EvidenceReceipt) rather than wrapping "
             "the legacy ActionReceipt shape."
+        ),
+        m3_status=(
+            "M3: NOT IMPLEMENTED. The JSONL EvidenceRecord (with its own "
+            "digest) is the authoritative receipt; legacy ActionReceipt "
+            "remains ISOLATE."
         ),
     ),
 )
@@ -151,6 +164,7 @@ POLICY_SPECS: tuple[AdapterSpec, ...] = (
             "semantics are preserved; the grammar is BOB-native "
             "(mission-scope substring + capability-specific invariants)."
         ),
+        m3_status="M3: BOBPolicy unchanged from M2.",
     ),
     AdapterSpec(
         seam="Policy",
@@ -171,12 +185,13 @@ POLICY_SPECS: tuple[AdapterSpec, ...] = (
             "M2: NOT IMPLEMENTED. The MVP does not require time-window "
             "rate limiting; revisit when mission scope is finalized."
         ),
+        m3_status="M3: NOT IMPLEMENTED. Same as M2.",
     ),
 )
 
 
 # -----------------------------------------------------------------------------
-# Evidence (no in-memory JSONL yet; only the Evidence dataclass is reusable)
+# Evidence
 # -----------------------------------------------------------------------------
 
 EVIDENCE_SPECS: tuple[AdapterSpec, ...] = (
@@ -201,6 +216,14 @@ EVIDENCE_SPECS: tuple[AdapterSpec, ...] = (
             "M2: NOT IMPLEMENTED. BOB Broker keeps an in-memory audit list. "
             "M3 owns the JSONL writer."
         ),
+        m3_status=(
+            "M3: IMPLEMENTED as raphael_bob.evidence_ledger.EvidenceLedger. "
+            "JSONL append-only with deterministic SHA-256 digest IDs; "
+            "request_seq / decision_seq / result_seq linkage; dense "
+            "per-run sequence counter; zero network. The legacy in-memory "
+            "EvidenceGraph with semantic-relation DAG is NOT imported; the "
+            "BOB MVP uses flat causal links in each record."
+        ),
     ),
     AdapterSpec(
         seam="Evidence",
@@ -218,12 +241,15 @@ EVIDENCE_SPECS: tuple[AdapterSpec, ...] = (
             "BOB MVP uses a 'producer' string tag, not the full trust enum."
         ),
         m2_status="M2: ISOLATE remains correct.",
+        m3_status="M3: ISOLATE remains correct. The BOB EvidenceRecord uses "
+                  "a 'producer' string tag (policy, execution) instead of "
+                  "the legacy TrustLevel enum.",
     ),
 )
 
 
 # -----------------------------------------------------------------------------
-# Falsifier (ContradictionManager is the closest analogue)
+# Falsifier
 # -----------------------------------------------------------------------------
 
 FALSIFIER_SPECS: tuple[AdapterSpec, ...] = (
@@ -246,12 +272,13 @@ FALSIFIER_SPECS: tuple[AdapterSpec, ...] = (
             "finds a counter-example. Adapter at M4."
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M4.",
+        m3_status="M3: NOT IMPLEMENTED. Reserved for M4.",
     ),
 )
 
 
 # -----------------------------------------------------------------------------
-# Verifier (VerificationLoop)
+# Verifier
 # -----------------------------------------------------------------------------
 
 VERIFIER_SPECS: tuple[AdapterSpec, ...] = (
@@ -273,12 +300,13 @@ VERIFIER_SPECS: tuple[AdapterSpec, ...] = (
             "Broker-mediated behavioral retest of a Finding."
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M4.",
+        m3_status="M3: NOT IMPLEMENTED. Reserved for M4.",
     ),
 )
 
 
 # -----------------------------------------------------------------------------
-# Planner (cognitive-loop Action/Precondition model)
+# Planner
 # -----------------------------------------------------------------------------
 
 PLANNER_SPECS: tuple[AdapterSpec, ...] = (
@@ -300,6 +328,7 @@ PLANNER_SPECS: tuple[AdapterSpec, ...] = (
             "Capability/LIST/READ/SEARCH/WRITE/RUN_TEST space."
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
+        m3_status="M3: NOT IMPLEMENTED. Reserved for M5.",
     ),
     AdapterSpec(
         seam="Planner",
@@ -318,6 +347,7 @@ PLANNER_SPECS: tuple[AdapterSpec, ...] = (
             "capability-request."
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
+        m3_status="M3: NOT IMPLEMENTED. Reserved for M5.",
     ),
     AdapterSpec(
         seam="Planner",
@@ -335,12 +365,13 @@ PLANNER_SPECS: tuple[AdapterSpec, ...] = (
             "Plan-A generation from Mission + EvidenceLedger."
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
+        m3_status="M3: NOT IMPLEMENTED. Reserved for M5.",
     ),
 )
 
 
 # -----------------------------------------------------------------------------
-# Replanner — no direct analogue; declare explicitly
+# Replanner
 # -----------------------------------------------------------------------------
 
 REPLANNER_SPECS: tuple[AdapterSpec, ...] = (
@@ -364,12 +395,13 @@ REPLANNER_SPECS: tuple[AdapterSpec, ...] = (
             "and emits a Plan with parent_plan_id set."
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
+        m3_status="M3: NOT IMPLEMENTED. Reserved for M5.",
     ),
 )
 
 
 # -----------------------------------------------------------------------------
-# QualityGate — no analogue
+# QualityGate
 # -----------------------------------------------------------------------------
 
 QUALITYGATE_SPECS: tuple[AdapterSpec, ...] = (
@@ -390,12 +422,13 @@ QUALITYGATE_SPECS: tuple[AdapterSpec, ...] = (
             "mission, findings, evidence, behavior_probe_ok, regression_ok."
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M6.",
+        m3_status="M3: NOT IMPLEMENTED. Reserved for M6.",
     ),
 )
 
 
 # -----------------------------------------------------------------------------
-# Runtime — no direct analogue
+# Runtime
 # -----------------------------------------------------------------------------
 
 RUNTIME_SPECS: tuple[AdapterSpec, ...] = (
@@ -423,12 +456,17 @@ RUNTIME_SPECS: tuple[AdapterSpec, ...] = (
             "ActionRequests through BOBBroker; rejects non-BOBBroker "
             "wrappers structurally."
         ),
+        m3_status=(
+            "M3: BOBRuntime propagates provenance fields "
+            "(request_seq, decision_seq, result_seq, evidence_ids) into "
+            "RuntimeResult. No behavioral change beyond M2."
+        ),
     ),
 )
 
 
 # -----------------------------------------------------------------------------
-# Runner — no direct analogue
+# Runner
 # -----------------------------------------------------------------------------
 
 RUNNER_SPECS: tuple[AdapterSpec, ...] = (
@@ -447,6 +485,7 @@ RUNNER_SPECS: tuple[AdapterSpec, ...] = (
             "Runner implementation in M6 that drives the BOB control loop."
         ),
         m2_status="M2: ISOLATE remains correct. Reserved for M6.",
+        m3_status="M3: ISOLATE remains correct. Reserved for M6.",
     ),
 )
 
@@ -470,7 +509,6 @@ ALL_SPECS: dict[str, tuple[AdapterSpec, ...]] = {
 
 
 def action_counts() -> dict[str, int]:
-    """Return a {action: count} dict across all specs."""
     counts: dict[str, int] = {}
     for spec in [s for specs in ALL_SPECS.values() for s in specs]:
         counts[spec.action] = counts.get(spec.action, 0) + 1
@@ -478,7 +516,6 @@ def action_counts() -> dict[str, int]:
 
 
 def specs_for(seam: str) -> tuple[AdapterSpec, ...]:
-    """Return the legacy-module specs selected for a given seam."""
     return ALL_SPECS.get(seam, ())
 
 

@@ -352,16 +352,18 @@ class AntiClaimTests(unittest.TestCase):
         with self.assertRaises(ModuleNotFoundError):
             importlib.import_module("raphael_bob.verifier")
 
-    def test_no_evidence_ledger_module_exists(self):
+    def test_m3_evidence_ledger_module_exists(self):
         import importlib
-        with self.assertRaises(ModuleNotFoundError):
-            importlib.import_module("raphael_bob.evidence_ledger")
+        # M3 ships the EvidenceLedger; the module MUST be importable.
+        mod = importlib.import_module("raphael_bob.evidence_ledger")
+        self.assertTrue(hasattr(mod, "EvidenceLedger"))
+        self.assertTrue(hasattr(mod, "LedgerWriter"))
+        self.assertTrue(hasattr(mod, "LedgerReader"))
 
     def test_no_runner_module_exists(self):
         import importlib
         with self.assertRaises(ModuleNotFoundError):
             importlib.import_module("raphael_bob.runner")
-
     def test_m2_broker_is_subclass_of_seam_protocol(self):
         # The M2 Broker implementation must satisfy the M1 seam Protocol.
         from raphael_bob.broker import BOBBroker

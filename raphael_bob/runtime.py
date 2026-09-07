@@ -5,9 +5,10 @@ from a caller (Planner, Verifier, agent) and submits it through the
 Broker. The Runtime itself NEVER performs filesystem, process, or
 network actions directly — that is the Broker + capabilities' job.
 
-The Runtime's only job at M2 is:
+The Runtime's job at M3 is:
 
-    request  -> Broker.submit -> BrokerResult
+    request -> Broker.submit -> BrokerResult
+            -> RuntimeResult (with M3 provenance fields)
 
 It deliberately exposes no path that lets a caller skip the Broker.
 
@@ -18,7 +19,7 @@ Legacy reference (REPLACE; not invoked):
     src/orchestrator/capabilities/interactive_shell/capability.py:58 —
         abstract base for shell capabilities; out of MVP scope.
 
-Remaining limitations at M2:
+Remaining limitations at M3:
     - No retry policy.
     - No streaming output.
     - No scheduling; this is a single-request synchronous boundary.
@@ -26,7 +27,7 @@ Remaining limitations at M2:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Tuple
 
 from raphael_bob.broker import BOBBroker, BrokerResult
 from raphael_bob.contracts import (
@@ -45,6 +46,11 @@ class RuntimeResult:
     execution: Optional[ExecutionResult]
     # The sequence number stamped by the Broker (provenance).
     sequence: int
+    # M3 provenance fields.
+    request_seq: int
+    decision_seq: int
+    result_seq: Optional[int]
+    evidence_ids: Tuple[str, ...]
 
 
 class BOBRuntime:
@@ -94,6 +100,10 @@ class BOBRuntime:
             broker_result=broker_result,
             execution=broker_result.execution,
             sequence=broker_result.decision.sequence,
+            request_seq=broker_result.request_seq,
+            decision_seq=broker_result.decision_seq,
+            result_seq=broker_result.result_seq,
+            evidence_ids=broker_result.evidence_ids,
         )
 
 

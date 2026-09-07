@@ -82,6 +82,7 @@ from raphael_bob.falsifier import (
 )
 from raphael_bob.replanner import ReplanStrategy, Replanner, derive_plan_b_id
 from raphael_bob.runner import PlannerStub, Runner, RunnerOutcome
+from raphael_bob.planner import Planner, derive_plan_a_id
 from raphael_bob.quality_gate import BOBQualityGate, GateEvaluation, GateInputs
 
 __all__ = [
@@ -147,8 +148,9 @@ __all__ = [
     "Runner",
     "PlannerStub",
     "RunnerOutcome",
+    "Planner",
+    "derive_plan_a_id",
     # M6 implementations
-    "BOBQualityGate",
     "GateInputs",
     "GateEvaluation",
     "GateRecord",

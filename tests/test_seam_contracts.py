@@ -332,6 +332,10 @@ class AntiClaimTests(unittest.TestCase):
     Broker / Policy / Runtime implementations DO exist at M2; their
     contracts remain the seam Protocols from M1."""
 
+    def test_m7_planner_module_exists(self):
+        # M7 ships the real Planner.
+        import importlib
+        mod = importlib.import_module("raphael_bob.planner")
     def test_m6_quality_gate_module_exists(self):
         # M6 ships the BOBQualityGate implementation.
         import importlib

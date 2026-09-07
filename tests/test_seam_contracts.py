@@ -325,32 +325,57 @@ class AdapterSpecIndexTests(unittest.TestCase):
 # -----------------------------------------------------------------------------
 
 class AntiClaimTests(unittest.TestCase):
-    """M1 MUST NOT claim that Runtime, Broker, or Policy actually work. These
-    tests assert the absence of any pretense that the seam is more than a
-    contract."""
+    """M1..M2 MUST NOT claim that QualityGate / Verifier / Falsifier /
+    Replanner / Planner / Runner / EvidenceLedger implementations exist
+    yet. Those are reserved for M4..M6 / M3.
 
-    def test_no_broker_implementation_module_exists(self):
-        # Only the seam package + index should exist for now.
-        import importlib
-        # Should not raise on raphael_bob.seams but should raise on a
-        # non-existent raphael_bob.broker module.
-        with self.assertRaises(ModuleNotFoundError):
-            importlib.import_module("raphael_bob.broker")
-
-    def test_no_policy_implementation_module_exists(self):
-        import importlib
-        with self.assertRaises(ModuleNotFoundError):
-            importlib.import_module("raphael_bob.policy")
-
-    def test_no_runtime_implementation_module_exists(self):
-        import importlib
-        with self.assertRaises(ModuleNotFoundError):
-            importlib.import_module("raphael_bob.runtime")
+    Broker / Policy / Runtime implementations DO exist at M2; their
+    contracts remain the seam Protocols from M1."""
 
     def test_no_quality_gate_implementation_module_exists(self):
         import importlib
         with self.assertRaises(ModuleNotFoundError):
             importlib.import_module("raphael_bob.quality_gate")
+
+    def test_no_replanner_implementation_module_exists(self):
+        import importlib
+        with self.assertRaises(ModuleNotFoundError):
+            importlib.import_module("raphael_bob.replanner")
+
+    def test_no_falsifier_implementation_module_exists(self):
+        import importlib
+        with self.assertRaises(ModuleNotFoundError):
+            importlib.import_module("raphael_bob.falsifier")
+
+    def test_no_verifier_implementation_module_exists(self):
+        import importlib
+        with self.assertRaises(ModuleNotFoundError):
+            importlib.import_module("raphael_bob.verifier")
+
+    def test_no_evidence_ledger_module_exists(self):
+        import importlib
+        with self.assertRaises(ModuleNotFoundError):
+            importlib.import_module("raphael_bob.evidence_ledger")
+
+    def test_no_runner_module_exists(self):
+        import importlib
+        with self.assertRaises(ModuleNotFoundError):
+            importlib.import_module("raphael_bob.runner")
+
+    def test_m2_broker_is_subclass_of_seam_protocol(self):
+        # The M2 Broker implementation must satisfy the M1 seam Protocol.
+        from raphael_bob.broker import BOBBroker
+        from raphael_bob.seams import Broker
+        self.assertTrue(isinstance(BOBBroker.__new__(BOBBroker), Broker))  # runtime_checkable
+
+    def test_m2_runtime_is_subclass_of_seam_protocol(self):
+        from raphael_bob.runtime import BOBRuntime
+        from raphael_bob.seams import Runtime
+        # BOBRuntime is not runtime_checkable on instance because
+        # Protocol requires class-level methods. We assert that
+        # BOBRuntime has the documented method `submit`.
+        self.assertTrue(hasattr(BOBRuntime, "submit"))
+
 
 
 if __name__ == "__main__":

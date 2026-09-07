@@ -12,12 +12,23 @@ documentation of:
     * what behavior is still missing (i.e., must be built in M2..M6)
 
 This file is the bridge from docs/migration/reuse-matrix.md to code. M2+
-implementations should add real adapters in sub-modules such as
+implementations add real adapters in sub-modules such as
 `policy_legacy.py`, `broker_legacy.py`, etc.
+
+M2 update:
+    * Broker seam: raphael_bob/broker.py BOBBroker is now IMPLEMENTED.
+    * Policy seam: raphael_bob/policy.py BOBPolicy is now IMPLEMENTED.
+    * Runtime seam: raphael_bob/runtime.py BOBRuntime is now IMPLEMENTED.
+    * Capabilities: raphael_bob/capabilities.py execute_capability is
+      now IMPLEMENTED for READ/LIST/SEARCH/WRITE/RUN_TEST.
+    * Legacy CapabilityBroker, ScopeParser, RateLimiter: ADAPT path
+      documented but the actual rebound to BOB semantics is now done
+      by writing fresh code rather than importing the legacy modules.
 
 Status language:
     IMPLEMENTED         - selection documented here.
-    PHYSICALLY VERIFIED - exercised by tests in tests/test_seam_*.py.
+    PHYSICALLY VERIFIED - exercised by tests in tests/test_seam_*.py and
+                          tests/test_m2_*.py.
     NOT IMPLEMENTED     - real adapter bodies, deferred to M2+.
     UNKNOWN             - insufficient evidence.
 """
@@ -45,6 +56,7 @@ class AdapterSpec:
     why: str                 # evidence-backed justification
     legacy_behavior_remaining: str
     missing_for_target: str
+    m2_status: Optional[str] = None  # populated by M2 implementation notes
 
     def to_dict(self) -> dict:
         return {
@@ -54,6 +66,7 @@ class AdapterSpec:
             "why": self.why,
             "legacy_behavior_remaining": self.legacy_behavior_remaining,
             "missing_for_target": self.missing_for_target,
+            "m2_status": self.m2_status,
         }
 
 
@@ -74,12 +87,17 @@ BROKER_SPECS: tuple[AdapterSpec, ...] = (
         ),
         legacy_behavior_remaining=(
             "Existing offensive-policy grammar (ActionType enum with EXPLOIT, "
-            "LATERAL_MOVEMENT, etc.) must NOT be reachable from the BOB seam."
+            "LATERAL_MOVEMENT, etc.) MUST NOT be reachable from the BOB seam."
         ),
         missing_for_target=(
             "Pure broker mediation of the new BOB Capability enum "
             "(READ/LIST/SEARCH/WRITE/RUN_TEST); sequence-number assignment; "
             "EvidenceReceipt emission on every decision."
+        ),
+        m2_status=(
+            "M2: IMPLEMENTED as raphael_bob.broker.BOBBroker. Rebuilt from "
+            "the contract rather than wrapping the legacy module; the legacy "
+            "offensive-RoE code path is ISOLATE."
         ),
     ),
     AdapterSpec(
@@ -97,6 +115,11 @@ BROKER_SPECS: tuple[AdapterSpec, ...] = (
         ),
         missing_for_target=(
             "Drop-in mapping from ActionReceipt -> EvidenceReceipt at the seam."
+        ),
+        m2_status=(
+            "M2: NOT IMPLEMENTED. BOB seam emits its own EvidenceReceipt "
+            "(raphael_bob.contracts.EvidenceReceipt) rather than wrapping "
+            "the legacy ActionReceipt shape."
         ),
     ),
 )
@@ -123,6 +146,11 @@ POLICY_SPECS: tuple[AdapterSpec, ...] = (
         missing_for_target=(
             "Parser for the BOB mission-scope description language."
         ),
+        m2_status=(
+            "M2: IMPLEMENTED as raphael_bob.policy.BOBPolicy. The fail-closed "
+            "semantics are preserved; the grammar is BOB-native "
+            "(mission-scope substring + capability-specific invariants)."
+        ),
     ),
     AdapterSpec(
         seam="Policy",
@@ -138,6 +166,10 @@ POLICY_SPECS: tuple[AdapterSpec, ...] = (
         ),
         missing_for_target=(
             "MVP target-type dict (filesystem vs test-runner)."
+        ),
+        m2_status=(
+            "M2: NOT IMPLEMENTED. The MVP does not require time-window "
+            "rate limiting; revisit when mission scope is finalized."
         ),
     ),
 )
@@ -165,6 +197,10 @@ EVIDENCE_SPECS: tuple[AdapterSpec, ...] = (
         missing_for_target=(
             "JSONL append-only serialization; causal-sequence ordering."
         ),
+        m2_status=(
+            "M2: NOT IMPLEMENTED. BOB Broker keeps an in-memory audit list. "
+            "M3 owns the JSONL writer."
+        ),
     ),
     AdapterSpec(
         seam="Evidence",
@@ -181,6 +217,7 @@ EVIDENCE_SPECS: tuple[AdapterSpec, ...] = (
         missing_for_target=(
             "BOB MVP uses a 'producer' string tag, not the full trust enum."
         ),
+        m2_status="M2: ISOLATE remains correct.",
     ),
 )
 
@@ -208,6 +245,7 @@ FALSIFIER_SPECS: tuple[AdapterSpec, ...] = (
             "Output: a Finding whose state is REFUTED when the challenge "
             "finds a counter-example. Adapter at M4."
         ),
+        m2_status="M2: NOT IMPLEMENTED. Reserved for M4.",
     ),
 )
 
@@ -234,6 +272,7 @@ VERIFIER_SPECS: tuple[AdapterSpec, ...] = (
         missing_for_target=(
             "Broker-mediated behavioral retest of a Finding."
         ),
+        m2_status="M2: NOT IMPLEMENTED. Reserved for M4.",
     ),
 )
 
@@ -260,6 +299,7 @@ PLANNER_SPECS: tuple[AdapterSpec, ...] = (
             "Planner search that emits ActionRequest lists in "
             "Capability/LIST/READ/SEARCH/WRITE/RUN_TEST space."
         ),
+        m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
     ),
     AdapterSpec(
         seam="Planner",
@@ -277,6 +317,7 @@ PLANNER_SPECS: tuple[AdapterSpec, ...] = (
             "Reduced entity vocabulary: file, function, test, "
             "capability-request."
         ),
+        m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
     ),
     AdapterSpec(
         seam="Planner",
@@ -293,6 +334,7 @@ PLANNER_SPECS: tuple[AdapterSpec, ...] = (
         missing_for_target=(
             "Plan-A generation from Mission + EvidenceLedger."
         ),
+        m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
     ),
 )
 
@@ -321,6 +363,7 @@ REPLANNER_SPECS: tuple[AdapterSpec, ...] = (
             "Replanner implementation in M5 that consumes FocusedContext "
             "and emits a Plan with parent_plan_id set."
         ),
+        m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
     ),
 )
 
@@ -346,6 +389,7 @@ QUALITYGATE_SPECS: tuple[AdapterSpec, ...] = (
             "QualityGate implementation in M6 with the four-input signature: "
             "mission, findings, evidence, behavior_probe_ok, regression_ok."
         ),
+        m2_status="M2: NOT IMPLEMENTED. Reserved for M6.",
     ),
 )
 
@@ -374,6 +418,11 @@ RUNTIME_SPECS: tuple[AdapterSpec, ...] = (
             "Runtime implementation in M2 that dispatches to Capability "
             "adapters and emits ExecutionResult + EvidenceReceipt."
         ),
+        m2_status=(
+            "M2: IMPLEMENTED as raphael_bob.runtime.BOBRuntime. Submits "
+            "ActionRequests through BOBBroker; rejects non-BOBBroker "
+            "wrappers structurally."
+        ),
     ),
 )
 
@@ -397,6 +446,7 @@ RUNNER_SPECS: tuple[AdapterSpec, ...] = (
         missing_for_target=(
             "Runner implementation in M6 that drives the BOB control loop."
         ),
+        m2_status="M2: ISOLATE remains correct. Reserved for M6.",
     ),
 )
 

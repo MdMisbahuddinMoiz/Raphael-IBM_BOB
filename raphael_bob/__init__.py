@@ -1,4 +1,4 @@
-"""raphael_bob — IBM BOB Hackathon MVP seam package (M1..M3).
+"""raphael_bob — IBM BOB Hackathon MVP seam package (M1..M4).
 
 This package establishes the migration boundary between the existing
 Raphael v2.1.1 implementation and the IBM BOB MVP target.
@@ -17,16 +17,12 @@ Modules:
                         ledger writes.
     runtime           - BOB Runtime implementation (M2..M3): agent-facing
                         boundary that submits through the Broker only.
-    evidence_ledger   - M3 append-only JSONL evidence ledger.
+    evidence_ledger   - M3 append-only JSONL evidence ledger; M4 adds
+                        FindingRecord + finding_id linkage.
+    finding           - M4 lifecycle-aware Finding store.
+    verifier          - M4 broker-mediated retest engine.
+    falsifier         - M4 broker-mediated active-challenge engine.
     adapters          - explicit adapters to legacy Raphael machinery (M2+).
-
-Legacy status language used throughout this package:
-
-    IMPLEMENTED         - dataclass / enum / Protocol / class defined.
-    PHYSICALLY VERIFIED - exercised by tests in tests/test_seam_*.py and
-                          tests/test_m2_*.py and tests/test_m3_*.py.
-    NOT IMPLEMENTED     - the substantive implementation; deferred.
-    UNKNOWN             - no evidence yet.
 """
 from raphael_bob.contracts import (
     ActionRequest,
@@ -66,6 +62,7 @@ from raphael_bob.evidence_ledger import (
     DecisionRecord,
     EvidenceLedger as _JSONL_EvidenceLedger,
     EvidenceRecord,
+    FindingRecord,
     LedgerReader,
     LedgerWriter,
     RecordKind,
@@ -73,9 +70,19 @@ from raphael_bob.evidence_ledger import (
     ResultRecord,
     digest_id,
 )
+from raphael_bob.finding import (
+    FindingStore,
+    InvalidTransitionError,
+    TransitionResult,
+)
+from raphael_bob.verifier import RetestSpec, VerifyOutcome, Verifier
+from raphael_bob.falsifier import (
+    ChallengeOutcome,
+    ChallengeSpec,
+    Falsifier,
+)
 
-# Re-bind the M3 ledger class under the M1 Protocol name. Both names point
-# to the same JSONL implementation; importing either yields the same class.
+# Re-bind the M3 ledger class under the M1 Protocol name.
 EvidenceLedger = _JSONL_EvidenceLedger
 
 __all__ = [
@@ -117,10 +124,21 @@ __all__ = [
     "ArtifactSink",
     "DecisionRecord",
     "EvidenceRecord",
+    "FindingRecord",
     "LedgerReader",
     "LedgerWriter",
     "RecordKind",
     "RequestRecord",
     "ResultRecord",
     "digest_id",
+    # M4 implementations
+    "FindingStore",
+    "InvalidTransitionError",
+    "TransitionResult",
+    "Verifier",
+    "RetestSpec",
+    "VerifyOutcome",
+    "Falsifier",
+    "ChallengeSpec",
+    "ChallengeOutcome",
 ]

@@ -342,15 +342,13 @@ class AntiClaimTests(unittest.TestCase):
         with self.assertRaises(ModuleNotFoundError):
             importlib.import_module("raphael_bob.replanner")
 
-    def test_no_falsifier_implementation_module_exists(self):
+    def test_m4_verifier_and_falsifier_modules_exist(self):
+        # M4 ships Verifier and Falsifier implementations.
         import importlib
-        with self.assertRaises(ModuleNotFoundError):
-            importlib.import_module("raphael_bob.falsifier")
-
-    def test_no_verifier_implementation_module_exists(self):
-        import importlib
-        with self.assertRaises(ModuleNotFoundError):
-            importlib.import_module("raphael_bob.verifier")
+        v = importlib.import_module("raphael_bob.verifier")
+        f = importlib.import_module("raphael_bob.falsifier")
+        self.assertTrue(hasattr(v, "Verifier"))
+        self.assertTrue(hasattr(f, "Falsifier"))
 
     def test_m3_evidence_ledger_module_exists(self):
         import importlib

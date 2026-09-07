@@ -1,4 +1,4 @@
-"""raphael_bob.adapters.legacy — *index* of legacy Raphael modules selected
+"""raphael_bob.adapters.legacy — index of legacy Raphael modules selected
 for migration behind the IBM BOB MVP seams.
 
 This module contains no runtime logic. It is the seam's authoritative
@@ -7,28 +7,13 @@ documentation of:
     * which legacy modules will sit behind which seams
     * what action applies to each (REUSE / ADAPT / ISOLATE / REPLACE)
     * why the action was chosen
-    * what behavior remains legacy (and therefore must NOT be claimed as
-      migrated)
-    * what behavior is still missing (i.e., must be built in M2..M6)
-
-This file is the bridge from docs/migration/reuse-matrix.md to code.
-
-M2 status:
-    * Broker seam: raphael_bob/broker.py BOBBroker is now IMPLEMENTED.
-    * Policy seam: raphael_bob/policy.py BOBPolicy is now IMPLEMENTED.
-    * Runtime seam: raphael_bob/runtime.py BOBRuntime is now IMPLEMENTED.
-    * Capabilities: raphael_bob/capabilities.py execute_capability is
-      now IMPLEMENTED for READ/LIST/SEARCH/WRITE/RUN_TEST.
-
-M3 status:
-    * Evidence seam: raphael_bob/evidence_ledger.py EvidenceLedger is
-      now IMPLEMENTED as a JSONL append-only ledger.
-    * Broker is wired to the ledger; every ActionRequest produces a
-      canonical record chain (request -> decision -> result -> evidence).
+    * what behavior remains legacy
+    * what behavior is still missing
 
 Status language:
     IMPLEMENTED         - selection documented here.
-    PHYSICALLY VERIFIED - exercised by tests.
+    PHYSICALLY VERIFIED - exercised by tests in tests/test_seam_*.py and
+                          tests/test_m{1,2,3,4}_*.py.
     NOT IMPLEMENTED     - real adapter bodies, deferred.
     UNKNOWN             - insufficient evidence.
 """
@@ -38,7 +23,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 
-# Action verbs used in this index, mirroring docs/migration/reuse-matrix.md.
 REUSE = "REUSE"
 ADAPT = "ADAPT"
 ISOLATE = "ISOLATE"
@@ -48,16 +32,15 @@ UNKNOWN = "UNKNOWN"
 
 @dataclass(frozen=True)
 class AdapterSpec:
-    """Documentation of one legacy-module-to-seam mapping."""
-
-    seam: str                # target seam name (e.g. "Broker", "Policy")
-    legacy_module: str       # import path within this repo
-    action: str              # REUSE | ADAPT | ISOLATE | REPLACE | UNKNOWN
-    why: str                 # evidence-backed justification
+    seam: str
+    legacy_module: str
+    action: str
+    why: str
     legacy_behavior_remaining: str
     missing_for_target: str
     m2_status: Optional[str] = None
     m3_status: Optional[str] = None
+    m4_status: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -69,6 +52,7 @@ class AdapterSpec:
             "missing_for_target": self.missing_for_target,
             "m2_status": self.m2_status,
             "m3_status": self.m3_status,
+            "m4_status": self.m4_status,
         }
 
 
@@ -84,8 +68,7 @@ BROKER_SPECS: tuple[AdapterSpec, ...] = (
         why=(
             "CapabilityBroker (line 266) is a single deny-by-default gate with "
             "5-dim auth (target/RoE/capability/rate/impact) and emits "
-            "ActionReceipt. Semantic match for the BOB Broker seam. Lexical "
-            "mismatch: policy grammar is offensive-RoE, must be rebound."
+            "ActionReceipt. Semantic match for the BOB Broker seam."
         ),
         legacy_behavior_remaining=(
             "Existing offensive-policy grammar (ActionType enum with EXPLOIT, "
@@ -98,15 +81,14 @@ BROKER_SPECS: tuple[AdapterSpec, ...] = (
         ),
         m2_status=(
             "M2: IMPLEMENTED as raphael_bob.broker.BOBBroker. Rebuilt from "
-            "the contract rather than wrapping the legacy module; the legacy "
-            "offensive-RoE code path is ISOLATE."
+            "the contract rather than wrapping the legacy module."
         ),
         m3_status=(
             "M3: BOBBroker is now wired to EvidenceLedger; every submission "
             "persists request -> decision -> evidence (and result -> "
-            "evidence on ALLOW). The M2 in-memory audit list is retained for "
-            "back-compat only."
+            "evidence on ALLOW)."
         ),
+        m4_status="M4: BOBBroker unchanged from M3; M4 components consume the broker.",
     ),
     AdapterSpec(
         seam="Broker",
@@ -114,26 +96,17 @@ BROKER_SPECS: tuple[AdapterSpec, ...] = (
         action=ADAPT,
         why=(
             "ActionReceipt already carries provenance and a chain of "
-            "create_proposal/authorize/deny/start_execution/complete_execution. "
-            "Reuse as the receipt shape that the BOB Broker emits."
+            "create_proposal/authorize/deny/start_execution/complete_execution."
         ),
         legacy_behavior_remaining=(
-            "Receipt state machine tied to offensive execution timeline; "
-            "the BOB seam needs only the receipt dataclass."
+            "Receipt state machine tied to offensive execution timeline."
         ),
         missing_for_target=(
             "Drop-in mapping from ActionReceipt -> EvidenceReceipt at the seam."
         ),
-        m2_status=(
-            "M2: NOT IMPLEMENTED. BOB seam emits its own EvidenceReceipt "
-            "(raphael_bob.contracts.EvidenceReceipt) rather than wrapping "
-            "the legacy ActionReceipt shape."
-        ),
-        m3_status=(
-            "M3: NOT IMPLEMENTED. The JSONL EvidenceRecord (with its own "
-            "digest) is the authoritative receipt; legacy ActionReceipt "
-            "remains ISOLATE."
-        ),
+        m2_status="M2: NOT IMPLEMENTED. BOB seam emits its own EvidenceReceipt.",
+        m3_status="M3: NOT IMPLEMENTED. The JSONL EvidenceRecord is the authoritative receipt.",
+        m4_status="M4: NOT IMPLEMENTED.",
     ),
 )
 
@@ -150,8 +123,7 @@ POLICY_SPECS: tuple[AdapterSpec, ...] = (
         why=(
             "ScopeParser is fail-closed and compiles HackerOne JSON into "
             "ScopeRule entries. The fail-closed semantics map directly onto "
-            "the BOB Policy seam. The grammar must be replaced with BOB "
-            "mission-scope grammar."
+            "the BOB Policy seam."
         ),
         legacy_behavior_remaining=(
             "HackerOne JSON parser. ISOLATE from MVP at the parser boundary."
@@ -159,12 +131,9 @@ POLICY_SPECS: tuple[AdapterSpec, ...] = (
         missing_for_target=(
             "Parser for the BOB mission-scope description language."
         ),
-        m2_status=(
-            "M2: IMPLEMENTED as raphael_bob.policy.BOBPolicy. The fail-closed "
-            "semantics are preserved; the grammar is BOB-native "
-            "(mission-scope substring + capability-specific invariants)."
-        ),
+        m2_status="M2: IMPLEMENTED as raphael_bob.policy.BOBPolicy. The fail-closed semantics are preserved.",
         m3_status="M3: BOBPolicy unchanged from M2.",
+        m4_status="M4: BOBPolicy unchanged from M2; M4 components route through it.",
     ),
     AdapterSpec(
         seam="Policy",
@@ -172,8 +141,7 @@ POLICY_SPECS: tuple[AdapterSpec, ...] = (
         action=ADAPT,
         why=(
             "RateLimiterConfig provides per-target multiplier, minute/hour "
-            "windows, and jitter. The mechanism is reusable; the target-type "
-            "dictionary must be re-keyed."
+            "windows, and jitter."
         ),
         legacy_behavior_remaining=(
             "Default target multipliers are tuned for offensive recon."
@@ -181,11 +149,9 @@ POLICY_SPECS: tuple[AdapterSpec, ...] = (
         missing_for_target=(
             "MVP target-type dict (filesystem vs test-runner)."
         ),
-        m2_status=(
-            "M2: NOT IMPLEMENTED. The MVP does not require time-window "
-            "rate limiting; revisit when mission scope is finalized."
-        ),
+        m2_status="M2: NOT IMPLEMENTED. The MVP does not require time-window rate limiting.",
         m3_status="M3: NOT IMPLEMENTED. Same as M2.",
+        m4_status="M4: NOT IMPLEMENTED. Same as M2.",
     ),
 )
 
@@ -212,17 +178,16 @@ EVIDENCE_SPECS: tuple[AdapterSpec, ...] = (
         missing_for_target=(
             "JSONL append-only serialization; causal-sequence ordering."
         ),
-        m2_status=(
-            "M2: NOT IMPLEMENTED. BOB Broker keeps an in-memory audit list. "
-            "M3 owns the JSONL writer."
-        ),
+        m2_status="M2: NOT IMPLEMENTED. BOB Broker keeps an in-memory audit list.",
         m3_status=(
             "M3: IMPLEMENTED as raphael_bob.evidence_ledger.EvidenceLedger. "
-            "JSONL append-only with deterministic SHA-256 digest IDs; "
-            "request_seq / decision_seq / result_seq linkage; dense "
-            "per-run sequence counter; zero network. The legacy in-memory "
-            "EvidenceGraph with semantic-relation DAG is NOT imported; the "
-            "BOB MVP uses flat causal links in each record."
+            "JSONL append-only with deterministic SHA-256 digest IDs."
+        ),
+        m4_status=(
+            "M4: EvidenceRecord now carries a `payload` field and an "
+            "optional `finding_id` linkage; FindingRecord is a new record "
+            "kind for finding-lifecycle transitions. UNCHANGED behaviour "
+            "for M3 callers."
         ),
     ),
     AdapterSpec(
@@ -232,7 +197,7 @@ EVIDENCE_SPECS: tuple[AdapterSpec, ...] = (
         why=(
             "TrustLevel enum classifies provenance (SYSTEM_POLICY, "
             "OPERATOR_INSTRUCTION, etc.). Useful but not part of the BOB "
-            "MVP evidence surface; defer."
+            "MVP evidence surface."
         ),
         legacy_behavior_remaining=(
             "Trust taxonomy remains reachable in legacy code only."
@@ -241,9 +206,8 @@ EVIDENCE_SPECS: tuple[AdapterSpec, ...] = (
             "BOB MVP uses a 'producer' string tag, not the full trust enum."
         ),
         m2_status="M2: ISOLATE remains correct.",
-        m3_status="M3: ISOLATE remains correct. The BOB EvidenceRecord uses "
-                  "a 'producer' string tag (policy, execution) instead of "
-                  "the legacy TrustLevel enum.",
+        m3_status="M3: ISOLATE remains correct.",
+        m4_status="M4: ISOLATE remains correct. Verifier + Falsifier persist 'verifier' / 'falsifier' producer tags.",
     ),
 )
 
@@ -265,7 +229,7 @@ FALSIFIER_SPECS: tuple[AdapterSpec, ...] = (
         ),
         legacy_behavior_remaining=(
             "Built for offensive contradictions. Discriminator execution "
-            "currently bypasses the new BOB Runtime; must be rewired at M4."
+            "currently bypasses the new BOB Runtime."
         ),
         missing_for_target=(
             "Output: a Finding whose state is REFUTED when the challenge "
@@ -273,6 +237,14 @@ FALSIFIER_SPECS: tuple[AdapterSpec, ...] = (
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M4.",
         m3_status="M3: NOT IMPLEMENTED. Reserved for M4.",
+        m4_status=(
+            "M4: IMPLEMENTED as raphael_bob.falsifier.Falsifier. The Falsifier "
+            "is broker-mediated: every challenge goes through Runtime -> "
+            "Broker -> Policy. Counter-examples are observed in actual "
+            "evidence, not hard-coded. UNVERIFIED findings are not "
+            "transitioned by the Falsifier. The legacy ContradictionManager "
+            "is NOT imported; the BOB MVP implements its own lifecycle."
+        ),
     ),
 )
 
@@ -301,6 +273,15 @@ VERIFIER_SPECS: tuple[AdapterSpec, ...] = (
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M4.",
         m3_status="M3: NOT IMPLEMENTED. Reserved for M4.",
+        m4_status=(
+            "M4: IMPLEMENTED as raphael_bob.verifier.Verifier. The Verifier "
+            "is broker-mediated: every retest goes through Runtime -> "
+            "Broker -> Policy. Findings transition UNVERIFIED -> VERIFIED "
+            "only after a valid retest that produces matching observation "
+            "evidence. The legacy VerificationLoop is NOT imported; the "
+            "BOB MVP implements its own behavioral-retest semantics, not "
+            "exploit-canary verification."
+        ),
     ),
 )
 
@@ -316,8 +297,7 @@ PLANNER_SPECS: tuple[AdapterSpec, ...] = (
         action=ADAPT,
         why=(
             "Action / Precondition / Effect model (line 149) is general-purpose. "
-            "Factory functions at lines 280..441 are offensive-specific and "
-            "must NOT be reachable from the BOB Planner seam."
+            "Factory functions at lines 280..441 are offensive-specific."
         ),
         legacy_behavior_remaining=(
             "Offensive factories (create_nmap_scan_action, "
@@ -329,25 +309,24 @@ PLANNER_SPECS: tuple[AdapterSpec, ...] = (
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
         m3_status="M3: NOT IMPLEMENTED. Reserved for M5.",
+        m4_status="M4: NOT IMPLEMENTED. Reserved for M5.",
     ),
     AdapterSpec(
         seam="Planner",
         legacy_module="src/orchestrator/brain/world.py",
         action=ADAPT,
         why=(
-            "WorldModel + Entity + Relationship provide a generic typed "
-            "graph that is reusable. Entity vocabulary must be reduced."
+            "WorldModel + Entity + Relationship provide a generic typed graph."
         ),
         legacy_behavior_remaining=(
-            "Offensive entity types (Asset, Service, Credential, CloudResource, "
-            "Container, Cluster, etc.)."
+            "Offensive entity types (Asset, Service, Credential, etc.)."
         ),
         missing_for_target=(
-            "Reduced entity vocabulary: file, function, test, "
-            "capability-request."
+            "Reduced entity vocabulary: file, function, test, capability-request."
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
         m3_status="M3: NOT IMPLEMENTED. Reserved for M5.",
+        m4_status="M4: NOT IMPLEMENTED. Reserved for M5.",
     ),
     AdapterSpec(
         seam="Planner",
@@ -355,8 +334,7 @@ PLANNER_SPECS: tuple[AdapterSpec, ...] = (
         action=REPLACE,
         why=(
             "GreedyPlanner (line 69) selects next step by UCB1 utility. "
-            "The BOB Planner seam is plan-generation, not step-selection. "
-            "Replace with evidence-aware planning at M5."
+            "The BOB Planner seam is plan-generation, not step-selection."
         ),
         legacy_behavior_remaining=(
             "UCB1 step selection."
@@ -366,6 +344,7 @@ PLANNER_SPECS: tuple[AdapterSpec, ...] = (
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
         m3_status="M3: NOT IMPLEMENTED. Reserved for M5.",
+        m4_status="M4: NOT IMPLEMENTED. Reserved for M5.",
     ),
 )
 
@@ -381,14 +360,10 @@ REPLANNER_SPECS: tuple[AdapterSpec, ...] = (
         action=REPLACE,
         why=(
             "No on-target Replanner exists. The closest analogues are "
-            "src/orchestrator/brain/strategy.py and "
-            "src/orchestrator/brain/strategy_learner.py (heuristic). "
-            "Replanner must be evidence-causal (Plan A -> refutation -> "
-            "FocusedContext -> Plan B)."
+            "src/orchestrator/brain/strategy.py and strategy_learner.py."
         ),
         legacy_behavior_remaining=(
-            "None. Heuristic strategy learner must not be invoked by the "
-            "BOB seam."
+            "None. Heuristic strategy learner must not be invoked by the BOB seam."
         ),
         missing_for_target=(
             "Replanner implementation in M5 that consumes FocusedContext "
@@ -396,6 +371,7 @@ REPLANNER_SPECS: tuple[AdapterSpec, ...] = (
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
         m3_status="M3: NOT IMPLEMENTED. Reserved for M5.",
+        m4_status="M4: NOT IMPLEMENTED. Reserved for M5.",
     ),
 )
 
@@ -418,11 +394,11 @@ QUALITYGATE_SPECS: tuple[AdapterSpec, ...] = (
             "None."
         ),
         missing_for_target=(
-            "QualityGate implementation in M6 with the four-input signature: "
-            "mission, findings, evidence, behavior_probe_ok, regression_ok."
+            "QualityGate implementation in M6."
         ),
         m2_status="M2: NOT IMPLEMENTED. Reserved for M6.",
         m3_status="M3: NOT IMPLEMENTED. Reserved for M6.",
+        m4_status="M4: NOT IMPLEMENTED. Reserved for M6.",
     ),
 )
 
@@ -440,27 +416,17 @@ RUNTIME_SPECS: tuple[AdapterSpec, ...] = (
             "InteractiveShellCapability (line 58 of "
             "src/orchestrator/capabilities/interactive_shell/capability.py) "
             "is an abstract base for shell capabilities, not an "
-            "agent-facing broker-mediated Runtime. Executor "
-            "(src/raphael/executor/executor.py) bypasses the Broker and "
-            "calls KaliBridge/subprocess directly."
+            "agent-facing broker-mediated Runtime."
         ),
         legacy_behavior_remaining=(
             "Shell capability machinery, KaliBridge, Executor."
         ),
         missing_for_target=(
-            "Runtime implementation in M2 that dispatches to Capability "
-            "adapters and emits ExecutionResult + EvidenceReceipt."
+            "Runtime implementation that dispatches to Capability adapters."
         ),
-        m2_status=(
-            "M2: IMPLEMENTED as raphael_bob.runtime.BOBRuntime. Submits "
-            "ActionRequests through BOBBroker; rejects non-BOBBroker "
-            "wrappers structurally."
-        ),
-        m3_status=(
-            "M3: BOBRuntime propagates provenance fields "
-            "(request_seq, decision_seq, result_seq, evidence_ids) into "
-            "RuntimeResult. No behavioral change beyond M2."
-        ),
+        m2_status="M2: IMPLEMENTED as raphael_bob.runtime.BOBRuntime.",
+        m3_status="M3: BOBRuntime propagates provenance fields into RuntimeResult.",
+        m4_status="M4: BOBRuntime unchanged from M3; Verifier + Falsifier submit through it.",
     ),
 )
 
@@ -475,8 +441,7 @@ RUNNER_SPECS: tuple[AdapterSpec, ...] = (
         legacy_module="src/raphael/main.py",
         action=ISOLATE,
         why=(
-            "src/raphael/main.py drives the existing offensive cognitive "
-            "loop. It MUST NOT be invoked from the BOB seam."
+            "src/raphael/main.py drives the existing offensive cognitive loop."
         ),
         legacy_behavior_remaining=(
             "Wave 1 cognitive loop entry point."
@@ -486,6 +451,7 @@ RUNNER_SPECS: tuple[AdapterSpec, ...] = (
         ),
         m2_status="M2: ISOLATE remains correct. Reserved for M6.",
         m3_status="M3: ISOLATE remains correct. Reserved for M6.",
+        m4_status="M4: ISOLATE remains correct. Reserved for M6.",
     ),
 )
 

@@ -89,7 +89,7 @@ class RecordKind(str, Enum):
     DECISION = "decision"
     RESULT = "result"
     EVIDENCE = "evidence"
-
+    FINDING = "finding"        # M4: Finding lifecycle transitions
 
 def _canonical(payload: Dict[str, Any]) -> str:
     """Deterministic JSON encoding for digest computation."""
@@ -201,6 +201,7 @@ class ResultRecord:
         return asdict(self)
 
 
+
 @dataclass(frozen=True)
 class EvidenceRecord:
     """A durable EvidenceReceipt record."""
@@ -212,7 +213,9 @@ class EvidenceRecord:
     request_seq: int
     decision_seq: int
     result_seq: Optional[int]
+    payload: Dict[str, Any]
     digest: str
+    finding_id: Optional[str] = None  # M4: causal link to a Finding, if any
 
     @classmethod
     def build(
@@ -225,6 +228,7 @@ class EvidenceRecord:
         seq: int,
         ts: int,
         payload: Dict[str, Any],
+        finding_id: Optional[str] = None,
     ) -> "EvidenceRecord":
         return cls(
             kind=RecordKind.EVIDENCE.value,
@@ -235,11 +239,64 @@ class EvidenceRecord:
             request_seq=request_seq,
             decision_seq=decision_seq,
             result_seq=result_seq,
+            payload=dict(payload),
+            digest=hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest(),
+            finding_id=finding_id,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class FindingRecord:
+    """A durable Finding lifecycle record. Persisted on every transition.
+
+    Stores the finding snapshot at the moment of transition plus the
+    causal evidence sequences that motivated the transition.
+    """
+    kind: str               # RecordKind.FINDING.value
+    seq: int
+    ts: int
+    finding_id: str
+    state: str              # FindingState.value (the NEW state after the transition)
+    prev_state: Optional[str]
+    summary: str
+    target: str
+    evidence_seqs: Tuple[int, ...]  # ledger seqs that motivated the transition
+    digest: str             # hex SHA-256 of canonical payload
+
+    @classmethod
+    def build(
+        cls,
+        finding_id: str,
+        state: str,
+        prev_state: Optional[str],
+        summary: str,
+        target: str,
+        evidence_seqs: Tuple[int, ...],
+        seq: int,
+        ts: int,
+        payload: Dict[str, Any],
+    ) -> "FindingRecord":
+        return cls(
+            kind=RecordKind.FINDING.value,
+            seq=seq,
+            ts=ts,
+            finding_id=finding_id,
+            state=state,
+            prev_state=prev_state,
+            summary=summary,
+            target=target,
+            evidence_seqs=tuple(int(s) for s in evidence_seqs),
             digest=hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest(),
         )
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+Record = Union[RequestRecord, DecisionRecord, ResultRecord, EvidenceRecord, FindingRecord]
 
 
 Record = Union[RequestRecord, DecisionRecord, ResultRecord, EvidenceRecord]
@@ -357,6 +414,7 @@ class LedgerWriter:
         decision_seq: int,
         result_seq: Optional[int],
         payload: Dict[str, Any],
+        finding_id: Optional[str] = None,
     ) -> int:
         rec = EvidenceRecord.build(
             evidence_id=evidence_id,
@@ -364,6 +422,30 @@ class LedgerWriter:
             request_seq=request_seq,
             decision_seq=decision_seq,
             result_seq=result_seq,
+            seq=0,
+            ts=self._clock(),
+            payload=payload,
+            finding_id=finding_id,
+        )
+        return self._append_line(rec.to_dict())
+
+    def append_finding(
+        self,
+        finding_id: str,
+        state: str,
+        prev_state: Optional[str],
+        summary: str,
+        target: str,
+        evidence_seqs: Tuple[int, ...],
+        payload: Dict[str, Any],
+    ) -> int:
+        rec = FindingRecord.build(
+            finding_id=finding_id,
+            state=state,
+            prev_state=prev_state,
+            summary=summary,
+            target=target,
+            evidence_seqs=evidence_seqs,
             seq=0,
             ts=self._clock(),
             payload=payload,
@@ -521,14 +603,41 @@ class EvidenceLedger:
         decision_seq: int,
         result_seq: Optional[int],
         payload: Dict[str, Any],
+        finding_id: Optional[str] = None,
     ) -> int:
         return self._writer.append_evidence(
-            evidence_id, producer, request_seq, decision_seq, result_seq, payload
+            evidence_id, producer, request_seq, decision_seq, result_seq, payload,
+            finding_id=finding_id,
         )
 
-    # --- Convenience getters -----------------------------------------------
+    def append_finding(
+        self,
+        finding_id: str,
+        state: str,
+        prev_state: Optional[str],
+        summary: str,
+        target: str,
+        evidence_seqs: Tuple[int, ...],
+        payload: Dict[str, Any],
+    ) -> int:
+        return self._writer.append_finding(
+            finding_id, state, prev_state, summary, target, evidence_seqs, payload
+        )
 
-    def run_dir(self) -> Path:
+    def records_for_finding(self, finding_id: str) -> List[Dict[str, Any]]:
+        """Return every ledger record linked to the given finding_id.
+
+        Combines:
+            - FindingRecord rows (transitions).
+            - EvidenceRecord rows whose `finding_id` field matches.
+        Sorted by ledger seq. Returns an empty list if no records match.
+        """
+        out: List[Dict[str, Any]] = []
+        for rec in self._reader.all():
+            if rec.get("finding_id") == finding_id:
+                out.append(rec)
+        out.sort(key=lambda r: r.get("seq", 0))
+        return out
         return self._run_dir
 
     def ledger_path(self) -> Path:
@@ -543,11 +652,13 @@ class EvidenceLedger:
     def records_by_kind(self, kind: str) -> List[Dict[str, Any]]:
         return self._reader.by_kind(kind)
 
-
+    # --- Convenience getters -----------------------------------------------
 __all__ = [
     "RecordKind",
     "RequestRecord",
-    "DecisionRecord",
+    "EvidenceRecord",
+    "FindingRecord",
+    "Record",
     "ResultRecord",
     "EvidenceRecord",
     "Record",

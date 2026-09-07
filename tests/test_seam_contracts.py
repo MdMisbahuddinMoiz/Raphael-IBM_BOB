@@ -332,11 +332,12 @@ class AntiClaimTests(unittest.TestCase):
     Broker / Policy / Runtime implementations DO exist at M2; their
     contracts remain the seam Protocols from M1."""
 
-    def test_no_quality_gate_implementation_module_exists(self):
+    def test_m6_quality_gate_module_exists(self):
+        # M6 ships the BOBQualityGate implementation.
         import importlib
-        with self.assertRaises(ModuleNotFoundError):
-            importlib.import_module("raphael_bob.quality_gate")
-
+        mod = importlib.import_module("raphael_bob.quality_gate")
+        self.assertTrue(hasattr(mod, "BOBQualityGate"))
+        self.assertTrue(hasattr(mod, "GateInputs"))
     def test_m5_replanner_and_runner_modules_exist(self):
         # M5 ships Replanner and Runner implementations.
         import importlib

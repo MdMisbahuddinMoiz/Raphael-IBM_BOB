@@ -88,7 +88,6 @@ def _mission(scope: str = "src/") -> Mission:
         scope=scope, criteria=["all named tests pass", "behavior probe passes"],
     )
 
-
 class _Harness:
     def __init__(self, ws_root: Path, run_root: Path):
         self.workspace = Workspace(ws_root)
@@ -100,12 +99,13 @@ class _Harness:
         self.verifier = Verifier(self.runtime, self.ledger, self.store)
         self.falsifier = Falsifier(self.runtime, self.ledger, self.store)
         self.replanner = Replanner(self.store, self.ledger)
+        from raphael_bob.quality_gate import BOBQualityGate
+        self.gate = BOBQualityGate(self.ledger)
         self.runner = Runner(
             self.runtime, self.ledger, self.store,
-            self.verifier, self.falsifier, self.replanner,
+            self.verifier, self.falsifier, self.replanner, self.gate,
         )
         self.mission = _mission()
-
 
 def _harness(testcase: unittest.TestCase) -> _Harness:
     return _Harness(_make_workspace(testcase), _make_run_dir(testcase))

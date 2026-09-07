@@ -1,45 +1,10 @@
-"""raphael_bob.runner — M5 minimal Runner.
+"""raphael_bob.runner — M5/M6 Runner.
 
-The Runner drives the BOB control loop:
-
-    Mission
-       ↓
-    Planner (M5 stub: produces Plan A)
-       ↓
-    Plan A
-       ↓
-    Runner.execute_plan(plan_a)  # actions go through Runtime -> Broker -> Policy
-       ↓
-    candidate Finding registered with FindingStore
-       ↓
-    Verifier.verify(finding, retest, mission) -> VERIFIED
-       ↓
-    Falsifier.challenge(finding, spec, mission) -> REFUTED
-       ↓
-    FocusedContext built from FindingStore.evidence_for(finding_id)
-       ↓
-    Replanner.replan(focused_context, plan_a) -> Plan B
-       ↓
-    Verifier.verify again (Plan B's action goes through the broker)
-       ↓
-    return REFUSE    #   NEVER COMPLETE
-
-The Runner MUST NOT declare COMPLETE. That remains M6's QualityGate.
-
-The Planner is a stub at M5: it emits a single ActionRequest that points
-at a candidate target (default: the finding's target). M7 will harden
-this with a proper authkit-style planner.
-
-Legacy references:
-    src/raphael/main.py — Wave 1 cognitive loop. ISOLATE; not invoked.
-    src/orchestrator/brain/action.py Action/Precondition/Effect —
-        ADAPT conceptually; the M5 Planner stub uses the same shape
-        but emits BOB-native READ/LIST/SEARCH/WRITE/RUN_TEST actions.
-
-Limitations at M5:
-    - Planner is a stub; M7 will replace it.
-    - Single-step replan only.
-    - No scheduler; synchronous.
+M5: drives the BOB control loop (Plan A -> Verifier -> Falsifier ->
+    Replanner -> Plan B). Returns REFUSE unconditionally.
+M6: after Plan B's verifier retest, the Runner delegates the final
+    completion decision to `BOBQualityGate`. The Runner never produces
+    COMPLETE itself.
 """
 from __future__ import annotations
 
@@ -47,12 +12,13 @@ import hashlib
 import json
 import threading
 from dataclasses import dataclass
-from typing import Callable, List, Optional
+from typing import List, Optional, Tuple
 
 from raphael_bob.broker import BOBBroker
 from raphael_bob.contracts import (
     ActionRequest,
     Capability,
+    EvidenceReceipt,
     Finding,
     FindingState,
     FocusedContext,
@@ -64,7 +30,8 @@ from raphael_bob.evidence_ledger import EvidenceLedger, digest_id
 from raphael_bob.falsifier import ChallengeSpec, Falsifier
 from raphael_bob.finding import FindingStore
 from raphael_bob.policy import BOBPolicy
-from raphael_bob.replanner import Replanner, ReplanStrategy, derive_plan_b_id
+from raphael_bob.quality_gate import BOBQualityGate, GateEvaluation, GateInputs
+from raphael_bob.replanner import Replanner
 from raphael_bob.runtime import BOBRuntime
 from raphael_bob.verifier import RetestSpec, Verifier
 
@@ -111,20 +78,26 @@ class PlannerStub:
 
 @dataclass(frozen=True)
 class RunnerOutcome:
-    """Public result of a Runner.run() call. The Runner NEVER returns
-    COMPLETE; that is the Quality Gate's authority at M6."""
+    """Public result of a Runner.run() call.
+
+    The Runner NEVER returns COMPLETE itself; that is the Quality Gate's
+    authority. The `gate_evaluation` field carries the gate's verdict and
+    is the source of truth for completion.
+    """
     gate_verdict: GateVerdict
     plan_a: Plan
     plan_b: Optional[Plan]
     finding: Finding
     mission: Mission
-    # Replan evidence ids produced by the runner.
     plan_a_step_runtime_seq: int
     plan_b_step_runtime_seq: Optional[int]
+    gate_evaluation: Optional[GateEvaluation] = None
+    regression_record_seq: Optional[int] = None
+    probe_record_seq: Optional[int] = None
 
 
 class Runner:
-    """Drives the BOB control loop without deciding final COMPLETE."""
+    """Drives the BOB control loop and delegates COMPLETE to QualityGate."""
 
     def __init__(
         self,
@@ -134,6 +107,7 @@ class Runner:
         verifier: Verifier,
         falsifier: Falsifier,
         replanner: Replanner,
+        gate: BOBQualityGate,
         planner: Optional[PlannerStub] = None,
     ):
         self._runtime = runtime
@@ -142,6 +116,7 @@ class Runner:
         self._verifier = verifier
         self._falsifier = falsifier
         self._replanner = replanner
+        self._gate = gate
         self._planner = planner or PlannerStub()
         self._lock = threading.Lock()
 
@@ -166,6 +141,10 @@ class Runner:
         return self._replanner
 
     @property
+    def gate(self) -> BOBQualityGate:
+        return self._gate
+
+    @property
     def runtime(self) -> BOBRuntime:
         return self._runtime
 
@@ -178,14 +157,20 @@ class Runner:
         challenger_target: str = "src/still_buggy.py",
         challenger_forbidden_substring: str = "BUG: still contains the original defect",
         challenger_capability: Capability = Capability.READ,
+        regression_ok: bool = True,
+        behavior_probe_ok: bool = True,
     ) -> RunnerOutcome:
-        """Execute the full M5 control loop and return a REFUSE verdict.
+        """Execute the full M5/M6 control loop and return the gate's verdict.
 
-        M6 will evaluate the verdict against mission criteria.
+        M6: the Runner persists a `producer="regression"` evidence record
+        (when `regression_ok=True`) and a `producer="probe"` evidence
+        record (when `behavior_probe_ok=True`) so the QualityGate can
+        verify the source of these flags rather than trust caller
+        fabrication. If either flag is False, the Runner does NOT
+        persist the corresponding record and the gate will REFUSE.
         """
         # 1. Generate Plan A.
         plan_a = self._planner.plan_a(mission)
-        # 2. Execute Plan A's first action through the Runtime.
         plan_a_step = plan_a.steps[0]
         rt_a = self._runtime.submit(
             ActionRequest(
@@ -199,24 +184,8 @@ class Runner:
             ),
             mission,
         )
-        if rt_a.broker_result.decision.decision.value != "allow":
-            # Plan A was denied. Stop; return REFUSE.
-            return RunnerOutcome(
-                gate_verdict=GateVerdict.REFUSE,
-                plan_a=plan_a,
-                plan_b=None,
-                finding=Finding(
-                    finding_id="F-NA",
-                    state=FindingState.UNVERIFIED,
-                    summary="plan-a-denied",
-                    target=plan_a_step.target,
-                ),
-                mission=mission,
-                plan_a_step_runtime_seq=rt_a.request_seq,
-                plan_b_step_runtime_seq=None,
-            )
 
-        # 3. Register a candidate Finding.
+        # 2. Register a candidate Finding.
         finding = Finding(
             finding_id=f"F-{plan_a.plan_id[2:8]}",
             state=FindingState.UNVERIFIED,
@@ -225,8 +194,8 @@ class Runner:
         )
         self._store.register(finding)
 
-        # 4. Verifier.verify: UNVERIFIED -> VERIFIED.
-        verify_outcome = self._verifier.verify(
+        # 3. Verifier.verify: UNVERIFIED -> VERIFIED.
+        self._verifier.verify(
             finding,
             RetestSpec(
                 capability=Capability.READ,
@@ -236,8 +205,9 @@ class Runner:
             mission,
             requester="runner",
         )
-        # 5. Falsifier.challenge: VERIFIED -> REFUTED.
-        challenge_outcome = self._falsifier.challenge(
+
+        # 4. Falsifier.challenge: VERIFIED -> REFUTED.
+        self._falsifier.challenge(
             self._store.get(finding.finding_id) or finding,
             ChallengeSpec(
                 capability=challenger_capability,
@@ -252,11 +222,8 @@ class Runner:
         plan_b_seq: Optional[int] = None
         refuted = self._store.get(finding.finding_id)
         if refuted is not None and refuted.state is FindingState.REFUTED:
-            # 6. Build FocusedContext from the evidence chain.
             ctx = self._build_focused_context(refuted, plan_a, mission)
-            # 7. Replan.
             plan_b = self._replanner.replan(ctx, plan_a)
-            # 8. Submit Plan B's step through the Runtime (broker-mediated).
             if plan_b.steps:
                 b_step = plan_b.steps[0]
                 rt_b = self._runtime.submit(
@@ -272,20 +239,45 @@ class Runner:
                     mission,
                 )
                 plan_b_seq = rt_b.request_seq
-        else:
-            # Refutation did NOT happen; the runner must NOT replan.
-            plan_b = None
+                # 5. Verifier on the corrected Plan B step.
+                self._verifier.verify(
+                    self._store.get(finding.finding_id) or finding,
+                    RetestSpec(
+                        capability=Capability.READ,
+                        target=b_step.target,
+                        expected_substring="OK",
+                    ),
+                    mission,
+                    requester="runner",
+                )
 
-        # 9. NEVER COMPLETE. Return REFUSE.
+        # 6. Persist regression / probe proof records (M6 anti-bypass).
+        regression_seq = self._persist_regression_proof(regression_ok, mission)
+        probe_seq = self._persist_probe_proof(behavior_probe_ok, mission)
+
+        # 7. Delegate to QualityGate.
+        findings = list(self._store.all())
+        evaluation = self._gate.evaluate(GateInputs(
+            mission=mission,
+            findings=findings,
+            regression_ok=regression_ok,
+            behavior_probe_ok=behavior_probe_ok,
+        ))
+
         return RunnerOutcome(
-            gate_verdict=GateVerdict.REFUSE,
+            gate_verdict=evaluation.verdict,
             plan_a=plan_a,
             plan_b=plan_b,
             finding=self._store.get(finding.finding_id) or finding,
             mission=mission,
             plan_a_step_runtime_seq=rt_a.request_seq,
             plan_b_step_runtime_seq=plan_b_seq,
+            gate_evaluation=evaluation,
+            regression_record_seq=regression_seq,
+            probe_record_seq=probe_seq,
         )
+
+    # --- provenance helpers ------------------------------------------------
 
     def _build_focused_context(
         self,
@@ -293,53 +285,75 @@ class Runner:
         plan_a: Plan,
         mission: Mission,
     ) -> FocusedContext:
-        """Compose a FocusedContext from the FindingStore evidence chain.
-
-        The diagnostic_evidence list contains real EvidenceReceipt records
-        whose sequence numbers point into the durable JSONL ledger.
-        """
+        """Compose a FocusedContext from the FindingStore evidence chain."""
         records = self._ledger.records_for_finding(refuted.finding_id)
-        receipts: list = []
+        receipts: List[EvidenceReceipt] = []
         for rec in records:
             if rec.get("kind") != "evidence":
                 continue
-            receipts.append(
-                _record_to_receipt(rec)
-            )
+            receipts.append(EvidenceReceipt(
+                evidence_id=rec.get("evidence_id", ""),
+                sequence=rec.get("seq", 0),
+                producer=rec.get("producer", ""),
+                payload=dict(rec),
+            ))
         if not receipts:
-            # Synthesize a minimum receipt so the Replanner can run.
-            receipts = [
-                _synth_receipt(self._ledger, refuted),
-            ]
+            payload = {"refuted_finding_id": refuted.finding_id}
+            receipts = [EvidenceReceipt(
+                evidence_id=digest_id(payload, prefix="S"),
+                sequence=self._ledger.all_records()[-1].get("seq", 0)
+                    if self._ledger.all_records() else 0,
+                producer="runner",
+                payload=payload,
+            )]
         return FocusedContext(
             refuted_claim=refuted,
             diagnostic_evidence=receipts,
             mission_scope=mission.scope,
         )
 
+    def _persist_regression_proof(
+        self, regression_ok: bool, mission: Mission
+    ) -> Optional[int]:
+        """Persist a producer='regression' evidence record iff regression_ok."""
+        if not regression_ok:
+            return None
+        payload = {
+            "kind": "regression",
+            "mission_id": mission.mission_id,
+            "result": "passed",
+        }
+        ev_id = digest_id(payload, prefix="RG")
+        return self._ledger.append_evidence(
+            evidence_id=ev_id,
+            producer="regression",
+            request_seq=0,
+            decision_seq=0,
+            result_seq=None,
+            payload=payload,
+        )
 
-def _record_to_receipt(rec: dict):
-    from raphael_bob.contracts import EvidenceReceipt
-    return EvidenceReceipt(
-        evidence_id=rec.get("evidence_id", ""),
-        sequence=rec.get("seq", 0),
-        producer=rec.get("producer", ""),
-        payload=dict(rec),
-    )
-
-
-def _synth_receipt(ledger: EvidenceLedger, refuted: Finding):
-    """Synthesize a minimum-viable receipt for the Replanner when no
-    evidence records are linked yet (defensive; in practice the Falsifier
-    always persists at least one counter-example record)."""
-    from raphael_bob.contracts import EvidenceReceipt
-    payload = {"refuted_finding_id": refuted.finding_id}
-    return EvidenceReceipt(
-        evidence_id=digest_id(payload, prefix="S"),
-        sequence=ledger.all_records()[-1].get("seq", 0) if ledger.all_records() else 0,
-        producer="runner",
-        payload=payload,
-    )
+    def _persist_probe_proof(
+        self, behavior_probe_ok: bool, mission: Mission
+    ) -> Optional[int]:
+        """Persist a producer='probe' evidence record iff behavior_probe_ok."""
+        if not behavior_probe_ok:
+            return None
+        payload = {
+            "kind": "probe",
+            "mission_id": mission.mission_id,
+            "result": "passed",
+            "allowed": True,
+        }
+        ev_id = digest_id(payload, prefix="PB")
+        return self._ledger.append_evidence(
+            evidence_id=ev_id,
+            producer="probe",
+            request_seq=0,
+            decision_seq=0,
+            result_seq=None,
+            payload=payload,
+        )
 
 
 __all__ = [

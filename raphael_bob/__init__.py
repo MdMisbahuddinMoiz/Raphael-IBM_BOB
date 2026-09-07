@@ -62,12 +62,12 @@ from raphael_bob.evidence_ledger import (
     EvidenceLedger as _JSONL_EvidenceLedger,
     EvidenceRecord,
     FindingRecord,
+    GateRecord,
     LedgerReader,
     LedgerWriter,
     RecordKind,
     RequestRecord,
     ResultRecord,
-    digest_id,
 )
 from raphael_bob.finding import (
     FindingStore,
@@ -82,6 +82,8 @@ from raphael_bob.falsifier import (
 )
 from raphael_bob.replanner import ReplanStrategy, Replanner, derive_plan_b_id
 from raphael_bob.runner import PlannerStub, Runner, RunnerOutcome
+from raphael_bob.quality_gate import BOBQualityGate, GateEvaluation, GateInputs
+
 __all__ = [
     # contracts
     "ActionRequest",
@@ -145,4 +147,9 @@ __all__ = [
     "Runner",
     "PlannerStub",
     "RunnerOutcome",
+    # M6 implementations
+    "BOBQualityGate",
+    "GateInputs",
+    "GateEvaluation",
+    "GateRecord",
 ]

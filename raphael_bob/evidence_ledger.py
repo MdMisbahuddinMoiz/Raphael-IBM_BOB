@@ -34,6 +34,14 @@ Legacy notes:
     result_seq) inside each record, and JSONL records as the source of
     truth. Legacy behavior remains ISOLATE in
     `raphael_bob/adapters/legacy.py`.
+
+M4 additions:
+    - `finding_id: Optional[str]` on EvidenceRecord.
+    - `RecordKind.FINDING = "finding"` + FindingRecord for transitions.
+
+M6 additions:
+    - `RecordKind.GATE = "gate"` + GateRecord for the QualityGate
+      decision (COMPLETE / REFUSE + checks + reasons + evidence refs).
 """
 from __future__ import annotations
 
@@ -90,6 +98,8 @@ class RecordKind(str, Enum):
     RESULT = "result"
     EVIDENCE = "evidence"
     FINDING = "finding"        # M4: Finding lifecycle transitions
+    GATE = "gate"              # M6: QualityGate decision record
+
 
 def _canonical(payload: Dict[str, Any]) -> str:
     """Deterministic JSON encoding for digest computation."""
@@ -201,7 +211,6 @@ class ResultRecord:
         return asdict(self)
 
 
-
 @dataclass(frozen=True)
 class EvidenceRecord:
     """A durable EvidenceReceipt record."""
@@ -215,7 +224,7 @@ class EvidenceRecord:
     result_seq: Optional[int]
     payload: Dict[str, Any]
     digest: str
-    finding_id: Optional[str] = None  # M4: causal link to a Finding, if any
+    finding_id: Optional[str] = None
 
     @classmethod
     def build(
@@ -250,21 +259,17 @@ class EvidenceRecord:
 
 @dataclass(frozen=True)
 class FindingRecord:
-    """A durable Finding lifecycle record. Persisted on every transition.
-
-    Stores the finding snapshot at the moment of transition plus the
-    causal evidence sequences that motivated the transition.
-    """
-    kind: str               # RecordKind.FINDING.value
+    """A durable Finding lifecycle record. Persisted on every transition."""
+    kind: str
     seq: int
     ts: int
     finding_id: str
-    state: str              # FindingState.value (the NEW state after the transition)
+    state: str
     prev_state: Optional[str]
     summary: str
     target: str
-    evidence_seqs: Tuple[int, ...]  # ledger seqs that motivated the transition
-    digest: str             # hex SHA-256 of canonical payload
+    evidence_seqs: Tuple[int, ...]
+    digest: str
 
     @classmethod
     def build(
@@ -296,10 +301,61 @@ class FindingRecord:
         return asdict(self)
 
 
-Record = Union[RequestRecord, DecisionRecord, ResultRecord, EvidenceRecord, FindingRecord]
+@dataclass(frozen=True)
+class GateRecord:
+    """A durable QualityGate decision record (M6).
+
+    Carries the final decision, the checks performed, the evidence
+    references that informed the decision, the finding references, and
+    the reason(s) for REFUSE.
+    """
+    kind: str               # RecordKind.GATE.value
+    seq: int
+    ts: int
+    decision: str          # GateVerdict.value
+    run_id: str            # ledger run directory name
+    mission_id: str
+    checks: Tuple[str, ...] # names of conditions that passed/failed
+    evidence_refs: Tuple[str, ...]  # evidence_ids
+    finding_refs: Tuple[str, ...]   # finding_ids
+    reasons: Tuple[str, ...]        # human-readable reasons
+    digest: str           # SHA-256 of canonical payload
+
+    @classmethod
+    def build(
+        cls,
+        decision: str,
+        run_id: str,
+        mission_id: str,
+        checks: Tuple[str, ...],
+        evidence_refs: Tuple[str, ...],
+        finding_refs: Tuple[str, ...],
+        reasons: Tuple[str, ...],
+        seq: int,
+        ts: int,
+        payload: Dict[str, Any],
+    ) -> "GateRecord":
+        return cls(
+            kind=RecordKind.GATE.value,
+            seq=seq,
+            ts=ts,
+            decision=decision,
+            run_id=run_id,
+            mission_id=mission_id,
+            checks=tuple(checks),
+            evidence_refs=tuple(evidence_refs),
+            finding_refs=tuple(finding_refs),
+            reasons=tuple(reasons),
+            digest=hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest(),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 
-Record = Union[RequestRecord, DecisionRecord, ResultRecord, EvidenceRecord]
+Record = Union[
+    RequestRecord, DecisionRecord, ResultRecord, EvidenceRecord, FindingRecord, GateRecord,
+]
 
 
 # -----------------------------------------------------------------------------
@@ -452,6 +508,31 @@ class LedgerWriter:
         )
         return self._append_line(rec.to_dict())
 
+    def append_gate(
+        self,
+        decision: str,
+        run_id: str,
+        mission_id: str,
+        checks: Tuple[str, ...],
+        evidence_refs: Tuple[str, ...],
+        finding_refs: Tuple[str, ...],
+        reasons: Tuple[str, ...],
+        payload: Dict[str, Any],
+    ) -> int:
+        rec = GateRecord.build(
+            decision=decision,
+            run_id=run_id,
+            mission_id=mission_id,
+            checks=checks,
+            evidence_refs=evidence_refs,
+            finding_refs=finding_refs,
+            reasons=reasons,
+            seq=0,
+            ts=self._clock(),
+            payload=payload,
+        )
+        return self._append_line(rec.to_dict())
+
 
 # -----------------------------------------------------------------------------
 # Reader
@@ -496,6 +577,12 @@ class LedgerReader:
     def by_evidence_id(self, evidence_id: str) -> List[Dict[str, Any]]:
         return [r for r in self.records() if r.get("evidence_id") == evidence_id]
 
+    def by_finding_id(self, finding_id: str) -> List[Dict[str, Any]]:
+        return [r for r in self.records() if r.get("finding_id") == finding_id]
+
+    def gate_decisions(self) -> List[Dict[str, Any]]:
+        return [r for r in self.records() if r.get("kind") == RecordKind.GATE.value]
+
 
 # -----------------------------------------------------------------------------
 # M1 EvidenceLedger Protocol implementation
@@ -525,7 +612,7 @@ class EvidenceLedger:
         ev_id = receipt.evidence_id or digest_id(
             {"producer": receipt.producer, "payload": payload}, prefix="E"
         )
-        seq = self._writer.append_evidence(
+        self._writer.append_evidence(
             evidence_id=ev_id,
             producer=receipt.producer,
             request_seq=int(payload.get("request_seq", -1)),
@@ -624,13 +711,27 @@ class EvidenceLedger:
             finding_id, state, prev_state, summary, target, evidence_seqs, payload
         )
 
+    def append_gate(
+        self,
+        decision: str,
+        run_id: str,
+        mission_id: str,
+        checks: Tuple[str, ...],
+        evidence_refs: Tuple[str, ...],
+        finding_refs: Tuple[str, ...],
+        reasons: Tuple[str, ...],
+        payload: Dict[str, Any],
+    ) -> int:
+        return self._writer.append_gate(
+            decision, run_id, mission_id, checks,
+            evidence_refs, finding_refs, reasons, payload,
+        )
+
     def records_for_finding(self, finding_id: str) -> List[Dict[str, Any]]:
         """Return every ledger record linked to the given finding_id.
 
-        Combines:
-            - FindingRecord rows (transitions).
-            - EvidenceRecord rows whose `finding_id` field matches.
-        Sorted by ledger seq. Returns an empty list if no records match.
+        Combines FindingRecord rows + EvidenceRecord rows that carry the
+        same `finding_id` field. Sorted by ledger seq. Returns [] if no match.
         """
         out: List[Dict[str, Any]] = []
         for rec in self._reader.all():
@@ -638,6 +739,13 @@ class EvidenceLedger:
                 out.append(rec)
         out.sort(key=lambda r: r.get("seq", 0))
         return out
+
+    def gate_decisions(self) -> List[Dict[str, Any]]:
+        return self._reader.gate_decisions()
+
+    # --- Convenience getters -----------------------------------------------
+
+    def run_dir(self) -> Path:
         return self._run_dir
 
     def ledger_path(self) -> Path:
@@ -652,15 +760,15 @@ class EvidenceLedger:
     def records_by_kind(self, kind: str) -> List[Dict[str, Any]]:
         return self._reader.by_kind(kind)
 
-    # --- Convenience getters -----------------------------------------------
+
 __all__ = [
     "RecordKind",
     "RequestRecord",
-    "EvidenceRecord",
-    "FindingRecord",
-    "Record",
+    "DecisionRecord",
     "ResultRecord",
     "EvidenceRecord",
+    "FindingRecord",
+    "GateRecord",
     "Record",
     "digest_id",
     "LedgerWriter",

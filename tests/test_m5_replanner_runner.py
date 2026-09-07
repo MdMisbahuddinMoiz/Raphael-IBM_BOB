@@ -47,7 +47,7 @@ from raphael_bob.replanner import (
     Replanner,
     derive_plan_b_id,
 )
-from raphael_bob.runner import PlannerStub, Runner
+from raphael_bob.runner import Planner, Runner
 from raphael_bob.runtime import BOBRuntime
 from raphael_bob.verifier import RetestSpec, Verifier
 
@@ -84,8 +84,15 @@ def _rm(p: Path) -> None:
 
 def _mission(scope: str = "src/") -> Mission:
     return Mission(
-        mission_id="M-test", description="authkit fix",
-        scope=scope, criteria=["all named tests pass", "behavior probe passes"],
+        mission_id="M-test",
+        description="test mission",
+        scope=scope,
+        criteria=[],
+        problem={
+            "symptom_target": "src/hello.txt",
+            "capability": "read",
+            "purpose": "test",
+        },
     )
 
 class _Harness:

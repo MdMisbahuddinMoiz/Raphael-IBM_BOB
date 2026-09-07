@@ -33,47 +33,12 @@ from raphael_bob.policy import BOBPolicy
 from raphael_bob.quality_gate import BOBQualityGate, GateEvaluation, GateInputs
 from raphael_bob.replanner import Replanner
 from raphael_bob.runtime import BOBRuntime
+from raphael_bob.planner import Planner
 from raphael_bob.verifier import RetestSpec, Verifier
 
 
 def _canonical(payload: dict) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-
-
-@dataclass(frozen=True)
-class PlannerStub:
-    """M5 stub planner. Produces a single-step Plan A targeting
-    `initial_target`. M7 replaces this with a real Planner.
-
-    Uses Capability.LIST against a directory because the BOB Policy
-    requires READ targets to be regular files and WRITE/RUN_TEST targets
-    to be files of a specific kind. A directory target is the safest
-    default for a placeholder plan.
-    """
-
-    initial_target: str = "src/"
-
-    def plan_a(self, mission: Mission) -> Plan:
-        h = hashlib.sha256(_canonical({
-            "mission_id": mission.mission_id,
-            "stage": "plan-a",
-        }).encode("utf-8")).hexdigest()
-        plan_a_id = f"P-{h[:12]}"
-        step = ActionRequest(
-            sequence=0,
-            requester="planner",
-            capability=Capability.LIST,
-            target=self.initial_target,
-            purpose="plan-a:candidate-discovery",
-            plan_id=plan_a_id,
-            finding_id=None,
-        )
-        return Plan(
-            plan_id=plan_a_id,
-            mission_id=mission.mission_id,
-            steps=[step],
-            parent_plan_id=None,
-        )
 
 
 @dataclass(frozen=True)
@@ -86,11 +51,11 @@ class RunnerOutcome:
     """
     gate_verdict: GateVerdict
     plan_a: Plan
-    plan_b: Optional[Plan]
-    finding: Finding
-    mission: Mission
-    plan_a_step_runtime_seq: int
-    plan_b_step_runtime_seq: Optional[int]
+    plan_b: Optional[Plan] = None
+    finding: Optional[Finding] = None
+    mission: Optional[Mission] = None
+    plan_a_step_runtime_seq: Optional[int] = None
+    plan_b_step_runtime_seq: Optional[int] = None
     gate_evaluation: Optional[GateEvaluation] = None
     regression_record_seq: Optional[int] = None
     probe_record_seq: Optional[int] = None
@@ -108,7 +73,7 @@ class Runner:
         falsifier: Falsifier,
         replanner: Replanner,
         gate: BOBQualityGate,
-        planner: Optional[PlannerStub] = None,
+        planner: Optional[Planner] = None,
     ):
         self._runtime = runtime
         self._ledger = ledger
@@ -117,7 +82,7 @@ class Runner:
         self._falsifier = falsifier
         self._replanner = replanner
         self._gate = gate
-        self._planner = planner or PlannerStub()
+        self._planner = planner or Planner()
         self._lock = threading.Lock()
 
     @property
@@ -358,6 +323,6 @@ class Runner:
 
 __all__ = [
     "Runner",
-    "PlannerStub",
+    "Planner",
     "RunnerOutcome",
 ]

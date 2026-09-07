@@ -63,12 +63,19 @@ def _rm(p: Path) -> None:
 
 def _mission() -> Mission:
     return Mission(
-        mission_id="M-test", description="authkit fix",
-        scope="src/", criteria=[
+        mission_id="M-test",
+        description="test mission",
+        scope="src/",
+        criteria=[
             "all named tests pass",
             "behavior probe passes",
             "no UNVERIFIED findings",
         ],
+        problem={
+            "symptom_target": "src/fixed.py",
+            "capability": "read",
+            "purpose": "test",
+        },
     )
 
 

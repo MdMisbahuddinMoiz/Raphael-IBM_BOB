@@ -1,4 +1,6 @@
-"""raphael_bob.falsifier — M4 Falsifier with broker-mediated challenge.
+"""raphael_bob.falsifier — M4 Falsifier with broker-mediated challenge
+(M5: counter-example payload carries the challenge target so the
+Replanner can derive the new action target).
 
 The Falsifier's job is to actively search for a behavioral
 counter-example to an apparently-successful Finding.
@@ -22,7 +24,7 @@ Legacy reference (ADAPT):
     counter-example observed through the broker, not to an offensive
     contradiction. NOT imported.
 
-Limitations at M4:
+Limitations at M4/M5:
     - Challenge strategies are simple (SEARCH target for a forbidden
       pattern, or READ target expecting a substring and observing it).
 """
@@ -216,6 +218,11 @@ class Falsifier:
                 "kind": "counter-example",
                 "finding_id": finding.finding_id,
                 "detail": detail,
+                # M5: feed the Replanner's derive_target with the
+                # challenge target so Plan B can target the actual
+                # refuted defect rather than the prior wrong target.
+                "target": spec.target,
+                "capability": spec.capability.value,
             },
             finding_id=finding.finding_id,
         )

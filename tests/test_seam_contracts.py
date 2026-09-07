@@ -337,11 +337,13 @@ class AntiClaimTests(unittest.TestCase):
         with self.assertRaises(ModuleNotFoundError):
             importlib.import_module("raphael_bob.quality_gate")
 
-    def test_no_replanner_implementation_module_exists(self):
+    def test_m5_replanner_and_runner_modules_exist(self):
+        # M5 ships Replanner and Runner implementations.
         import importlib
-        with self.assertRaises(ModuleNotFoundError):
-            importlib.import_module("raphael_bob.replanner")
-
+        rp = importlib.import_module("raphael_bob.replanner")
+        rn = importlib.import_module("raphael_bob.runner")
+        self.assertTrue(hasattr(rp, "Replanner"))
+        self.assertTrue(hasattr(rn, "Runner"))
     def test_m4_verifier_and_falsifier_modules_exist(self):
         # M4 ships Verifier and Falsifier implementations.
         import importlib
@@ -357,11 +359,13 @@ class AntiClaimTests(unittest.TestCase):
         self.assertTrue(hasattr(mod, "EvidenceLedger"))
         self.assertTrue(hasattr(mod, "LedgerWriter"))
         self.assertTrue(hasattr(mod, "LedgerReader"))
-
-    def test_no_runner_module_exists(self):
+    def test_m5_replanner_and_runner_modules_exist(self):
+        # M5 ships Replanner and Runner implementations.
         import importlib
-        with self.assertRaises(ModuleNotFoundError):
-            importlib.import_module("raphael_bob.runner")
+        rp = importlib.import_module("raphael_bob.replanner")
+        rn = importlib.import_module("raphael_bob.runner")
+        self.assertTrue(hasattr(rp, "Replanner"))
+        self.assertTrue(hasattr(rn, "Runner"))
     def test_m2_broker_is_subclass_of_seam_protocol(self):
         # The M2 Broker implementation must satisfy the M1 seam Protocol.
         from raphael_bob.broker import BOBBroker

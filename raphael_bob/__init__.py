@@ -1,4 +1,4 @@
-"""raphael_bob — IBM BOB Hackathon MVP seam package (M1..M4).
+"""raphael_bob — IBM BOB Hackathon MVP seam package (M1..M5).
 
 This package establishes the migration boundary between the existing
 Raphael v2.1.1 implementation and the IBM BOB MVP target.
@@ -9,21 +9,20 @@ Modules:
                         EvidenceLedger, Verifier, Falsifier, Replanner,
                         QualityGate, Planner, Runner.
     workspace         - isolated workspace root, realpath containment.
-    policy            - BOB Policy implementation (M2): fail-closed,
-                        mission-scope, capability-specific invariants.
+    policy            - BOB Policy implementation (M2): fail-closed.
     capabilities      - READ/LIST/SEARCH/WRITE/RUN_TEST implementations (M2).
-    broker            - BOB Broker implementation (M2..M3): mandatory
-                        mediation, sequence numbering, audit log, durable
-                        ledger writes.
-    runtime           - BOB Runtime implementation (M2..M3): agent-facing
-                        boundary that submits through the Broker only.
-    evidence_ledger   - M3 append-only JSONL evidence ledger; M4 adds
-                        FindingRecord + finding_id linkage.
+    broker            - BOB Broker implementation (M2..M3).
+    runtime           - BOB Runtime implementation (M2..M3).
+    evidence_ledger   - M3 append-only JSONL evidence ledger.
     finding           - M4 lifecycle-aware Finding store.
     verifier          - M4 broker-mediated retest engine.
     falsifier         - M4 broker-mediated active-challenge engine.
-    adapters          - explicit adapters to legacy Raphael machinery (M2+).
+    replanner         - M5 evidence-driven Plan B generator.
+    runner            - M5 control-loop orchestrator (REFUSE only).
+    adapters          - explicit adapters to legacy Raphael machinery.
+
 """
+
 from raphael_bob.contracts import (
     ActionRequest,
     Capability,
@@ -81,10 +80,8 @@ from raphael_bob.falsifier import (
     ChallengeSpec,
     Falsifier,
 )
-
-# Re-bind the M3 ledger class under the M1 Protocol name.
-EvidenceLedger = _JSONL_EvidenceLedger
-
+from raphael_bob.replanner import ReplanStrategy, Replanner, derive_plan_b_id
+from raphael_bob.runner import PlannerStub, Runner, RunnerOutcome
 __all__ = [
     # contracts
     "ActionRequest",
@@ -141,4 +138,11 @@ __all__ = [
     "Falsifier",
     "ChallengeSpec",
     "ChallengeOutcome",
+    # M5 implementations
+    "ReplanStrategy",
+    "Replanner",
+    "derive_plan_b_id",
+    "Runner",
+    "PlannerStub",
+    "RunnerOutcome",
 ]

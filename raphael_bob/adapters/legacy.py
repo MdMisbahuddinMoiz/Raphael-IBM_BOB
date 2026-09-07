@@ -41,6 +41,7 @@ class AdapterSpec:
     m2_status: Optional[str] = None
     m3_status: Optional[str] = None
     m4_status: Optional[str] = None
+    m5_status: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
@@ -53,6 +54,7 @@ class AdapterSpec:
             "m2_status": self.m2_status,
             "m3_status": self.m3_status,
             "m4_status": self.m4_status,
+            "m5_status": self.m5_status,
         }
 
 
@@ -345,6 +347,14 @@ PLANNER_SPECS: tuple[AdapterSpec, ...] = (
         m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
         m3_status="M3: NOT IMPLEMENTED. Reserved for M5.",
         m4_status="M4: NOT IMPLEMENTED. Reserved for M5.",
+        m5_status=(
+            "M5: IMPLEMENTED as raphael_bob.replanner.Replanner. Evidence-"
+            "driven; consumes a FocusedContext built from the refuted "
+            "finding and its persisted evidence chain. Plan B always "
+            "carries parent_plan_id; the action carries "
+            "requester='replanner' and a causal purpose referencing "
+            "the finding id. Deterministic."
+        ),
     ),
 )
 
@@ -372,6 +382,14 @@ REPLANNER_SPECS: tuple[AdapterSpec, ...] = (
         m2_status="M2: NOT IMPLEMENTED. Reserved for M5.",
         m3_status="M3: NOT IMPLEMENTED. Reserved for M5.",
         m4_status="M4: NOT IMPLEMENTED. Reserved for M5.",
+        m5_status=(
+            "M5: IMPLEMENTED as raphael_bob.replanner.Replanner. Evidence-"
+            "driven; consumes a FocusedContext built from the refuted "
+            "finding and its persisted evidence chain. Plan B always "
+            "carries parent_plan_id; the action carries "
+            "requester='replanner' and a causal purpose referencing "
+            "the finding id. Deterministic."
+        ),
     ),
 )
 
@@ -399,6 +417,7 @@ QUALITYGATE_SPECS: tuple[AdapterSpec, ...] = (
         m2_status="M2: NOT IMPLEMENTED. Reserved for M6.",
         m3_status="M3: NOT IMPLEMENTED. Reserved for M6.",
         m4_status="M4: NOT IMPLEMENTED. Reserved for M6.",
+        m5_status="M5: NOT IMPLEMENTED. Reserved for M6.",
     ),
 )
 
@@ -452,6 +471,10 @@ RUNNER_SPECS: tuple[AdapterSpec, ...] = (
         m2_status="M2: ISOLATE remains correct. Reserved for M6.",
         m3_status="M3: ISOLATE remains correct. Reserved for M6.",
         m4_status="M4: ISOLATE remains correct. Reserved for M6.",
+        m5_status=(
+            "M5: ISOLATE remains correct. The Runner is "
+            "raphael_bob.runner.Runner (M5), not src/raphael/main.py."
+        ),
     ),
 )
 

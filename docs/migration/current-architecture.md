@@ -1,0 +1,163 @@
+# Current Architecture Map (R1.0)
+
+Source: physical inspection of `/home/moiz/raphael-2.0-rbsv2r` on branch `migration/bob-mvp` at HEAD `7272880f7`. 
+Python: `Python 3.14.4`; pip: absent; pytest: absent; uv: absent.
+
+## Module categories
+- offensive-surface: 112 modules
+- raphael-cognitive: 86 modules
+- orchestrator-core: 78 modules
+- forge: 77 modules
+- agent/infra: 51 modules
+- scripts: 48 modules
+- arena-rbs: 38 modules
+- cognitive-loop: 29 modules
+- service-binary: 25 modules
+- tests: 22 modules
+- research-scheduler: 10 modules
+- capability-runtime: 8 modules
+- other: 2 modules
+
+## Capability-boundary hits (raw counts across the repo)
+- open: 366
+- subprocess: 134
+- pathlib_write: 88
+- urllib: 80
+- importlib_dynamic: 32
+- socket: 31
+- requests: 15
+- aiohttp: 15
+- httpx: 9
+- shutil_rm: 6
+- os.exec: 3
+- os.system: 1
+
+## Entry-point modules (`if __name__ == '__main__'` present)
+- `src/mcp-hub/main.py`
+- `src/orchestrator/nvidia_provider.py`
+- `src/c2-server/main.py`
+- `src/agent/agent.py`
+- `src/agent/dependency_check.py`
+- `src/sword/pipeline.py`
+- `src/arena/d8_regression_test.py`
+- `src/arena/d7_regression_test.py`
+- `src/arena/d11_regression_test.py`
+- `src/arena/d7_r1_mechanism_test.py`
+- `src/arena/d10_falsification_defeater_diagnostic.py`
+- `src/arena/d9_regression_test.py`
+- `src/arena/d7_r1_gemma_retest.py`
+- `src/arena/d10_regression_test.py`
+- `src/arena/d16_holdout_runner.py`
+- `src/arena/d13_diagnostic_runner.py`
+- `src/arena/diagnostic.py`
+- `src/bridge/raphael_bridge.py`
+- `src/cloak-service/main.py`
+- `src/recon-pipeline/main.py`
+- `src/raphael/main.py`
+- `src/mhddos-service/main.py`
+- `src/raphael/verifier/__main__.py`
+- `src/raphael/exploit_factory/__main__.py`
+- `src/raphael/techniques/lfi_check.py`
+- `src/raphael/techniques/ad1_xor_sweep.py`
+- `src/raphael/techniques/tech_detect.py`
+- `src/raphael/techniques/fast_port_scan.py`
+- `src/raphael/techniques/cmdi_check.py`
+- `src/raphael/techniques/directory_brute.py`
+- `src/raphael/techniques/open_redirect.py`
+- `src/raphael/techniques/sqli_check.py`
+- `src/raphael/techniques/waf_detect.py`
+- `src/raphael/techniques/subdomain_enum.py`
+- `src/raphael/techniques/ssrf_check.py`
+- `src/raphael/integration/test_pipeline.py`
+- `src/raphael/integration/harness.py`
+- `src/raphael/scripts/blind_probe_runner.py`
+- `src/raphael/techniques/payloads/fabric.py`
+- `src/raphael/techniques/vhost_enum/__main__.py`
+- `src/recon-pipeline/producers/recon_ingest.py`
+- `src/arena/tests/test_evaluator_robustness.py`
+- `src/arena/tests/test_safety_regression.py`
+- `src/arena/tests/test_baseline_equivalence.py`
+- `src/arena/tests/test_generator_invariant.py`
+- `src/arena/tests/test_state_isolation.py`
+- `src/orchestrator/cloud_abuse/metadata_abuse.py`
+- `src/orchestrator/cloud_abuse/api_gateway_exploit.py`
+- `src/orchestrator/cloud_abuse/iam_pathfinder.py`
+- `src/orchestrator/cloud_abuse/cloud_enum.py`
+- `src/orchestrator/ml_attack/model_format_analyzer.py`
+- `src/orchestrator/ml_attack/hf_hub_api_client.py`
+- `src/orchestrator/ml_attack/pickle_payload_factory.py`
+- `src/orchestrator/ml_attack/supply_chain_injector.py`
+- `src/orchestrator/brain/rate_limiter.py`
+- `src/orchestrator/brain/waf_detector.py`
+- `src/orchestrator/brain/scope_parser.py`
+- `src/orchestrator/modes/scan.py`
+- `src/orchestrator/cicd/runner_fingerprinter.py`
+- `src/orchestrator/cicd/token_harvester.py`
+- `src/orchestrator/cicd/pipeline_poisoner.py`
+- `src/orchestrator/cicd/workflow_parser.py`
+- `src/orchestrator/api/main.py`
+- `src/orchestrator/student/payload_mutator.py`
+- `src/orchestrator/container_escape/k8s_escape.py`
+- `src/orchestrator/container_escape/sandbox_detection.py`
+- `src/orchestrator/container_escape/docker_escape.py`
+- `scripts/rbs_v2r_canary_phase3_C.py`
+- `scripts/run_rbs_v4_validation_100.py`
+- `scripts/run_experiment0.py`
+- `scripts/validate_env.py`
+- `scripts/terminal_analysis.py`
+- `scripts/rbs_v2r_canary_phase3_C2.py`
+- `scripts/run_rbs_v4_holdout_frozen.py`
+- `scripts/run_t10_fix_verify.py`
+- `scripts/rbs_v2r_canary_phase3.py`
+- `scripts/run_rbs_v4_holdout.py`
+- `scripts/run_experiment1.py`
+- `scripts/run_rbs_v4_pilot.py`
+- `scripts/run_rbs_v4_repair_verify.py`
+- `scripts/run_rbsv2_campaign.py`
+- `scripts/student_read_session.py`
+- `scripts/JUDGE.py`
+- `scripts/rbs_v2r_canary_phase3_B.py`
+- `scripts/smoke_test.py`
+- `scripts/student_neural_thinking_session.py`
+- `scripts/student_arxiv_session.py`
+- `scripts/smoke_llm_usage.py`
+- `scripts/run_rbs_v4_validation.py`
+- `scripts/rbs_v2r_probe_ollama_20b.py`
+- `scripts/run_rbs_v4_integrity_gate.py`
+- `scripts/rbsv2_assertions.py`
+- `scripts/bridge.py`
+- `scripts/run_rbs_v4_dev.py`
+- `scripts/migration_archaeology.py`
+- `scripts/rbs_v2r_probe_120b.py`
+- `scripts/d6b_runner.py`
+- `scripts/run_challenge000.py`
+- `scripts/phase0_audit.py`
+- `scripts/rbs_v2r_pilot_phase4.py`
+- `scripts/run_experiment2.py`
+- `scripts/d6c_reconcile.py`
+- `scripts/d6c_holdout_runner.py`
+- `scripts/run_rbs_v4_holdout_49b.py`
+- `scripts/run_rbs_v3_campaign.py`
+- `scripts/run_experiment3.py`
+- `scripts/student_neural_read_session.py`
+- `forge/verify_l028.py`
+- `tests/test_noop_contract.py`
+- `tests/test_evaluator_isolation.py`
+- `tests/test_prompted_agent_repair.py`
+- `tests/test_cli_smoke.py`
+- `tests/test_safety_telemetry.py`
+- `tests/test_tool_failure_provenance.py`
+- `tests/test_debug_stderr_epipe.py`
+- `tests/test_llm_transport.py`
+- `tests/e1_interactive_shell_test.py`
+- `tests/test_stage1_invariants.py`
+- `tests/test_repair_gate.py`
+- `tests/test_gate_b_action_accounting.py`
+- `tests/test_environment_determinism.py`
+- `tests/test_d5_seven_gate_proof.py`
+- `tests/test_conclusion_infra.py`
+- `tests/test_budget_contract.py`
+- `tests/test_d5_preflight.py`
+- `tests/test_prompted_agent_parity.py`
+- `tests/test_run_identity.py`
+- `tests/test_token_telemetry.py`

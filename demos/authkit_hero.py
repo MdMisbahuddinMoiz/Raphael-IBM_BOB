@@ -5,6 +5,10 @@ Run:
     PYTHONPATH=. python3 demos/authkit_hero.py
 
 Steps 1-12 below correspond to the brief's M7 §18 demo structure.
+
+M10.1: each run persists durable evidence under runs/<run_id>/
+(evidence.jsonl + artifacts/) and reports the run ID, evidence path,
+and final gate verdict on stdout.
 """
 from __future__ import annotations
 
@@ -12,11 +16,10 @@ import argparse
 import os
 import subprocess
 import sys
-import tempfile
 import textwrap
 import traceback
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 
 def _setup_path() -> Path:
@@ -49,7 +52,11 @@ from raphael_bob import (
     Replanner,
     Workspace,
 )
-from raphael_bob.evidence_ledger import EvidenceLedger, digest_id
+from raphael_bob.evidence_ledger import (
+    EvidenceLedger,
+    create_run_dir,
+    digest_id,
+)
 from raphael_bob.falsifier import ChallengeSpec, Falsifier
 from raphael_bob.finding import FindingStore
 from raphael_bob.verifier import RetestSpec, Verifier
@@ -214,15 +221,26 @@ def _install_v2_fix(session_path: Path) -> None:
     session_path.write_text(V2_FIXED_SESSION_TEXT, encoding="utf-8")
 
 
-def run_hero(keep: bool = False) -> int:
+def run_hero(keep: bool = False,
+             runs_root: Optional[Path] = None) -> int:
     authkit_dir = ROOT / "fixtures" / "authkit"
     login_path = authkit_dir / "login.py"
     session_path = authkit_dir / "session.py"
 
     _install_buggy_session(session_path)
 
-    tmp = Path(tempfile.mkdtemp(prefix="authkit_hero_run_"))
-    print(f"# run_dir = {tmp}")
+    # M10.1: the authoritative run record lives in a durable,
+    # repository-local run directory (never /tmp). The ledger owns
+    # evidence.jsonl + artifacts/ inside it from the first append.
+    run_id, tmp = create_run_dir(ROOT / "runs" if runs_root is None
+                                 else runs_root)
+    print(f"Run ID: {run_id}")
+    print(f"Run dir: {tmp}")
+    try:
+        evidence_rel = (tmp.relative_to(ROOT) / "evidence.jsonl").as_posix()
+    except ValueError:
+        evidence_rel = (tmp / "evidence.jsonl").as_posix()
+    print(f"Evidence: {evidence_rel}")
 
     workspace = Workspace(ROOT)
     ledger = EvidenceLedger(tmp)
@@ -423,6 +441,8 @@ def run_hero(keep: bool = False) -> int:
     ))
     _step(12, "QualityGate -> " + evaluation.verdict.value.upper(),
           f"passed={list(evaluation.passed)} failed={list(evaluation.failed)}")
+    print(f"Gate: {evaluation.verdict.value.upper()}")
+    ledger.close()
 
     if not keep:
         session_path.write_text(BUGGY_SESSION_TEXT, encoding="utf-8")

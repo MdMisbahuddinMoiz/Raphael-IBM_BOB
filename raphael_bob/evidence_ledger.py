@@ -50,7 +50,9 @@ import json
 import os
 import threading
 import time
+import uuid
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
@@ -110,6 +112,43 @@ def digest_id(payload: Dict[str, Any], prefix: str = "E") -> str:
     """Compute a deterministic SHA-256 digest identifier over a canonical payload."""
     h = hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
     return f"{prefix}-{h[:16]}"
+
+
+# -----------------------------------------------------------------------------
+# Durable run directories (M10.1)
+# -----------------------------------------------------------------------------
+
+def generate_run_id(stamp: Optional[str] = None) -> str:
+    """Build a collision-resistant, filesystem-safe run identifier.
+
+    Shape: `<UTC-timestamp>_<6-hex>`, e.g. `20260915T083012_9f3ac2`.
+    The timestamp orders runs; the random suffix prevents collisions
+    between runs started in the same second. Run IDs are infrastructure
+    labels, not evidence content: never compare them for determinism.
+    """
+    if stamp is None:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    return f"{stamp}_{uuid.uuid4().hex[:6]}"
+
+
+def create_run_dir(base_dir: Union[str, Path]) -> Tuple[str, Path]:
+    """Create an isolated run directory `<base>/<run_id>/` and return both.
+
+    The base is created when missing. Creation uses mkdir-without-exist
+    so a colliding run_id is retried, never appended to: two runs never
+    share a ledger. The caller hands the path to `EvidenceLedger`,
+    which owns `evidence.jsonl` and `artifacts/` inside it.
+    """
+    base = Path(base_dir)
+    base.mkdir(parents=True, exist_ok=True)
+    while True:
+        run_id = generate_run_id()
+        run_dir = base / run_id
+        try:
+            run_dir.mkdir(parents=False, exist_ok=False)
+            return run_id, run_dir
+        except FileExistsError:
+            continue
 
 
 @dataclass(frozen=True)
@@ -751,6 +790,16 @@ class EvidenceLedger:
     def ledger_path(self) -> Path:
         return self._writer.path
 
+    def close(self) -> None:
+        """Flush and release the ledger file handle.
+
+        Every append is already fsync-durable before it returns, so
+        close is lifecycle hygiene, not a durability requirement: a
+        reopened `LedgerReader` sees all records even if the writer was
+        never explicitly closed.
+        """
+        self._writer.close()
+
     def reader(self) -> LedgerReader:
         return LedgerReader(self._writer.path)
 
@@ -771,6 +820,8 @@ __all__ = [
     "GateRecord",
     "Record",
     "digest_id",
+    "generate_run_id",
+    "create_run_dir",
     "LedgerWriter",
     "LedgerReader",
     "EvidenceLedger",

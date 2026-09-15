@@ -68,6 +68,8 @@ from raphael_bob.evidence_ledger import (
     RecordKind,
     RequestRecord,
     ResultRecord,
+    create_run_dir,
+    generate_run_id,
 )
 from raphael_bob.finding import (
     FindingStore,

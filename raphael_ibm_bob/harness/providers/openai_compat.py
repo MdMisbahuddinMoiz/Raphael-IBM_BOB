@@ -33,6 +33,7 @@ import urllib.request
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from raphael_ibm_bob.contracts import ActionRequest, Capability
 from raphael_ibm_bob.harness.model import ModelContext
@@ -41,12 +42,19 @@ from raphael_ibm_bob.skills import CapabilityRegistry
 ENDPOINT_ENV = "RAPHAEL_MODEL_ENDPOINT"
 API_KEY_ENV = "RAPHAEL_MODEL_API_KEY"
 MODEL_ENV = "RAPHAEL_MODEL_NAME"
+OPENCODE_HEADERS_ENV = "RAPHAEL_MODEL_OPENCODE_HEADERS"
 
 # Honest client identification. Some edges (Cloudflare bot
 # management: error 1010) reject the default python-urllib signature
 # outright; identifying as our own client is required for the call to
 # be evaluated at all. This is not auth and not spoofing.
 USER_AGENT = "RaphaelHarness/1.0"
+
+# OpenCode Go requires its session-routing header; ordinary
+# OpenAI-compatible endpoints neither need nor expect it. These
+# headers are therefore sent ONLY to OpenCode endpoints (or when
+# explicitly enabled) — never to generic providers.
+OPENCODE_HOSTS = ("opencode.ai",)
 
 _VALID_INTENTS = ("act", "done")
 
@@ -87,6 +95,9 @@ class OpenAICompatConfig:
     max_tokens: int = 512
     temperature: float = 0.0
     extra_body: Dict[str, Any] = field(default_factory=dict)
+    # None = auto-detect from the endpoint host (OpenCode Go only).
+    # True/False force the OpenCode-specific headers on/off.
+    opencode_headers: Optional[bool] = None
 
     def __post_init__(self) -> None:
         if not self.endpoint.startswith(("http://", "https://")):
@@ -100,12 +111,26 @@ class OpenAICompatConfig:
             raise ProviderConfigError(
                 "temperature must be within 0.0..2.0")
 
+    def uses_opencode_headers(self) -> bool:
+        """Whether OpenCode-specific headers apply to this endpoint.
+
+        Explicit `opencode_headers` wins; otherwise auto-detected from
+        the endpoint host so generic OpenAI-compatible providers are
+        never sent OpenCode conventions.
+        """
+        if self.opencode_headers is not None:
+            return self.opencode_headers
+        host = (urlparse(self.endpoint).hostname or "").lower()
+        return any(host == h or host.endswith("." + h)
+                   for h in OPENCODE_HOSTS)
+
     def redacted(self) -> Dict[str, Any]:
         return {
             "endpoint": self.endpoint,
             "model": self.model,
             "timeout_seconds": self.timeout_seconds,
             "max_tokens": self.max_tokens,
+            "opencode_headers": self.uses_opencode_headers(),
             "api_key": "set" if self.api_key else "unset",
         }
 
@@ -153,6 +178,17 @@ def config_from_env() -> OpenAICompatConfig:
             raise ProviderConfigError(
                 "RAPHAEL_MODEL_EXTRA_BODY must be a JSON object")
         extra_body = parsed_extra
+    opencode_raw = os.environ.get(OPENCODE_HEADERS_ENV, "")
+    opencode_headers: Optional[bool] = None
+    if opencode_raw:
+        lowered = opencode_raw.strip().lower()
+        if lowered in ("1", "true", "yes", "on"):
+            opencode_headers = True
+        elif lowered in ("0", "false", "no", "off"):
+            opencode_headers = False
+        else:
+            raise ProviderConfigError(
+                f"{OPENCODE_HEADERS_ENV} must be a boolean")
     return OpenAICompatConfig(
         endpoint=endpoint.rstrip("/"),
         model=model,
@@ -161,6 +197,7 @@ def config_from_env() -> OpenAICompatConfig:
         max_tokens=max_tokens,
         temperature=temperature,
         extra_body=extra_body,
+        opencode_headers=opencode_headers,
     )
 
 
@@ -352,8 +389,8 @@ class OpenAICompatAdapter:
     """Live OpenAI-compatible provider behind the ModelAdapter seam."""
 
     # OpenCode Go routes on a stable per-conversation session id
-    # (https://opencode.ai/docs/go/#where-can-i-use-it). Other
-    # OpenAI-compatible endpoints ignore the extra header.
+    # (https://opencode.ai/docs/go/#where-can-i-use-it). Sent only to
+    # OpenCode endpoints (see OpenAICompatConfig.uses_opencode_headers).
     SESSION_HEADER = "x-opencode-session"
 
     def __init__(self, config: OpenAICompatConfig,
@@ -389,13 +426,18 @@ class OpenAICompatAdapter:
     def _post(self, body: Dict[str, Any],
               session_id: str = "") -> Dict[str, Any]:
         payload = json.dumps(body).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        if self._config.uses_opencode_headers():
+            # OpenCode Go contract: identify as our own client and
+            # route by stable conversation session id. Not sent to
+            # generic OpenAI-compatible providers.
+            headers["User-Agent"] = USER_AGENT
+            headers[self.SESSION_HEADER] = (session_id
+                                            or self._session_key)
         request = urllib.request.Request(
             self._config.endpoint + "/chat/completions",
             data=payload,
-            headers={"Content-Type": "application/json",
-                     "User-Agent": USER_AGENT,
-                     self.SESSION_HEADER: session_id
-                     or self._session_key},
+            headers=headers,
             method="POST",
         )
         if self._config.api_key:

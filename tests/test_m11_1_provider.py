@@ -624,13 +624,14 @@ class SessionHeader(unittest.TestCase):
         host, port = server.server_address
         return seen, f"http://{host}:{port}"
 
-    def _adapter(self, testcase, url):
+    def _adapter(self, testcase, url, opencode=True):
         from raphael_ibm_bob.harness.providers.openai_compat import (
             OpenAICompatAdapter,
             OpenAICompatConfig,
         )
         return OpenAICompatAdapter(
-            OpenAICompatConfig(endpoint=url, model="m"), _registry())
+            OpenAICompatConfig(endpoint=url, model="m",
+                               opencode_headers=opencode), _registry())
 
     def test_session_header_sent_and_stable(self):
         from raphael_ibm_bob.harness.providers.openai_compat import (
@@ -662,6 +663,111 @@ class SessionHeader(unittest.TestCase):
         with self.assertRaises(DoneSignal):
             adapter.propose(ctx)
         self.assertEqual(seen["session"], "harness-session-9")
+
+
+class OpenCodeHeaderIsolation(unittest.TestCase):
+    """M12: OpenCode-specific headers stay off generic providers."""
+
+    def _capturing(self):
+        import json as _json
+        import threading as _threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        seen = {}
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", 0))
+                self.rfile.read(length)
+                seen["session"] = self.headers.get("x-opencode-session")
+                seen["agent"] = self.headers.get("User-Agent")
+                seen["auth"] = self.headers.get("Authorization")
+                body = {"choices": [{"message": {"content": _json.dumps(
+                    {"intent": "done"})}}]}
+                raw = _json.dumps(body).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+            def log_message(self, *args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        self.addCleanup(server.server_close)
+        thread = _threading.Thread(
+            target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.shutdown)
+        host, port = server.server_address
+        return seen, f"http://{host}:{port}"
+
+    def _run(self, url, **kwargs):
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            DoneSignal,
+            OpenAICompatAdapter,
+            OpenAICompatConfig,
+        )
+        adapter = OpenAICompatAdapter(
+            OpenAICompatConfig(endpoint=url, model="m", **kwargs),
+            _registry())
+        with self.assertRaises(DoneSignal):
+            adapter.propose(_context())
+
+    def test_generic_endpoint_receives_no_opencode_headers(self):
+        seen, url = self._capturing()
+        self._run(url)  # auto-detect: 127.0.0.1 is not OpenCode
+        self.assertIsNone(seen["session"])
+        self.assertFalse((seen["agent"] or "").startswith("RaphaelHarness"))
+
+    def test_opencode_host_autodetected(self):
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            OpenAICompatConfig,
+        )
+        config = OpenAICompatConfig(
+            endpoint="https://opencode.ai/zen/go/v1", model="m")
+        self.assertTrue(config.uses_opencode_headers())
+        other = OpenAICompatConfig(
+            endpoint="https://api.example.com/v1", model="m")
+        self.assertFalse(other.uses_opencode_headers())
+
+    def test_explicit_override_enables_and_disables(self):
+        seen, url = self._capturing()
+        self._run(url, opencode_headers=True)
+        self.assertTrue(seen["session"])
+        self.assertTrue(seen["agent"].startswith("RaphaelHarness"))
+        self._run(url, opencode_headers=False)
+        self.assertIsNone(seen["session"])
+
+    def test_generic_endpoint_still_sends_auth(self):
+        seen, url = self._capturing()
+        self._run(url, opencode_headers=False, api_key="unit-test-key")
+        self.assertEqual(seen["auth"], "Bearer unit-test-key")
+
+    def test_env_override_parsed(self):
+        from unittest.mock import patch
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            config_from_env,
+        )
+        base = {"RAPHAEL_MODEL_ENDPOINT": "https://api.example.com/v1",
+                "RAPHAEL_MODEL_NAME": "m"}
+        with patch.dict("os.environ", dict(base), clear=True):
+            self.assertFalse(
+                config_from_env().uses_opencode_headers())
+        with patch.dict("os.environ",
+                        dict(base, RAPHAEL_MODEL_OPENCODE_HEADERS="1"),
+                        clear=True):
+            self.assertTrue(
+                config_from_env().uses_opencode_headers())
+        with patch.dict("os.environ",
+                        dict(base, RAPHAEL_MODEL_OPENCODE_HEADERS="bad"),
+                        clear=True):
+            from raphael_ibm_bob.harness.providers.openai_compat import (
+                ProviderConfigError,
+            )
+            with self.assertRaises(ProviderConfigError):
+                config_from_env()
 
 
 if __name__ == "__main__":

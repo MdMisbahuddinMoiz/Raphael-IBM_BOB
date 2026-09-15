@@ -2,9 +2,9 @@
 
 Session/mission intake, governed run delegation, and post-process
 inspection. Every run goes through `harness.run.start_run` (hence the
-existing Runner); inspection reads from disk. No model provider here:
-`run start` accepts an optional scripted-proposal target for the
-opening probe, otherwise the run is purely Runner-driven.
+existing Runner); inspection reads from disk. The opening probe may
+come from a scripted proposal or, with --model-provider, a real
+provider adapter (env-configured; missing config fails loudly).
 """
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from raphael_ibm_bob.contracts import (
 from raphael_ibm_bob.evidence_ledger import LedgerReader
 from raphael_ibm_bob.harness.events import collect_events
 from raphael_ibm_bob.harness.model import ScriptedModelAdapter
+from raphael_ibm_bob.harness.providers import ProviderConfigError
 from raphael_ibm_bob.harness.run import load_run, start_run
 from raphael_ibm_bob.harness.session import (
     RaphaelSession,
@@ -102,6 +103,20 @@ def cmd_run_start(args) -> int:
             purpose=f"harness:opening-probe:{args.probe_target}")
         model = ScriptedModelAdapter(
             {session.mission.mission_id: proposal})
+    elif args.model_provider != "none":
+        from raphael_ibm_bob.harness.providers import provider_from_env
+        from raphael_ibm_bob.skills import (
+            default_registry,
+            register_default_skills,
+        )
+        try:
+            model = provider_from_env(
+                args.model_provider,
+                register_default_skills(default_registry()))
+        except ProviderConfigError as exc:
+            print(f"error: model provider unusable: {exc}",
+                  file=sys.stderr)
+            return 2
     verification = [t for t in (args.verification_tests or "").split(",")
                     if t]
     run = start_run(
@@ -204,6 +219,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("--max-replans", type=int, default=1)
     p_start.add_argument("--verification-tests", default="")
     p_start.add_argument("--probe-target", default="")
+    p_start.add_argument("--model-provider", default="none",
+                         help="live model provider for the opening "
+                              "proposal (env-configured); "
+                              "'none' disables it")
     p_start.set_defaults(func=cmd_run_start)
 
     for name, func, help_text in (

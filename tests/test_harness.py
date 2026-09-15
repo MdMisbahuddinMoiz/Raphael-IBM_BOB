@@ -277,5 +277,71 @@ class CliSurface(unittest.TestCase):
              "run-start", session_id]), 2)
 
 
+class DefaultSkills(unittest.TestCase):
+    def test_five_generic_skills(self):
+        from raphael_ibm_bob.skills import (
+            default_registry,
+            register_default_skills,
+        )
+        reg = register_default_skills(default_registry())
+        ids = sorted(s.id for s in reg.list_skills())
+        self.assertEqual(ids, ["list-dir", "read-file", "run-test",
+                               "search-dir", "write-file"])
+        proposal = reg.propose("read-file", "src/a.txt")
+        self.assertEqual(proposal.request.capability, Capability.READ)
+        self.assertEqual(proposal.request.purpose, "read-file:src/a.txt")
+
+    def test_idempotent_registration(self):
+        from raphael_ibm_bob.skills import (
+            default_registry,
+            register_default_skills,
+        )
+        reg = register_default_skills(default_registry())
+        register_default_skills(reg)  # second call is a no-op
+        self.assertEqual(len(reg.list_skills()), 5)
+
+
+class ModelProviderOption(unittest.TestCase):
+    def _session(self):
+        sessions = Path(tempfile.mkdtemp(prefix="h_prov_sess_"))
+        self.addCleanup(shutil.rmtree, sessions, True)
+        runs = Path(tempfile.mkdtemp(prefix="h_prov_runs_"))
+        self.addCleanup(shutil.rmtree, runs, True)
+        ws = Path(tempfile.mkdtemp(prefix="h_prov_ws_"))
+        self.addCleanup(shutil.rmtree, ws, True)
+        (ws / "src").mkdir()
+        (ws / "src" / "probe.txt").write_text("hi\n")
+        harness_main(
+            ["--sessions-root", str(sessions),
+             "--runs-root", str(runs),
+             "session-create", "--workspace", str(ws),
+             "--with-mission", "--mission-id", "M-prov",
+             "--symptom-target", "src/probe.txt"])
+        session_id = next(p.name for p in sessions.iterdir())
+        return sessions, runs, session_id
+
+    def test_missing_config_exits_2(self):
+        import os
+        from unittest.mock import patch
+        sessions, runs, session_id = self._session()
+        clean = {k: v for k, v in os.environ.items()
+                 if not k.startswith("RAPHAEL_MODEL_")}
+        with patch.dict("os.environ", clean, clear=True):
+            code = harness_main(
+                ["--sessions-root", str(sessions),
+                 "--runs-root", str(runs),
+                 "run-start", session_id,
+                 "--model-provider", "openai-compatible"])
+        self.assertEqual(code, 2)
+
+    def test_unknown_provider_exits_2(self):
+        sessions, runs, session_id = self._session()
+        self.assertEqual(harness_main(
+            ["--sessions-root", str(sessions),
+             "--runs-root", str(runs),
+             "run-start", session_id,
+             "--model-provider", "does-not-exist"]), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

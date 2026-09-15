@@ -186,6 +186,10 @@ class CapabilityRegistry:
                 f"{skill.capability.value!r}: register the capability first")
         self._skills[skill.id] = skill
 
+    def has_skill(self, skill_id: str) -> bool:
+        """Whether any version of the skill id is registered."""
+        return skill_id in self._skills
+
     def lookup_skill(self, skill_id: str,
                      version: Optional[str] = None) -> SkillDefinition:
         try:
@@ -287,10 +291,45 @@ def default_registry() -> CapabilityRegistry:
     return registry
 
 
+_DEFAULT_SKILLS = (
+    ("read-file", "Read a file", Capability.READ),
+    ("list-dir", "List a directory", Capability.LIST),
+    ("search-dir", "Regex-search a directory", Capability.SEARCH),
+    ("write-file", "Write a file", Capability.WRITE),
+    ("run-test", "Run a named test file", Capability.RUN_TEST),
+)
+
+
+def register_default_skills(
+        registry: CapabilityRegistry) -> CapabilityRegistry:
+    """Register one generic skill per declared capability.
+
+    Scenario-neutral presentation primitives for model-driven paths
+    (e.g. the Harness CLI): the skill id names the operation, the
+    capability gates execution. Existing ids are left untouched so
+    repeated calls are idempotent.
+    """
+    for skill_id, name, capability in _DEFAULT_SKILLS:
+        if registry.has_skill(skill_id):
+            continue
+        definition = registry.lookup_capability(capability)
+        registry.register_skill(SkillDefinition(
+            id=skill_id,
+            name=name,
+            version="1.0",
+            description=definition.description,
+            capability=capability,
+            target_schema=definition.target_schema,
+            purpose_template=f"{skill_id}:{{target}}",
+        ))
+    return registry
+
+
 __all__ = [
     "CapabilityDefinition",
     "SkillDefinition",
     "SkillProposal",
     "CapabilityRegistry",
     "default_registry",
+    "register_default_skills",
 ]

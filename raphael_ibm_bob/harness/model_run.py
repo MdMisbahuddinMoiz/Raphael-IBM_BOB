@@ -49,10 +49,67 @@ from raphael_ibm_bob.harness.session import RaphaelSession, save_session
 from raphael_ibm_bob.policy import BOBPolicy
 from raphael_ibm_bob.quality_gate import BOBQualityGate, GateInputs
 from raphael_ibm_bob.runtime import BOBRuntime
+from raphael_ibm_bob.specialization import (
+    TaskState,
+    decompose_mission,
+    default_roles,
+)
 from raphael_ibm_bob.verifier import RetestSpec, Verifier
 from raphael_ibm_bob.workspace import Workspace
 
 ProbeCallable = Callable[[], bool]
+
+#: Which pipeline step each capability advances (M14 orchestration).
+_CAPABILITY_STEP = {
+    Capability.READ: "investigate",
+    Capability.LIST: "investigate",
+    Capability.SEARCH: "investigate",
+    Capability.RUN_TEST: "reproduce",
+    Capability.WRITE: "remediate",
+}
+
+
+def _roles_context() -> Tuple[dict, ...]:
+    """Compact, deterministic role vocabulary for the model."""
+    return tuple({
+        "role": role.id,
+        "purpose": role.purpose,
+        "capabilities": sorted(c.value for c in role.capabilities),
+    } for role in default_roles().list_roles())
+
+
+def _task_context(plan) -> dict:
+    root = plan.root
+    return {
+        "task_id": root.task_id,
+        "name": root.name,
+        "role": root.role,
+        "steps": [{"task_id": t.task_id, "name": t.name,
+                   "role": t.role, "skills": list(t.skills),
+                   "state": plan.states[t.task_id].value}
+                  for t in root.subtasks],
+    }
+
+
+def _advance_task(plan, mission_id: str, capability: Capability,
+                  success: bool) -> None:
+    """Nudge the matching pipeline step's state (declaration only).
+
+    Guarded: only PENDING -> ACTIVE and ACTIVE -> COMPLETED are
+    applied; any other current state is left untouched. Never affects
+    the QualityGate.
+    """
+    step = _CAPABILITY_STEP.get(capability)
+    if step is None:
+        return
+    task_id = f"{mission_id}::{step}"
+    if task_id not in plan.states:
+        return
+    current = plan.states[task_id]
+    if current is TaskState.PENDING:
+        plan.mark(task_id, TaskState.ACTIVE)
+    elif current is TaskState.ACTIVE and success:
+        plan.mark(task_id, TaskState.COMPLETED)
 
 
 def _utcnow() -> str:
@@ -137,6 +194,7 @@ class ModelRunResult:
     terminal: str
     turns: int
     gate_verdict: Optional[str]
+    task_plan: Optional[dict] = None
 
 
 def run_model_mission(session: RaphaelSession, mission: Mission,
@@ -169,6 +227,7 @@ def run_model_mission(session: RaphaelSession, mission: Mission,
     terminal = "max-turns"
     turn_log: List[dict] = []
     current_finding_id: Optional[str] = None
+    plan = None
 
     try:
         policy = BOBPolicy(workspace)
@@ -179,6 +238,8 @@ def run_model_mission(session: RaphaelSession, mission: Mission,
         falsifier = Falsifier(runtime, ledger, store)
         gate = BOBQualityGate(ledger)
         files = _workspace_files(Path(workspace_root), mission)
+        plan = decompose_mission(mission)
+        roles_ctx = _roles_context()
 
         for index in range(max_turns):
             context = ModelContext(
@@ -189,6 +250,8 @@ def run_model_mission(session: RaphaelSession, mission: Mission,
                 workspace_files=files,
                 recent_turns=tuple(turn_log[-history_window:]),
                 session_id=session.session_id,
+                available_roles=roles_ctx,
+                active_task=_task_context(plan),
             )
             try:
                 request = model.propose(context)
@@ -261,6 +324,8 @@ def run_model_mission(session: RaphaelSession, mission: Mission,
                         mission, requester="harness")
 
             turn_log.append(turn)
+            _advance_task(plan, mission.mission_id,
+                          request.capability, bool(turn["success"]))
 
         probe_ok: Optional[bool] = None
         if probe is not None:
@@ -297,9 +362,15 @@ def run_model_mission(session: RaphaelSession, mission: Mission,
     ledger.close()
     if sessions_root is not None:
         save_session(session, sessions_root)
+    task_plan = plan.to_dict() if plan is not None else None
+    if task_plan is not None:
+        (run_dir / "tasks.json").write_text(
+            json.dumps(task_plan, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8")
     return ModelRunResult(run=run, terminal=terminal,
                           turns=len(turn_log),
-                          gate_verdict=run.gate_verdict)
+                          gate_verdict=run.gate_verdict,
+                          task_plan=task_plan)
 
 
 __all__ = [

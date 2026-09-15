@@ -11,7 +11,7 @@ presented as a working model provider.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Protocol, Tuple, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, Tuple, runtime_checkable
 
 from raphael_ibm_bob.contracts import ActionRequest, Finding, Mission
 
@@ -32,6 +32,9 @@ class ModelContext:
     workspace_files: Tuple[str, ...] = ()
     recent_turns: Tuple[Dict[str, Any], ...] = ()
     session_id: str = ""
+    # M14 specialization context (compact; declarations only).
+    available_roles: Tuple[Dict[str, Any], ...] = ()
+    active_task: Optional[Dict[str, Any]] = None
 
     def summary(self) -> Dict[str, Any]:
         return {
@@ -48,6 +51,8 @@ class ModelContext:
             "workspace_files": list(self.workspace_files),
             "recent_turns": list(self.recent_turns),
             "session_id": self.session_id,
+            "available_roles": list(self.available_roles),
+            "active_task": self.active_task,
         }
 
 

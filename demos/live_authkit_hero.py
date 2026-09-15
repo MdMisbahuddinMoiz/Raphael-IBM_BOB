@@ -147,9 +147,21 @@ def run_live_hero(max_turns: int = MAX_TURNS) -> int:
         print(f"Gate: {(run.gate_verdict or 'unknown').upper()}")
 
         events = _read_events(Path(run.ledger_dir))
+        registry = register_default_skills(default_registry())
         for event in events:
-            if event["type"] in ("ACTION_REQUESTED", "POLICY_DECISION",
-                                 "FINDING_CHANGED", "GATE_EVALUATED"):
+            if event["type"] == "ACTION_REQUESTED":
+                requester = event.get("requester") or ""
+                skill_id = requester.split("skill:", 1)[-1]
+                role = None
+                if registry.has_skill(skill_id):
+                    role = registry.lookup_skill(skill_id).role
+                print(f"  ACTION_REQUESTED: skill={skill_id} "
+                      f"role={role} capability={event.get('capability')} "
+                      f"target={event.get('target')}")
+            elif event["type"] in ("POLICY_DECISION", "FINDING_CHANGED",
+                                    "VERIFICATION_RESULT",
+                                    "FALSIFICATION_RESULT",
+                                    "GATE_EVALUATED"):
                 print(f"  {event['type']}: "
                       f"{ {k: v for k, v in event.items() if k not in ('seq', 'type', 'run_id')} }")
 

@@ -226,6 +226,9 @@ def skill_catalog(registry: CapabilityRegistry) -> List[Dict[str, str]]:
             "capability": skill.capability.value,
             "description": skill.description,
             "target_schema": skill.target_schema,
+            "role": skill.role,
+            "evidence_produced": list(skill.evidence_produced),
+            "evidence_consumed": list(skill.evidence_consumed),
         })
     return catalog
 

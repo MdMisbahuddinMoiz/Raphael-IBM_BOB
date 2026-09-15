@@ -25,6 +25,7 @@ from typing import Dict, List, Optional, Tuple
 
 from raphael_ibm_bob.contracts import ActionRequest, Capability
 from raphael_ibm_bob.falsifier import ChallengeSpec
+from raphael_ibm_bob.specialization import RoleRegistry, default_roles
 
 
 _VERSION_RE = re.compile(r"^\d+\.\d+(\.\d+)?$")
@@ -52,6 +53,9 @@ class CapabilityDefinition:
     the caller, never executed here). `timeout_seconds` is the
     suggested execution bound consumed by the T1-4 timeout path;
     None means the broker default for the capability.
+
+    M14: `evidence_produced` / `evidence_consumed` declare the
+    capability's evidence *shape* (a contract, not a permission).
     """
     capability: Capability
     description: str
@@ -60,6 +64,8 @@ class CapabilityDefinition:
     verification_expectation: Optional[str] = None
     version: str = "1.0"
     timeout_seconds: Optional[float] = None
+    evidence_produced: Tuple[str, ...] = ()
+    evidence_consumed: Tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.capability, Capability):
@@ -74,6 +80,9 @@ class CapabilityDefinition:
         _check_version(self.version, "CapabilityDefinition")
         if self.timeout_seconds is not None and self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
+        for kind in self.evidence_produced + self.evidence_consumed:
+            if not kind:
+                raise ValueError("evidence kind names must be non-empty")
 
 
 @dataclass(frozen=True)
@@ -86,6 +95,12 @@ class SkillDefinition:
     never a new framework. `predicate` callables inside `challenge`
     are intentionally discouraged for stored skills (they do not
     survive any serialization); prefer `forbidden_substring`.
+
+    M14: `role` binds the skill to one declared specialist role;
+    `evidence_produced` / `evidence_consumed` declare its evidence
+    contract; `prerequisites` names skills that must exist first.
+    None of these grant authority — proposals still go through the
+    Broker/Policy boundary.
     """
     id: str
     name: str
@@ -96,6 +111,10 @@ class SkillDefinition:
     purpose_template: str
     success_markers: Tuple[str, ...] = ()
     challenge: Optional[ChallengeSpec] = None
+    role: Optional[str] = None
+    evidence_produced: Tuple[str, ...] = ()
+    evidence_consumed: Tuple[str, ...] = ()
+    prerequisites: Tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.id or not self.name:
@@ -111,6 +130,13 @@ class SkillDefinition:
         for marker in self.success_markers:
             if not marker:
                 raise ValueError("success_markers must be non-empty")
+        if self.role is not None and not self.role:
+            raise ValueError("role must be a non-empty id or None")
+        for name in (self.evidence_produced + self.evidence_consumed
+                     + self.prerequisites):
+            if not name:
+                raise ValueError("evidence/prerequisite names must be "
+                                 "non-empty")
 
 
 @dataclass(frozen=True)
@@ -132,11 +158,17 @@ class SkillProposal:
 
 
 class CapabilityRegistry:
-    """In-process declaration index for capabilities and skills."""
+    """In-process declaration index for capabilities and skills.
 
-    def __init__(self) -> None:
+    Also the single authority for role-aware discovery (M14): roles
+    are declared, skills may reference one, and discovery is
+    read-only. Declarations grant no authority.
+    """
+
+    def __init__(self, roles: Optional[RoleRegistry] = None) -> None:
         self._capabilities: Dict[str, CapabilityDefinition] = {}
         self._skills: Dict[str, SkillDefinition] = {}
+        self._roles: RoleRegistry = roles or default_roles()
 
     # --- capabilities -------------------------------------------------
 
@@ -184,6 +216,25 @@ class CapabilityRegistry:
             raise ValueError(
                 f"skill {skill.id} uses undeclared capability "
                 f"{skill.capability.value!r}: register the capability first")
+        # M14: role must be known and compatible with the capability.
+        if skill.role is not None:
+            try:
+                role = self._roles.get_role(skill.role)
+            except KeyError:
+                raise ValueError(
+                    f"skill {skill.id} references unknown role "
+                    f"{skill.role!r}") from None
+            if skill.capability not in role.capabilities:
+                raise ValueError(
+                    f"skill {skill.id} capability "
+                    f"{skill.capability.value!r} is not compatible with "
+                    f"role {skill.role!r} (role declares "
+                    f"{sorted(c.value for c in role.capabilities)})")
+        for prereq in skill.prerequisites:
+            if prereq not in self._skills:
+                raise ValueError(
+                    f"skill {skill.id} prerequisite not registered: "
+                    f"{prereq!r}")
         self._skills[skill.id] = skill
 
     def has_skill(self, skill_id: str) -> bool:
@@ -205,6 +256,58 @@ class CapabilityRegistry:
 
     def list_skills(self) -> List[SkillDefinition]:
         return [self._skills[k] for k in sorted(self._skills)]
+
+    # --- role-aware discovery (M14, read-only) ----------------------------
+
+    def list_roles(self) -> list:
+        """All declared specialist roles, sorted by id."""
+        return self._roles.list_roles()
+
+    def get_role(self, role_id: str):
+        """Look up a declared role (KeyError if unknown)."""
+        return self._roles.get_role(role_id)
+
+    def list_skills_for_role(self, role_id: str) -> List[SkillDefinition]:
+        """Declared skills bound to a role (KeyError if role unknown)."""
+        self._roles.get_role(role_id)  # validate role exists
+        return [s for s in self.list_skills() if s.role == role_id]
+
+    def list_capabilities_for_role(self, role_id: str) -> List[Capability]:
+        """Capabilities a role declares it is meant to use."""
+        role = self._roles.get_role(role_id)
+        return sorted(role.capabilities, key=lambda c: c.value)
+
+    def discover_skills(self, *, role: Optional[str] = None,
+                        capability: Optional[Capability] = None,
+                        evidence_available: Tuple[str, ...] = ()
+                        ) -> List[SkillDefinition]:
+        """Read-only discovery of declared skills.
+
+        Filters by role and/or capability; only returns skills whose
+        declared prerequisites are satisfied and whose consumed
+        evidence is available (when the caller supplies it). This
+        grants nothing: the returned skills still produce ordinary
+        ActionRequests gated by Broker/Policy.
+        """
+        if role is not None:
+            self._roles.get_role(role)  # validate role exists
+        if capability is not None and \
+                not isinstance(capability, Capability):
+            raise ValueError("capability must be a Capability member")
+        available = set(evidence_available)
+        out: List[SkillDefinition] = []
+        for skill in self.list_skills():
+            if role is not None and skill.role != role:
+                continue
+            if capability is not None and skill.capability != capability:
+                continue
+            if any(p not in self._skills for p in skill.prerequisites):
+                continue
+            consumed = set(skill.evidence_consumed)
+            if available and not consumed.issubset(available):
+                continue
+            out.append(skill)
+        return out
 
     # --- proposals --------------------------------------------------------
 
@@ -257,6 +360,7 @@ def default_registry() -> CapabilityRegistry:
         purpose_template="skill:read:{target}",
         verification_expectation="expected marker substring present",
         version="1.0",
+        evidence_produced=("inspection",),
     ))
     registry.register_capability(CapabilityDefinition(
         capability=Capability.LIST,
@@ -264,6 +368,7 @@ def default_registry() -> CapabilityRegistry:
         target_schema="relative directory path inside the workspace",
         purpose_template="skill:list:{target}",
         version="1.0",
+        evidence_produced=("inspection",),
     ))
     registry.register_capability(CapabilityDefinition(
         capability=Capability.SEARCH,
@@ -271,6 +376,7 @@ def default_registry() -> CapabilityRegistry:
         target_schema="relative directory path inside the workspace",
         purpose_template="skill:search:{target}",
         version="1.0",
+        evidence_produced=("inspection",),
     ))
     registry.register_capability(CapabilityDefinition(
         capability=Capability.WRITE,
@@ -278,6 +384,8 @@ def default_registry() -> CapabilityRegistry:
         target_schema="relative file path with existing parent",
         purpose_template="skill:write:{target}",
         version="1.0",
+        evidence_produced=("remediation",),
+        evidence_consumed=("inspection",),
     ))
     registry.register_capability(CapabilityDefinition(
         capability=Capability.RUN_TEST,
@@ -287,16 +395,22 @@ def default_registry() -> CapabilityRegistry:
         verification_expectation="returncode 0",
         version="1.0",
         timeout_seconds=30.0,
+        evidence_produced=("test-execution",),
     ))
     return registry
 
 
 _DEFAULT_SKILLS = (
-    ("read-file", "Read a file", Capability.READ),
-    ("list-dir", "List a directory", Capability.LIST),
-    ("search-dir", "Regex-search a directory", Capability.SEARCH),
-    ("write-file", "Write a file", Capability.WRITE),
-    ("run-test", "Run a named test file", Capability.RUN_TEST),
+    ("read-file", "Read a file", Capability.READ, "investigator",
+     ("inspection",), ()),
+    ("list-dir", "List a directory", Capability.LIST, "investigator",
+     ("inspection",), ()),
+    ("search-dir", "Regex-search a directory", Capability.SEARCH,
+     "investigator", ("inspection",), ()),
+    ("write-file", "Write a file", Capability.WRITE,
+     "remediation_planner", ("remediation",), ("inspection",)),
+    ("run-test", "Run a named test file", Capability.RUN_TEST,
+     "test_analyst", ("test-execution",), ()),
 )
 
 
@@ -306,10 +420,12 @@ def register_default_skills(
 
     Scenario-neutral presentation primitives for model-driven paths
     (e.g. the Harness CLI): the skill id names the operation, the
-    capability gates execution. Existing ids are left untouched so
-    repeated calls are idempotent.
+    capability gates execution. M14 binds each skill to a specialist
+    role and declares its evidence contract. Existing ids are left
+    untouched so repeated calls are idempotent.
     """
-    for skill_id, name, capability in _DEFAULT_SKILLS:
+    for skill_id, name, capability, role, produced, consumed in \
+            _DEFAULT_SKILLS:
         if registry.has_skill(skill_id):
             continue
         definition = registry.lookup_capability(capability)
@@ -321,6 +437,9 @@ def register_default_skills(
             capability=capability,
             target_schema=definition.target_schema,
             purpose_template=f"{skill_id}:{{target}}",
+            role=role,
+            evidence_produced=produced,
+            evidence_consumed=consumed,
         ))
     return registry
 

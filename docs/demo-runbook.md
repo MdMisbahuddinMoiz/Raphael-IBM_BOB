@@ -66,10 +66,10 @@ The explicit module list is authoritative (`unittest discover`
 finds 0 tests in this layout — verified — so it must not be used):
 
 ```bash
-PYTHONPATH=. python3 -m unittest tests.test_seam_contracts tests.test_m2_boundary tests.test_m3_evidence tests.test_m4_verifier_falsifier tests.test_m5_replanner_runner tests.test_m6_quality_gate tests.test_m7_hero tests.test_m8_planner tests.test_m9_multi_replan tests.test_m10_1_runs tests.test_m10_2_metrics tests.test_m10_3_benchmark tests.test_t1_1_registry tests.test_t1_4_timeouts tests.test_t1_2_remediation tests.test_t1_3_seal tests.test_harness tests.test_harness_e2e tests.test_m11_1_provider tests.test_m11_3_loop tests.test_m11_4_integration tests.test_m13_harness
+PYTHONPATH=. python3 -m unittest tests.test_seam_contracts tests.test_m2_boundary tests.test_m3_evidence tests.test_m4_verifier_falsifier tests.test_m5_replanner_runner tests.test_m6_quality_gate tests.test_m7_hero tests.test_m8_planner tests.test_m9_multi_replan tests.test_m10_1_runs tests.test_m10_2_metrics tests.test_m10_3_benchmark tests.test_t1_1_registry tests.test_t1_4_timeouts tests.test_t1_2_remediation tests.test_t1_3_seal tests.test_harness tests.test_harness_e2e tests.test_m11_1_provider tests.test_m11_3_loop tests.test_m11_4_integration tests.test_m13_harness tests.test_m14_specialization
 ```
 
-Verified result: **Ran 374 tests — OK (0 failed)** (M13). Expected
+Verified result: **Ran 395 tests — OK (0 failed)** (M14). Expected
 stderr: one line `error: runs root not found: /tmp/m10_2_runs_…/nope`
 from the fatal-invocation test
 (`Determinism.test_missing_root_is_fatal`), which asserts exit code 2
@@ -199,7 +199,9 @@ fabricates a run — the deterministic commands above remain the
 fallback. See `docs/live-model.md` for the observed live results and
 the live-vs-deterministic distinction, and `docs/harness.md` for the
 Harness API, session/run/workspace relationship, event model,
-cancellation semantics, and governance boundary. Verified live run:
+cancellation semantics, and governance boundary;
+`docs/specialization.md` covers the M14 role/skill/task/evidence
+specialization layer. Verified live run:
 `20260915T161002_2ad7e0` (`Gate: COMPLETE`).
 
 ## 9. Metrics reproduction

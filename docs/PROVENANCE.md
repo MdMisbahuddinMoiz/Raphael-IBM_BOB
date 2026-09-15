@@ -31,8 +31,11 @@ facts, exact legacy version numbering is UNKNOWN and is not claimed.
 
 - No `LICENSE`/`LICENCE` file exists at the repository root, and no
   license field was found in `pyproject.toml`/`requirements.txt`.
-  Repository licensing is therefore UNKNOWN and no license is claimed
-  or inferred here.
+  The root `README.md` does, however, carry a verbatim MIT grant
+  (`Copyright (c) 2024-2026 The-Despicable`), retained through the
+  M10.5-era README rewrite: that embedded grant is the only license
+  text found in the repository, and no broader licensing claim is
+  made or inferred beyond it.
 - No legacy code was copied into the BOB path. Evidence: a
   repository search for legacy imports (`from src…`,
   `from raphael.…`, `import raphael…`) across `raphael_ibm_bob/`,

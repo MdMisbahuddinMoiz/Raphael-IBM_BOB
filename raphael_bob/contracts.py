@@ -274,11 +274,18 @@ class Mission:
     `scope` is the BOB mission-scope description. M2 will hand it to the
     Policy. `criteria` are the success criteria that the Quality Gate will
     evaluate at M6.
+
+    `problem` (M8) is a small structured payload the Planner inspects
+    to derive the initial Plan A target/action. It is intentionally
+    minimal: at most a handful of named keys (e.g. `symptom_target`,
+    `actual_defect_target`). The Planner never inspects `description`
+    for the target — `description` is human-readable only.
     """
     mission_id: str
     description: str
     scope: str
     criteria: List[str] = field(default_factory=list)
+    problem: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -286,6 +293,7 @@ class Mission:
             "description": self.description,
             "scope": self.scope,
             "criteria": list(self.criteria),
+            "problem": dict(self.problem),
         }
 
 

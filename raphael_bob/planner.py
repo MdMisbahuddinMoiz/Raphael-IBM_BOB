@@ -1,54 +1,63 @@
-"""raphael_bob.planner — M7 real Planner.
+"""raphael_bob.planner — M7/M8 real Planner.
 
-Replaces the M5 PlannerStub. The Planner reads a Mission and produces
-Plan A: a sequence of BOB-native ActionRequests.
+The Planner reads a Mission and produces Plan A: a sequence of
+BOB-native ActionRequests.
 
-For the authkit hero, the Planner produces:
+M7: the Planner's constructor accepted a `symptom_target` kwarg. The
+     Runner passed the target through, which was a hidden dependency
+     (the Runner was secretly injecting the target the Planner then
+     "selected").
 
-    Plan A = [
-        ActionRequest(
-            capability=READ,
-            target="fixtures/authkit/login.py",
-            purpose="plan-a:probe-decoy-location",
-        )
-    ]
+M8: the Planner is mission-driven. It reads `mission.problem` to
+     determine the initial target. The Runner no longer supplies the
+     target directly.
 
-The decoy target is the result of the Planner's analysis of the
-Mission: it inspects the mission scope and the candidate symptom
-described in the mission description, then emits a `READ` action
-against the symptom location (NOT the actual defect). The Replanner
-will derive the actual defect from the Falsifier's counter-example
-evidence at M5.
+For the authkit hero, the Runner constructs the Mission as:
+
+    Mission(
+        mission_id="M-authkit",
+        scope="fixtures",
+        criteria=[...],
+        problem={
+            "symptom_target": "fixtures/authkit/login.py",
+            "actual_defect_target": "fixtures/authkit/session.py",
+        },
+    )
+
+The Planner emits a single READ action against `problem["symptom_target"]`.
+
+If `problem["symptom_target"]` is missing, the Planner raises
+`ValueError` — it must NEVER fall back to a constant target.
 
 Legacy reference (ADAPT, NOT imported):
     src/orchestrator/brain/action.py:149 Action / Precondition / Effect
-        - the M7 Planner borrows the Precondition/Effect vocabulary
-          shape but emits BOB-native READ/LIST/SEARCH/WRITE/RUN_TEST
-          actions, NOT offensive ActionType grammar.
+        - the Planner uses the same shape (capability + target + purpose)
+          but emits BOB-native READ actions, not offensive ActionType
+          grammar.
     src/orchestrator/brain/world.py WorldModel
-        - not imported. M7 Planner uses the Mission + scope as its
-          world model.
+        - not imported. M8 Planner uses `mission.problem` as its world
+          model.
     src/raphael/cognitive/planner.py GreedyPlanner
-        - REPLACE. M7 Planner is evidence-aware, not utility-driven.
+        - REPLACE. M8 Planner is mission-driven, not utility-driven.
     src/raphael/main.py
-        - ISOLATE. M7 Planner does NOT invoke the Wave1 loop.
+        - ISOLATE. M8 Planner does NOT invoke the Wave1 loop.
 
 Determinism:
-    Same Mission -> same Plan A. No wall-clock, no random seeds.
+    Same Mission -> same Plan A. SHA-256 of canonical
+    {mission_id, "plan-a"} gives the plan_id. No wall-clock, no random
+    seeds.
 
-Limitations at M7:
-    - The Planner targets the symptom location (login.py) because
-      that is what the mission description points to. The Replanner
-      is responsible for deriving the real defect location.
-    - The Planner does NOT itself attempt unauthorized actions. The
-      hero Runner may inject FC1 demonstration actions separately.
+Limitations at M8:
+    - The Planner emits exactly one action. Multi-step plans are M9.
+    - The Planner does NOT inspect `mission.description` for the target
+      (description is human-readable only).
 """
 from __future__ import annotations
 
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any, Optional
 
 from raphael_bob.contracts import (
     ActionRequest,
@@ -64,32 +73,52 @@ def _canonical(payload: dict) -> str:
 
 @dataclass(frozen=True)
 class Planner:
-    """BOB-native Planner.
+    """Mission-driven Planner.
 
-    `symptom_target` is the file the Mission points to as the visible
-    symptom. For the authkit hero this is `fixtures/authkit/login.py`.
-    `discovery_targets` are additional READs the Planner emits so
-    that the runner can build a richer initial evidence trail.
+    The Planner has NO constructor arguments; the target and capability
+    are derived from the Mission. This is the M8 architectural rule:
+    the Runner cannot secretly inject the target.
     """
-
-    symptom_target: str = "fixtures/authkit/login.py"
-    capability: Capability = Capability.READ
-    discovery_targets: tuple[str, ...] = ()
 
     def plan_a(self, mission: Mission) -> Plan:
         """Produce Plan A from the Mission.
 
-        The plan contains exactly one BOB-native action: a READ on
-        `symptom_target`. The runner registers a candidate Finding
-        from this step and the rest of the loop follows.
+        Reads:
+            mission.problem["symptom_target"]  -> READ target
+            mission.problem["capability"]      -> BOB-native capability
+                                                  (default Capability.READ)
+            mission.problem["purpose"]         -> ActionRequest.purpose
+                                                  (default: "plan-a:initial-probe")
         """
+        if not isinstance(mission.problem, dict):
+            raise ValueError(
+                f"mission.problem must be a dict; got {type(mission.problem).__name__}"
+            )
+        target = mission.problem.get("symptom_target")
+        if not target:
+            raise ValueError(
+                "Planner.plan_a requires mission.problem['symptom_target']; "
+                "the Runner must NOT inject the target directly."
+            )
+        capability_str = mission.problem.get("capability", "read")
+        try:
+            capability = Capability(capability_str)
+        except ValueError as e:
+            raise ValueError(
+                f"mission.problem['capability']={capability_str!r} is not a "
+                f"valid BOB Capability: {e}"
+            )
+        purpose = mission.problem.get(
+            "purpose", f"plan-a:probe:{target}",
+        )
+
         plan_a_id = derive_plan_a_id(mission)
         step = ActionRequest(
             sequence=0,
             requester="planner",
-            capability=self.capability,
-            target=self.symptom_target,
-            purpose=f"plan-a:probe-symptom:{self.symptom_target}",
+            capability=capability,
+            target=target,
+            purpose=purpose,
             plan_id=plan_a_id,
             finding_id=None,
         )
@@ -99,10 +128,6 @@ class Planner:
             steps=[step],
             parent_plan_id=None,
         )
-
-    def plan_a_steps(self, mission: Mission) -> List[ActionRequest]:
-        """Return just the steps (used by the hero Runner)."""
-        return list(self.plan_a(mission).steps)
 
 
 def derive_plan_a_id(mission: Mission) -> str:

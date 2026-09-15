@@ -199,10 +199,16 @@ def run_hero(keep: bool = False) -> int:
             "invariant tests pass (fixtures.authkit.test_auth)",
             "independent behavior probe passes",
         ],
+        problem={
+            "symptom_target": "fixtures/authkit/login.py",
+            "actual_defect_target": "fixtures/authkit/session.py",
+            "capability": "read",
+            "purpose": "plan-a:probe-symptom:fixtures/authkit/login.py",
+        },
     )
 
     # ---- Step 1: Planner -> Plan A (decoy target). ----
-    planner = Planner(symptom_target="fixtures/authkit/login.py")
+    planner = Planner()
     plan_a = planner.plan_a(mission)
     _step(1, "Planner -> Plan A",
           f"plan_id={plan_a.plan_id} target={plan_a.steps[0].target}")

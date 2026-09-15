@@ -18,8 +18,9 @@ class PlannerTests(unittest.TestCase):
         from raphael_bob import Mission, Planner, Capability
         mission = Mission(
             mission_id="M-test", description="x", scope="x", criteria=["x"],
+            problem={"symptom_target": "fixtures/authkit/login.py"},
         )
-        p = Planner(symptom_target="fixtures/authkit/login.py")
+        p = Planner()
         plan_a = p.plan_a(mission)
         self.assertEqual(plan_a.mission_id, mission.mission_id)
         self.assertEqual(len(plan_a.steps), 1)
@@ -30,6 +31,7 @@ class PlannerTests(unittest.TestCase):
         from raphael_bob import Mission, Planner, Capability
         mission = Mission(
             mission_id="M-test", description="x", scope="x", criteria=["x"],
+            problem={"symptom_target": "fixtures/authkit/login.py"},
         )
         p = Planner()
         plan_a = p.plan_a(mission)
@@ -41,6 +43,7 @@ class PlannerTests(unittest.TestCase):
         from raphael_bob import Mission, Planner
         mission = Mission(
             mission_id="M-determinism", description="x", scope="x", criteria=["x"],
+            problem={"symptom_target": "fixtures/authkit/login.py"},
         )
         p = Planner()
         ids = [p.plan_a(mission).plan_id for _ in range(5)]

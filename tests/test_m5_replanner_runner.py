@@ -23,7 +23,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from raphael_bob import (
+from raphael_ibm_bob import (
     ActionRequest,
     Capability,
     Finding,
@@ -34,22 +34,22 @@ from raphael_bob import (
     Plan,
     Workspace,
 )
-from raphael_bob.broker import BOBBroker
-from raphael_bob.evidence_ledger import EvidenceLedger
-from raphael_bob.falsifier import (
+from raphael_ibm_bob.broker import BOBBroker
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger
+from raphael_ibm_bob.falsifier import (
     ChallengeSpec,
     Falsifier,
 )
-from raphael_bob.finding import FindingStore
-from raphael_bob.policy import BOBPolicy
-from raphael_bob.replanner import (
+from raphael_ibm_bob.finding import FindingStore
+from raphael_ibm_bob.policy import BOBPolicy
+from raphael_ibm_bob.replanner import (
     ReplanStrategy,
     Replanner,
     derive_plan_b_id,
 )
-from raphael_bob.runner import Planner, Runner
-from raphael_bob.runtime import BOBRuntime
-from raphael_bob.verifier import RetestSpec, Verifier
+from raphael_ibm_bob.runner import Planner, Runner
+from raphael_ibm_bob.runtime import BOBRuntime
+from raphael_ibm_bob.verifier import RetestSpec, Verifier
 
 
 # -----------------------------------------------------------------------------
@@ -57,7 +57,7 @@ from raphael_bob.verifier import RetestSpec, Verifier
 # -----------------------------------------------------------------------------
 
 def _make_workspace(testcase: unittest.TestCase) -> Path:
-    tmp = tempfile.mkdtemp(prefix="raphael_bob_m5_ws_")
+    tmp = tempfile.mkdtemp(prefix="raphael_ibm_bob_m5_ws_")
     root = Path(tmp)
     (root / "src").mkdir()
     (root / "src" / "hello.txt").write_text("hello-m5\n", encoding="utf-8")
@@ -72,7 +72,7 @@ def _make_workspace(testcase: unittest.TestCase) -> Path:
 
 
 def _make_run_dir(testcase: unittest.TestCase) -> Path:
-    tmp = tempfile.mkdtemp(prefix="raphael_bob_m5_run_")
+    tmp = tempfile.mkdtemp(prefix="raphael_ibm_bob_m5_run_")
     testcase.addCleanup(_rm, Path(tmp))
     return Path(tmp)
 
@@ -106,7 +106,7 @@ class _Harness:
         self.verifier = Verifier(self.runtime, self.ledger, self.store)
         self.falsifier = Falsifier(self.runtime, self.ledger, self.store)
         self.replanner = Replanner(self.store, self.ledger)
-        from raphael_bob.quality_gate import BOBQualityGate
+        from raphael_ibm_bob.quality_gate import BOBQualityGate
         self.gate = BOBQualityGate(self.ledger)
         self.runner = Runner(
             self.runtime, self.ledger, self.store,
@@ -119,7 +119,7 @@ def _harness(testcase: unittest.TestCase) -> _Harness:
 
 
 def _build_receipts(ledger: EvidenceLedger, finding_id: str) -> list:
-    from raphael_bob.contracts import EvidenceReceipt
+    from raphael_ibm_bob.contracts import EvidenceReceipt
     out: list = []
     for rec in ledger.records_for_finding(finding_id):
         if rec.get("kind") != "evidence":
@@ -351,7 +351,7 @@ class ReplanDeterminism(unittest.TestCase):
 class Wave1Isolation(unittest.TestCase):
     def test_main_py_not_imported(self):
         from pathlib import Path
-        target = Path("raphael_bob/runner.py").read_text(encoding="utf-8")
+        target = Path("raphael_ibm_bob/runner.py").read_text(encoding="utf-8")
         forbidden = [
             "from raphael.main",
             "import raphael.main",
@@ -363,7 +363,7 @@ class Wave1Isolation(unittest.TestCase):
     def test_no_runpy_loop_invocation(self):
         from pathlib import Path
         offenders: list[str] = []
-        for p in Path("raphael_bob").rglob("*.py"):
+        for p in Path("raphael_ibm_bob").rglob("*.py"):
             if p.name == "__init__.py":
                 continue
             if p.name == "legacy.py":

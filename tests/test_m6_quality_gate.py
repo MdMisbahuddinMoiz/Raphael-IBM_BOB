@@ -6,7 +6,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from raphael_bob import (
+from raphael_ibm_bob import (
     ActionRequest,
     Capability,
     Finding,
@@ -15,20 +15,20 @@ from raphael_bob import (
     Mission,
     Workspace,
 )
-from raphael_bob.broker import BOBBroker
-from raphael_bob.evidence_ledger import EvidenceLedger
-from raphael_bob.falsifier import ChallengeSpec, Falsifier
-from raphael_bob.finding import FindingStore
-from raphael_bob.policy import BOBPolicy
-from raphael_bob.quality_gate import BOBQualityGate, GateInputs
-from raphael_bob.replanner import Replanner
-from raphael_bob.runner import Runner
-from raphael_bob.runtime import BOBRuntime
-from raphael_bob.verifier import Verifier
+from raphael_ibm_bob.broker import BOBBroker
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger
+from raphael_ibm_bob.falsifier import ChallengeSpec, Falsifier
+from raphael_ibm_bob.finding import FindingStore
+from raphael_ibm_bob.policy import BOBPolicy
+from raphael_ibm_bob.quality_gate import BOBQualityGate, GateInputs
+from raphael_ibm_bob.replanner import Replanner
+from raphael_ibm_bob.runner import Runner
+from raphael_ibm_bob.runtime import BOBRuntime
+from raphael_ibm_bob.verifier import Verifier
 
 
 def _make_workspace(testcase: unittest.TestCase) -> Path:
-    tmp = tempfile.mkdtemp(prefix="raphael_bob_m6_ws_")
+    tmp = tempfile.mkdtemp(prefix="raphael_ibm_bob_m6_ws_")
     root = Path(tmp)
     (root / "src").mkdir()
     (root / "src" / "hello.txt").write_text("hello-m6\n", encoding="utf-8")
@@ -51,7 +51,7 @@ def _make_workspace(testcase: unittest.TestCase) -> Path:
 
 
 def _make_run_dir(testcase: unittest.TestCase) -> Path:
-    tmp = tempfile.mkdtemp(prefix="raphael_bob_m6_run_")
+    tmp = tempfile.mkdtemp(prefix="raphael_ibm_bob_m6_run_")
     testcase.addCleanup(_rm, Path(tmp))
     return Path(tmp)
 
@@ -244,7 +244,7 @@ class RunnerDelegates(unittest.TestCase):
         self.assertEqual(outcome.gate_verdict, outcome.gate_evaluation.verdict)
 
     def test_runner_does_not_construct_complete_directly(self):
-        runner_text = Path("raphael_bob/runner.py").read_text(encoding="utf-8")
+        runner_text = Path("raphael_ibm_bob/runner.py").read_text(encoding="utf-8")
         # The Runner only reads verdict from the gate; it must not
         # construct COMPLETE itself.
         self.assertNotIn("GateVerdict.COMPLETE", runner_text)
@@ -257,10 +257,10 @@ class RunnerDelegates(unittest.TestCase):
 class BypassBlocked(unittest.TestCase):
     def test_only_quality_gate_constructs_complete(self):
         for mod_name in [
-            "raphael_bob.runtime", "raphael_bob.broker",
-            "raphael_bob.policy", "raphael_bob.verifier",
-            "raphael_bob.falsifier", "raphael_bob.replanner",
-            "raphael_bob.runner",
+            "raphael_ibm_bob.runtime", "raphael_ibm_bob.broker",
+            "raphael_ibm_bob.policy", "raphael_ibm_bob.verifier",
+            "raphael_ibm_bob.falsifier", "raphael_ibm_bob.replanner",
+            "raphael_ibm_bob.runner",
         ]:
             text = Path(f"{mod_name.replace('.', '/')}.py").read_text(encoding="utf-8")
             self.assertNotIn("GateVerdict.COMPLETE", text,
@@ -271,8 +271,8 @@ class BypassBlocked(unittest.TestCase):
         # Even if the gate were replaced with a stub that always returns
         # REFUSE, the runner must report REFUSE. The Runner does NOT
         # override the gate.
-        from raphael_bob.contracts import GateVerdict as GV
-        from raphael_bob.quality_gate import GateEvaluation
+        from raphael_ibm_bob.contracts import GateVerdict as GV
+        from raphael_ibm_bob.quality_gate import GateEvaluation
 
         class _FakeGate:
             def evaluate(self, inputs):

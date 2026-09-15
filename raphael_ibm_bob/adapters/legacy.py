@@ -1,4 +1,4 @@
-"""raphael_bob.adapters.legacy — index of legacy Raphael modules selected
+"""raphael_ibm_bob.adapters.legacy — index of legacy Raphael modules selected
 for migration behind the IBM BOB MVP seams.
 
 This module contains no runtime logic. It is the seam's authoritative
@@ -145,7 +145,7 @@ PLANNER_SPECS = (
         missing_for_target="M7: real Planner in BOB Capability space.",
         m6_status="M6: PlannerStub still a stub. Reserved for M7.",
         m7_status=(
-            "M7: IMPLEMENTED as raphael_bob.planner.Planner. BOB-native "
+            "M7: IMPLEMENTED as raphael_ibm_bob.planner.Planner. BOB-native "
             "READ action against a symptom target derived from the "
             "Mission. Plan A only; Plan B remains the Replanner's job. "
             "Does NOT import Runtime/Broker/Policy. Does NOT invoke "
@@ -168,7 +168,7 @@ PLANNER_SPECS = (
         legacy_behavior_remaining="UCB step selection.",
         missing_for_target="Plan-A generation from Mission + EvidenceLedger.",
         m6_status="M6: NOT IMPLEMENTED. Reserved for M7.",
-        m7_status="M7: REPLACED. raphael_bob.planner.Planner is the new Planner.",
+        m7_status="M7: REPLACED. raphael_ibm_bob.planner.Planner is the new Planner.",
     ),
 )
 
@@ -191,7 +191,7 @@ QUALITYGATE_SPECS = (
         why="No on-target QualityGate exists.",
         legacy_behavior_remaining="None.",
         missing_for_target="Sole COMPLETE authority with 7 conditions.",
-        m6_status="M6: IMPLEMENTED as raphael_bob.quality_gate.BOBQualityGate.",
+        m6_status="M6: IMPLEMENTED as raphael_ibm_bob.quality_gate.BOBQualityGate.",
         m7_status="M7: unchanged from M6. Hero passes all 7 conditions.",
     ),
 )
@@ -215,7 +215,7 @@ RUNNER_SPECS = (
         why="Wave1 cognitive loop is the legacy entry point.",
         legacy_behavior_remaining="Wave1 cognitive loop entry point.",
         missing_for_target="M5/M6 control-loop orchestrator.",
-        m6_status="M6: Runner is raphael_bob.runner.Runner (M5 + M6).",
+        m6_status="M6: Runner is raphael_ibm_bob.runner.Runner (M5 + M6).",
         m7_status="M7: unchanged from M6. Hero Runner uses M5 Runner; no authkit-specific hacks.",
     ),
 )

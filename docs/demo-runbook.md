@@ -20,7 +20,7 @@ Mission → Plan A → ActionRequest → Runtime → Broker → Policy
 → COMPLETE / REFUSE
 ```
 
-Every stage above exists in `raphael_bob/` and is exercised by the
+Every stage above exists in `raphael_ibm_bob/` and is exercised by the
 hero (`demos/authkit_hero.py`). The demo does not claim generality:
 one scenario (authkit), one mission (`M-authkit`), deterministic
 fixture. See §10 for the exact scope boundary.
@@ -32,7 +32,7 @@ fixture. See §10 for the exact scope boundary.
   3.14.4 anyway, but compatibility with any other version is NOT
   claimed — only 3.14.4 was tested.
 - Repository root as working directory for all commands below.
-- `raphael_bob`, the demo, and the tests are **stdlib-only** in
+- `raphael_ibm_bob`, the demo, and the tests are **stdlib-only** in
   their imports; test execution additionally spawns the same
   interpreter as a subprocess (`python3 -m unittest …`) for
   RUN_TEST capabilities and the independent probe. No network
@@ -218,7 +218,7 @@ git-ignored precisely so stale numbers cannot become evidence.
 
 ## 11. Troubleshooting (all reproduced)
 
-- `ModuleNotFoundError: raphael_bob` — not observed with the
+- `ModuleNotFoundError: raphael_ibm_bob` — not observed with the
   documented commands: the demo and all test modules
   self-bootstrap `sys.path` (verified with bare `python3`).
   If seen, the working directory is wrong: `cd` to the repo root.

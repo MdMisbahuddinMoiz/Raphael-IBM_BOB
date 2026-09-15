@@ -1,4 +1,4 @@
-"""raphael_bob.capabilities — MVP capability implementations.
+"""raphael_ibm_bob.capabilities — MVP capability implementations.
 
 Each capability is a pure function over `(workspace, request) -> result_dict`.
 The Broker invokes a capability only after Policy ALLOWs. Capabilities
@@ -24,8 +24,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
-from raphael_bob.contracts import ActionRequest, Capability
-from raphael_bob.workspace import Workspace
+from raphael_ibm_bob.contracts import ActionRequest, Capability
+from raphael_ibm_bob.workspace import Workspace
 
 
 def _read(workspace: Workspace, request: ActionRequest) -> Dict[str, Any]:

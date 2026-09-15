@@ -26,22 +26,22 @@ import unittest
 from pathlib import Path
 from typing import List
 
-from raphael_bob import (
+from raphael_ibm_bob import (
     ActionRequest,
     Capability,
     Decision,
     Mission,
 )
-from raphael_bob.broker import BOBBroker
-from raphael_bob.evidence_ledger import (
+from raphael_ibm_bob.broker import BOBBroker
+from raphael_ibm_bob.evidence_ledger import (
     EvidenceLedger,
     LedgerReader,
     LedgerWriter,
     digest_id,
 )
-from raphael_bob.policy import BOBPolicy
-from raphael_bob.runtime import BOBRuntime
-from raphael_bob.workspace import Workspace
+from raphael_ibm_bob.policy import BOBPolicy
+from raphael_ibm_bob.runtime import BOBRuntime
+from raphael_ibm_bob.workspace import Workspace
 
 
 # -----------------------------------------------------------------------------
@@ -50,7 +50,7 @@ from raphael_bob.workspace import Workspace
 
 def _make_workspace(testcase: unittest.TestCase) -> Path:
     """Create a temporary workspace with a known file structure."""
-    tmp = tempfile.mkdtemp(prefix="raphael_bob_m3_ws_")
+    tmp = tempfile.mkdtemp(prefix="raphael_ibm_bob_m3_ws_")
     root = Path(tmp)
     (root / "src").mkdir()
     (root / "src" / "hello.txt").write_text("hello-m3\n", encoding="utf-8")
@@ -72,7 +72,7 @@ def _make_workspace(testcase: unittest.TestCase) -> Path:
 
 
 def _make_run_dir(testcase: unittest.TestCase) -> Path:
-    tmp = tempfile.mkdtemp(prefix="raphael_bob_m3_run_")
+    tmp = tempfile.mkdtemp(prefix="raphael_ibm_bob_m3_run_")
     testcase.addCleanup(_rm, Path(tmp))
     return Path(tmp)
 
@@ -492,7 +492,7 @@ class DigestDeterminism(unittest.TestCase):
 class NoNetwork(unittest.TestCase):
     def test_no_network_imports_in_evidence_ledger(self):
         from pathlib import Path
-        target = Path(__file__).resolve().parent.parent / "raphael_bob" / "evidence_ledger.py"
+        target = Path(__file__).resolve().parent.parent / "raphael_ibm_bob" / "evidence_ledger.py"
         text = target.read_text(encoding="utf-8")
         forbidden = ["import socket", "import urllib", "import httpx",
                      "import requests", "import aiohttp", "import http.client"]

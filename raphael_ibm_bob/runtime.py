@@ -1,4 +1,4 @@
-"""raphael_bob.runtime — BOB MVP Runtime implementation.
+"""raphael_ibm_bob.runtime — BOB MVP Runtime implementation.
 
 The Runtime is the AGENT-FACING boundary. It accepts an `ActionRequest`
 from a caller (Planner, Verifier, agent) and submits it through the
@@ -29,8 +29,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from raphael_bob.broker import BOBBroker, BrokerResult
-from raphael_bob.contracts import (
+from raphael_ibm_bob.broker import BOBBroker, BrokerResult
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     Capability,
     ExecutionResult,

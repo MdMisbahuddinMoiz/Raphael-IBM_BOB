@@ -1,4 +1,4 @@
-"""raphael_bob.workspace — isolated workspace root for the BOB MVP.
+"""raphael_ibm_bob.workspace — isolated workspace root for the BOB MVP.
 
 The MVP capabilities operate only on files that resolve inside a declared
 workspace root. The Workspace object is the canonical authority for

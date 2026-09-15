@@ -1,4 +1,4 @@
-"""raphael_bob.broker — BOB MVP Broker implementation.
+"""raphael_ibm_bob.broker — BOB MVP Broker implementation.
 
 The Broker is the MANDATORY mediation layer between any caller (Runtime,
 Verifier, Falsifier, Replanner) and any capability. It:
@@ -38,7 +38,7 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from raphael_bob.contracts import (
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     Decision,
     EvidenceReceipt,
@@ -46,10 +46,10 @@ from raphael_bob.contracts import (
     Mission,
     PolicyDecision,
 )
-from raphael_bob.policy import BOBPolicy
-from raphael_bob.capabilities import execute_capability
-from raphael_bob.workspace import Workspace
-from raphael_bob.evidence_ledger import EvidenceLedger, digest_id
+from raphael_ibm_bob.policy import BOBPolicy
+from raphael_ibm_bob.capabilities import execute_capability
+from raphael_ibm_bob.workspace import Workspace
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger, digest_id
 
 
 @dataclass(frozen=True)

@@ -1,4 +1,4 @@
-"""raphael_bob.evidence_ledger — M3 append-only JSONL evidence ledger.
+"""raphael_ibm_bob.evidence_ledger — M3 append-only JSONL evidence ledger.
 
 This module implements the M1 `EvidenceLedger` Protocol as a durable,
 append-only JSONL store. The ledger is the M3 spine:
@@ -33,7 +33,7 @@ Legacy notes:
     here; the BOB MVP uses flat causal links (request_seq, decision_seq,
     result_seq) inside each record, and JSONL records as the source of
     truth. Legacy behavior remains ISOLATE in
-    `raphael_bob/adapters/legacy.py`.
+    `raphael_ibm_bob/adapters/legacy.py`.
 
 M4 additions:
     - `finding_id: Optional[str]` on EvidenceRecord.
@@ -57,7 +57,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-from raphael_bob.contracts import (
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     EvidenceReceipt,
     ExecutionResult,

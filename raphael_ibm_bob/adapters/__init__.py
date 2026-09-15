@@ -1,4 +1,4 @@
-"""raphael_bob.adapters — explicit adapter layer between legacy Raphael and
+"""raphael_ibm_bob.adapters — explicit adapter layer between legacy Raphael and
 the IBM BOB MVP seams.
 
 M1 ships only the index in `legacy.py`. M2+ will add concrete adapter
@@ -6,7 +6,7 @@ bodies such as `broker_legacy.py`, `policy_legacy.py`, etc. Every adapter
 introduced at M2+ MUST be reflected in `legacy.py` so that the seam's
 authoritative documentation stays in sync with the actual code.
 """
-from raphael_bob.adapters.legacy import (
+from raphael_ibm_bob.adapters.legacy import (
     ADAPT,
     ALL_SPECS,
     AdapterSpec,

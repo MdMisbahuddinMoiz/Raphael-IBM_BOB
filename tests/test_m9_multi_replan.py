@@ -28,24 +28,24 @@ import unittest
 from pathlib import Path
 from typing import List
 
-from raphael_bob import (
+from raphael_ibm_bob import (
     Capability,
     FindingState,
     GateVerdict,
     Mission,
     Workspace,
 )
-from raphael_bob.broker import BOBBroker
-from raphael_bob.evidence_ledger import EvidenceLedger
-from raphael_bob.falsifier import ChallengeSpec, Falsifier
-from raphael_bob.finding import FindingStore
-from raphael_bob.planner import Planner
-from raphael_bob.policy import BOBPolicy
-from raphael_bob.quality_gate import BOBQualityGate
-from raphael_bob.replanner import Replanner
-from raphael_bob.runner import Runner, RunnerOutcome
-from raphael_bob.runtime import BOBRuntime
-from raphael_bob.verifier import Verifier
+from raphael_ibm_bob.broker import BOBBroker
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger
+from raphael_ibm_bob.falsifier import ChallengeSpec, Falsifier
+from raphael_ibm_bob.finding import FindingStore
+from raphael_ibm_bob.planner import Planner
+from raphael_ibm_bob.policy import BOBPolicy
+from raphael_ibm_bob.quality_gate import BOBQualityGate
+from raphael_ibm_bob.replanner import Replanner
+from raphael_ibm_bob.runner import Runner, RunnerOutcome
+from raphael_ibm_bob.runtime import BOBRuntime
+from raphael_ibm_bob.verifier import Verifier
 
 
 # -----------------------------------------------------------------------------
@@ -53,7 +53,7 @@ from raphael_bob.verifier import Verifier
 # -----------------------------------------------------------------------------
 
 def _make_workspace(testcase: unittest.TestCase) -> Path:
-    tmp = tempfile.mkdtemp(prefix="raphael_bob_m9_ws_")
+    tmp = tempfile.mkdtemp(prefix="raphael_ibm_bob_m9_ws_")
     root = Path(tmp)
     testcase.addCleanup(shutil.rmtree, root, True)
     src = root / "src"
@@ -80,7 +80,7 @@ def _make_workspace(testcase: unittest.TestCase) -> Path:
 
 
 def _make_run_dir(testcase: unittest.TestCase) -> Path:
-    tmp = tempfile.mkdtemp(prefix="raphael_bob_m9_run_")
+    tmp = tempfile.mkdtemp(prefix="raphael_ibm_bob_m9_run_")
     testcase.addCleanup(shutil.rmtree, Path(tmp), True)
     return Path(tmp)
 
@@ -490,12 +490,12 @@ class BoundedSuccess(unittest.TestCase):
 
 class RunnerAuthority(unittest.TestCase):
     def test_runner_never_constructs_complete(self):
-        text = Path("raphael_bob/runner.py").read_text(encoding="utf-8")
+        text = Path("raphael_ibm_bob/runner.py").read_text(encoding="utf-8")
         self.assertNotIn("GateVerdict.COMPLETE", text)
         self.assertIn("BOBQualityGate", text)
 
     def test_wave1_remains_isolated(self):
-        text = Path("raphael_bob/runner.py").read_text(encoding="utf-8")
+        text = Path("raphael_ibm_bob/runner.py").read_text(encoding="utf-8")
         for forbidden in ("from raphael.main", "import raphael.main",
                           "wave1_loop"):
             self.assertNotIn(forbidden, text)

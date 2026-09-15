@@ -1,4 +1,4 @@
-"""raphael_bob.quality_gate — M6 Output QualityGate.
+"""raphael_ibm_bob.quality_gate — M6 Output QualityGate.
 
 The QualityGate is the SOLE authority allowed to declare COMPLETE. The
 Planner, Runner, Verifier, Falsifier, Replanner, and CLI may return any
@@ -58,13 +58,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
-from raphael_bob.contracts import (
+from raphael_ibm_bob.contracts import (
     Finding,
     FindingState,
     GateVerdict,
     Mission,
 )
-from raphael_bob.evidence_ledger import (
+from raphael_ibm_bob.evidence_ledger import (
     EvidenceLedger,
     RecordKind,
     digest_id,

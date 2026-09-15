@@ -1,4 +1,4 @@
-"""raphael_bob.verifier — M4 Verifier with broker-mediated retest.
+"""raphael_ibm_bob.verifier — M4 Verifier with broker-mediated retest.
 
 The Verifier's job is to independently retest a candidate Finding
 through the controlled execution boundary (Runtime -> Broker -> Policy).
@@ -32,8 +32,8 @@ import hashlib
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from raphael_bob.broker import BOBBroker, BrokerResult
-from raphael_bob.contracts import (
+from raphael_ibm_bob.broker import BOBBroker, BrokerResult
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     Capability,
     Decision,
@@ -41,9 +41,9 @@ from raphael_bob.contracts import (
     FindingState,
     Mission,
 )
-from raphael_bob.evidence_ledger import EvidenceLedger, digest_id
-from raphael_bob.finding import FindingStore, InvalidTransitionError
-from raphael_bob.runtime import BOBRuntime, RuntimeResult
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger, digest_id
+from raphael_ibm_bob.finding import FindingStore, InvalidTransitionError
+from raphael_ibm_bob.runtime import BOBRuntime, RuntimeResult
 
 
 @dataclass(frozen=True)
@@ -254,7 +254,7 @@ def finding_state_to_decision(finding: Finding):
     """Helper: produce a synthetic PolicyDecision for non-retest paths
     (used only when the Verifier is asked about an already-transitioned
     Finding). Not a real decision; used to keep VerifyOutcome ergonomic."""
-    from raphael_bob.contracts import PolicyDecision
+    from raphael_ibm_bob.contracts import PolicyDecision
     return PolicyDecision(
         sequence=0,
         decision=Decision.DENY,

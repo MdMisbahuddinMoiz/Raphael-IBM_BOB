@@ -1,4 +1,4 @@
-"""raphael_bob.policy — BOB MVP Policy implementation.
+"""raphael_ibm_bob.policy — BOB MVP Policy implementation.
 
 FAIL-CLOSED.
 
@@ -34,14 +34,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from raphael_bob.contracts import (
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     Capability,
     Decision,
     Mission,
     PolicyDecision,
 )
-from raphael_bob.workspace import Workspace
+from raphael_ibm_bob.workspace import Workspace
 
 
 class BOBPolicy:

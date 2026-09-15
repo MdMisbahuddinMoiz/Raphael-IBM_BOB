@@ -1,4 +1,4 @@
-"""raphael_bob.contracts — typed data contracts for the IBM BOB MVP seam.
+"""raphael_ibm_bob.contracts — typed data contracts for the IBM BOB MVP seam.
 
 Stdlib-only. These types define the *shape* of every request, decision, and
 result that crosses a seam boundary. No behavioral logic lives here.

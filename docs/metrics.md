@@ -42,7 +42,7 @@ python3 demos/authkit_hero.py --mode raphael    # full control loop
 
 Only parsed `evidence.jsonl` records of known kinds (request,
 decision, result, evidence, finding, gate) plus result artifact files
-for the resolved count. The tool never imports `raphael_bob`; the
+for the resolved count. The tool never imports `raphael_ibm_bob`; the
 JSONL schema is the contract.
 
 ## What invalidates a run

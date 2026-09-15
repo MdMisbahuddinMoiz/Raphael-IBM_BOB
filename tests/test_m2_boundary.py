@@ -29,7 +29,7 @@ import unittest
 from pathlib import Path
 from typing import Iterator
 
-from raphael_bob import (
+from raphael_ibm_bob import (
     ActionRequest,
     Capability,
     Decision,
@@ -40,17 +40,17 @@ from raphael_bob import (
     PolicyDecision,
     fresh_id,
 )
-from raphael_bob.broker import BOBBroker, BrokerResult
-from raphael_bob.capabilities import execute_capability, CAPABILITY_DISPATCH
-from raphael_bob.policy import BOBPolicy
-from raphael_bob.runtime import BOBRuntime, RuntimeResult
-from raphael_bob.workspace import Workspace
+from raphael_ibm_bob.broker import BOBBroker, BrokerResult
+from raphael_ibm_bob.capabilities import execute_capability, CAPABILITY_DISPATCH
+from raphael_ibm_bob.policy import BOBPolicy
+from raphael_ibm_bob.runtime import BOBRuntime, RuntimeResult
+from raphael_ibm_bob.workspace import Workspace
 
 
 def _workspace_path() -> Path:
     """Create a fresh workspace root with a known file structure."""
     import shutil
-    tmp = tempfile.mkdtemp(prefix="raphael_bob_m2_")
+    tmp = tempfile.mkdtemp(prefix="raphael_ibm_bob_m2_")
     root = Path(tmp)
     (root / "src").mkdir()
     (root / "src" / "hello.txt").write_text("hello-world\n", encoding="utf-8")
@@ -280,13 +280,13 @@ class BypassIsBlocked(unittest.TestCase):
         proc = subprocess.run(
             ["grep", "-rln", "--include=*.py",
              "--exclude=__init__.py",
-             "from raphael_bob.capabilities import",
-             "raphael_bob"],
+             "from raphael_ibm_bob.capabilities import",
+             "raphael_ibm_bob"],
             cwd=str(Path(__file__).resolve().parent.parent),
             capture_output=True, text=True,
         )
         importers = [l for l in proc.stdout.splitlines() if l.strip()]
-        self.assertEqual(sorted(importers), ["raphael_bob/broker.py"])
+        self.assertEqual(sorted(importers), ["raphael_ibm_bob/broker.py"])
 # 7. Runtime routes through Broker
 # -----------------------------------------------------------------------------
 
@@ -418,13 +418,13 @@ class BoundaryTestNoBypass(unittest.TestCase):
         proc = subprocess.run(
             ["grep", "-rln", "--include=*.py",
              "--exclude=__init__.py",
-             "from raphael_bob.capabilities import",
-             "raphael_bob"],
+             "from raphael_ibm_bob.capabilities import",
+             "raphael_ibm_bob"],
             cwd=str(Path(__file__).resolve().parent.parent),
             capture_output=True, text=True,
         )
         importers = sorted(l for l in proc.stdout.splitlines() if l.strip())
-        self.assertEqual(importers, ["raphael_bob/broker.py"])
+        self.assertEqual(importers, ["raphael_ibm_bob/broker.py"])
 
     def test_structural_runtime_rejects_non_bob_broker(self):
         class FakeBroker:

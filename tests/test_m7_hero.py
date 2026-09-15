@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
 
 class PlannerTests(unittest.TestCase):
     def test_mission_to_plan_a(self):
-        from raphael_bob import Mission, Planner, Capability
+        from raphael_ibm_bob import Mission, Planner, Capability
         mission = Mission(
             mission_id="M-test", description="x", scope="x", criteria=["x"],
             problem={"symptom_target": "fixtures/authkit/login.py"},
@@ -28,7 +28,7 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(plan_a.steps[0].target, "fixtures/authkit/login.py")
 
     def test_plan_a_contains_valid_bob_native_actions(self):
-        from raphael_bob import Mission, Planner, Capability
+        from raphael_ibm_bob import Mission, Planner, Capability
         mission = Mission(
             mission_id="M-test", description="x", scope="x", criteria=["x"],
             problem={"symptom_target": "fixtures/authkit/login.py"},
@@ -40,7 +40,7 @@ class PlannerTests(unittest.TestCase):
         self.assertIn(plan_a.steps[0].capability, allowed)
 
     def test_plan_a_is_deterministic(self):
-        from raphael_bob import Mission, Planner
+        from raphael_ibm_bob import Mission, Planner
         mission = Mission(
             mission_id="M-determinism", description="x", scope="x", criteria=["x"],
             problem={"symptom_target": "fixtures/authkit/login.py"},
@@ -50,26 +50,26 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(len(set(ids)), 1)
 
     def test_planner_does_not_invoke_wave1(self):
-        from raphael_bob import Planner
-        planner_text = Path("raphael_bob/planner.py").read_text(encoding="utf-8")
+        from raphael_ibm_bob import Planner
+        planner_text = Path("raphael_ibm_bob/planner.py").read_text(encoding="utf-8")
         forbidden = ["from raphael.main", "Wave1 cognitive", "wave1_loop"]
         for f in forbidden:
             self.assertNotIn(f, planner_text,
                 msg=f"planner.py references {f}")
 
     def test_planner_does_not_bypass_runtime_broker_policy(self):
-        from raphael_bob import Planner
-        planner_text = Path("raphael_bob/planner.py").read_text(encoding="utf-8")
+        from raphael_ibm_bob import Planner
+        planner_text = Path("raphael_ibm_bob/planner.py").read_text(encoding="utf-8")
         for forbidden in [
-            "from raphael_bob.runtime",
-            "from raphael_bob.broker",
-            "from raphael_bob.policy",
+            "from raphael_ibm_bob.runtime",
+            "from raphael_ibm_bob.broker",
+            "from raphael_ibm_bob.policy",
         ]:
             self.assertNotIn(forbidden, planner_text)
 
     def test_plan_b_remains_replanner_responsibility(self):
-        from raphael_bob import Planner
-        planner_text = Path("raphael_bob/planner.py").read_text(encoding="utf-8")
+        from raphael_ibm_bob import Planner
+        planner_text = Path("raphael_ibm_bob/planner.py").read_text(encoding="utf-8")
         self.assertNotIn("plan_b", planner_text.lower())
 
 
@@ -93,11 +93,11 @@ class AuthkitHeroIntegration(unittest.TestCase):
         self.assertIn("BUGGY", text)
 
     def test_forbidden_action_is_actually_denied(self):
-        from raphael_bob import (
+        from raphael_ibm_bob import (
             BOBBroker, BOBPolicy, BOBRuntime, Mission, Workspace,
             ActionRequest, Capability,
         )
-        from raphael_bob.evidence_ledger import EvidenceLedger as _JSONL
+        from raphael_ibm_bob.evidence_ledger import EvidenceLedger as _JSONL
         workspace = Workspace(ROOT)
         ledger = _JSONL(Path(tempfile.mkdtemp(prefix="m7fc1_")))
         policy = BOBPolicy(workspace)
@@ -115,11 +115,11 @@ class AuthkitHeroIntegration(unittest.TestCase):
         self.assertFalse(rt.broker_result.capability_invoked)
 
     def test_denied_action_creates_no_side_effect(self):
-        from raphael_bob import (
+        from raphael_ibm_bob import (
             BOBBroker, BOBPolicy, BOBRuntime, Mission, Workspace,
             ActionRequest, Capability,
         )
-        from raphael_bob.evidence_ledger import EvidenceLedger as _JSONL
+        from raphael_ibm_bob.evidence_ledger import EvidenceLedger as _JSONL
         workspace = Workspace(ROOT)
         ledger = _JSONL(Path(tempfile.mkdtemp(prefix="m7fc1b_")))
         policy = BOBPolicy(workspace)
@@ -209,7 +209,7 @@ class HeroEndToEnd(unittest.TestCase):
             self.assertIn(f"[{i:02d}]", out,
                 msg=f"step {i:02d} missing from demo output")
         self.assertIn("COMPLETE", out)
-        runner_text = (ROOT / "raphael_bob" / "runner.py").read_text()
+        runner_text = (ROOT / "raphael_ibm_bob" / "runner.py").read_text()
         self.assertNotIn("GateVerdict.COMPLETE", runner_text)
         self.assertIn("BOBQualityGate", runner_text)
 

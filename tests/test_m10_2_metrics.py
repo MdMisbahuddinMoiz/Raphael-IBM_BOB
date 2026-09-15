@@ -5,7 +5,7 @@ EvidenceLedger APIs (request/decision/result/evidence/finding/gate),
 so the aggregator is exercised against genuine record shapes.
 Invalid-run fixtures are hand-crafted malformed JSONL. The audit
 module itself is loaded from scripts/audit_runs.py and parses pure
-JSON — it never imports raphael_bob.
+JSON — it never imports raphael_ibm_bob.
 """
 from __future__ import annotations
 
@@ -23,14 +23,14 @@ _SPEC = importlib.util.spec_from_file_location(
 audit_runs = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(audit_runs)
 
-from raphael_bob.contracts import (
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     Capability,
     Decision,
     ExecutionResult,
     PolicyDecision,
 )
-from raphael_bob.evidence_ledger import EvidenceLedger
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger
 
 
 def _base(testcase: unittest.TestCase) -> Path:

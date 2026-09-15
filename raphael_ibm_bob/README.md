@@ -1,4 +1,4 @@
-# `raphael_bob` — IBM BOB MVP seam package (M1)
+# `raphael_ibm_bob` — IBM BOB MVP seam package (M1)
 
 This package establishes the **migration boundary** between the existing
 Raphael v2.1.1 implementation and the IBM BOB Hackathon Master Roadmap v1.2
@@ -8,7 +8,7 @@ begins at M2.
 ## What is in M1
 
 ```
-raphael_bob/
+raphael_ibm_bob/
 ├── __init__.py          # re-exports contracts + seams
 ├── contracts.py         # dataclasses/enums that cross every seam boundary
 ├── seams.py             # Protocol interfaces for Runtime/Broker/Policy/...
@@ -87,7 +87,7 @@ from `UNVERIFIED` to `SUPERSEDED`.
 
 ## Legacy module selection
 
-See `raphael_bob/adapters/legacy.py` for the full `AdapterSpec` index.
+See `raphael_ibm_bob/adapters/legacy.py` for the full `AdapterSpec` index.
 Summary at M1:
 
 | Seam | Module | Action |

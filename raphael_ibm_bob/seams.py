@@ -1,4 +1,4 @@
-"""raphael_bob.seams — interface contracts for the IBM BOB MVP control loop.
+"""raphael_ibm_bob.seams — interface contracts for the IBM BOB MVP control loop.
 
 Each Protocol below defines the target shape of one component in the brief's
 control flow:
@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
-from raphael_bob.contracts import (
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     Decision,
     EvidenceReceipt,
@@ -48,7 +48,7 @@ class Policy(Protocol):
 
     Implementations MUST be pure with respect to inputs (no side effects) and
     MUST consult the active mission scope. M2 will provide a real
-    implementation that delegates to raphael_bob.adapters.legacy_policy.
+    implementation that delegates to raphael_ibm_bob.adapters.legacy_policy.
     """
 
     def consult(
@@ -222,7 +222,7 @@ class QualityGate(Protocol):
 class Planner(Protocol):
     """Generates Plan A from a Mission and the current evidence state.
 
-    M5 will provide a real implementation that delegates to raphael_bob
+    M5 will provide a real implementation that delegates to raphael_ibm_bob
     adapters wrapping the cognitive-loop Action/Precondition model.
     """
 

@@ -9,23 +9,23 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from raphael_bob import (
+from raphael_ibm_bob import (
     Capability,
     Finding,
     FindingState,
     Mission,
     Workspace,
 )
-from raphael_bob.broker import BOBBroker
-from raphael_bob.evidence_ledger import EvidenceLedger
-from raphael_bob.falsifier import (
+from raphael_ibm_bob.broker import BOBBroker
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger
+from raphael_ibm_bob.falsifier import (
     ChallengeSpec,
     Falsifier,
 )
-from raphael_bob.finding import FindingStore, InvalidTransitionError
-from raphael_bob.policy import BOBPolicy
-from raphael_bob.runtime import BOBRuntime
-from raphael_bob.verifier import RetestSpec, Verifier
+from raphael_ibm_bob.finding import FindingStore, InvalidTransitionError
+from raphael_ibm_bob.policy import BOBPolicy
+from raphael_ibm_bob.runtime import BOBRuntime
+from raphael_ibm_bob.verifier import RetestSpec, Verifier
 
 
 # -----------------------------------------------------------------------------
@@ -33,7 +33,7 @@ from raphael_bob.verifier import RetestSpec, Verifier
 # -----------------------------------------------------------------------------
 
 def _make_workspace(testcase: unittest.TestCase) -> Path:
-    tmp = tempfile.mkdtemp(prefix="raphael_bob_m4_ws_")
+    tmp = tempfile.mkdtemp(prefix="raphael_ibm_bob_m4_ws_")
     root = Path(tmp)
     (root / "src").mkdir()
     (root / "src" / "hello.txt").write_text("hello-m4\n", encoding="utf-8")
@@ -56,7 +56,7 @@ def _make_workspace(testcase: unittest.TestCase) -> Path:
 
 
 def _make_run_dir(testcase: unittest.TestCase) -> Path:
-    tmp = tempfile.mkdtemp(prefix="raphael_bob_m4_run_")
+    tmp = tempfile.mkdtemp(prefix="raphael_ibm_bob_m4_run_")
     testcase.addCleanup(_rm, Path(tmp))
     return Path(tmp)
 

@@ -12,7 +12,7 @@ RAPHAEL is the IBM BOB Hackathon MVP: an evidence-driven control loop
 that plans, acts only through a mediated boundary, verifies and
 falsifies its own findings, replans from refuted claims, and lets a
 single QualityGate decide completion. The implementation lives in
-`raphael_bob/` (stdlib-only Python), demonstrated by
+`raphael_ibm_bob/` (stdlib-only Python), demonstrated by
 `demos/authkit_hero.py` against `fixtures/authkit/`, measured by
 `scripts/audit_runs.py` over `runs/*/evidence.jsonl`.
 
@@ -35,7 +35,7 @@ facts, exact legacy version numbering is UNKNOWN and is not claimed.
   or inferred here.
 - No legacy code was copied into the BOB path. Evidence: a
   repository search for legacy imports (`from src…`,
-  `from raphael.…`, `import raphael…`) across `raphael_bob/`,
+  `from raphael.…`, `import raphael…`) across `raphael_ibm_bob/`,
   `demos/`, `probes/`, `tests/` returns zero code imports; the only
   matches are docstring references, the adapter index, and test
   guards that assert the isolation. Legacy modules appear solely as
@@ -43,19 +43,19 @@ facts, exact legacy version numbering is UNKNOWN and is not claimed.
 - Per-module docstrings record, for each seam, whether the legacy
   source was conceptually adapted, deliberately replaced, or
   isolated. The authoritative index is
-  `raphael_bob/adapters/legacy.py` (a documentation-only module; it
+  `raphael_ibm_bob/adapters/legacy.py` (a documentation-only module; it
   contains no runtime logic).
 
 ## 4. Adapted concepts (inspiration, rewritten code)
 
 | Legacy source | Concept reused | BOB re-expression |
 |---|---|---|
-| `src/orchestrator/brain/capability_broker.py` (5-dim deny-by-default authorization) | mediation + provenance receipts | `raphael_bob/broker.py` (`BOBBroker`: Policy consult before every invocation; `BrokerResult` carries ledger sequences) |
-| `src/orchestrator/brain/scope_parser.py` (fail-closed scope) | fail-closed scope checks | `raphael_bob/policy.py` (`BOBPolicy`: workspace containment, mission-scope substring, capability invariants) |
-| `src/orchestrator/brain/evidence.py` (frozen dataclass + SHA-256 digest) | digest-identified immutable records | `raphael_bob/evidence_ledger.py` (canonical JSON + digests; flat causal links instead of the legacy in-memory relation graph) |
-| `src/orchestrator/brain/contradiction.py` (active-challenge lifecycle) | challenge apparent success with observations | `raphael_bob/falsifier.py` (broker-mediated counter-example search; `ChallengeSpec`/`ChallengeOutcome`) |
-| `src/raphael/verifier/core.py` (preflight/observe/adapt lifecycle shape) | lifecycle shape only | `raphael_bob/verifier.py` (behavioral retest through Runtime/Broker/Policy, not exploit-canary callbacks) |
-| `src/orchestrator/brain/action.py` (Action/Precondition/Effect shape) | action shape (capability + target + purpose) | `raphael_bob/planner.py` (BOB-native READ actions from `Mission.problem`, not offensive grammar) |
+| `src/orchestrator/brain/capability_broker.py` (5-dim deny-by-default authorization) | mediation + provenance receipts | `raphael_ibm_bob/broker.py` (`BOBBroker`: Policy consult before every invocation; `BrokerResult` carries ledger sequences) |
+| `src/orchestrator/brain/scope_parser.py` (fail-closed scope) | fail-closed scope checks | `raphael_ibm_bob/policy.py` (`BOBPolicy`: workspace containment, mission-scope substring, capability invariants) |
+| `src/orchestrator/brain/evidence.py` (frozen dataclass + SHA-256 digest) | digest-identified immutable records | `raphael_ibm_bob/evidence_ledger.py` (canonical JSON + digests; flat causal links instead of the legacy in-memory relation graph) |
+| `src/orchestrator/brain/contradiction.py` (active-challenge lifecycle) | challenge apparent success with observations | `raphael_ibm_bob/falsifier.py` (broker-mediated counter-example search; `ChallengeSpec`/`ChallengeOutcome`) |
+| `src/raphael/verifier/core.py` (preflight/observe/adapt lifecycle shape) | lifecycle shape only | `raphael_ibm_bob/verifier.py` (behavioral retest through Runtime/Broker/Policy, not exploit-canary callbacks) |
+| `src/orchestrator/brain/action.py` (Action/Precondition/Effect shape) | action shape (capability + target + purpose) | `raphael_ibm_bob/planner.py` (BOB-native READ actions from `Mission.problem`, not offensive grammar) |
 
 ## 5. Replaced components
 

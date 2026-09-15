@@ -20,8 +20,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from raphael_bob.contracts import ActionRequest, Capability, Mission
-from raphael_bob.evidence_ledger import (
+from raphael_ibm_bob.contracts import ActionRequest, Capability, Mission
+from raphael_ibm_bob.evidence_ledger import (
     EvidenceLedger,
     LedgerReader,
     create_run_dir,
@@ -47,12 +47,12 @@ def _write_one_record(run_dir: Path) -> None:
     """Write a minimal but complete request/decision/result/evidence
     chain plus a gate record, then release the ledger (simulating
     process exit; every append is fsync-durable already)."""
-    from raphael_bob.broker import BOBBroker
-    from raphael_bob.finding import FindingStore
-    from raphael_bob.policy import BOBPolicy
-    from raphael_bob.quality_gate import BOBQualityGate, GateInputs
-    from raphael_bob.runtime import BOBRuntime
-    from raphael_bob.workspace import Workspace
+    from raphael_ibm_bob.broker import BOBBroker
+    from raphael_ibm_bob.finding import FindingStore
+    from raphael_ibm_bob.policy import BOBPolicy
+    from raphael_ibm_bob.quality_gate import BOBQualityGate, GateInputs
+    from raphael_ibm_bob.runtime import BOBRuntime
+    from raphael_ibm_bob.workspace import Workspace
 
     ws_root = run_dir.parent / "ws"
     (ws_root / "src").mkdir(parents=True, exist_ok=True)

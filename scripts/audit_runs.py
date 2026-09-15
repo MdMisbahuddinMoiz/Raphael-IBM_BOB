@@ -10,7 +10,7 @@ validates each run, and writes a deterministic ``metrics.json``.
 Measurement-only: every number is traced to persisted ledger records.
 Nothing is inferred from console output, filenames, or timestamps
 (``generated_at`` is metadata only). The parser is intentionally
-stdlib-only and does NOT import ``raphael_bob``: the JSONL schema is
+stdlib-only and does NOT import ``raphael_ibm_bob``: the JSONL schema is
 the contract, so measurement stays valid even as implementation
 details move.
 

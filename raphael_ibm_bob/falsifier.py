@@ -1,4 +1,4 @@
-"""raphael_bob.falsifier — M4 Falsifier with broker-mediated challenge
+"""raphael_ibm_bob.falsifier — M4 Falsifier with broker-mediated challenge
 (M5: counter-example payload carries the challenge target so the
 Replanner can derive the new action target).
 
@@ -33,8 +33,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from raphael_bob.broker import BOBBroker, BrokerResult
-from raphael_bob.contracts import (
+from raphael_ibm_bob.broker import BOBBroker, BrokerResult
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     Capability,
     Decision,
@@ -43,9 +43,9 @@ from raphael_bob.contracts import (
     Mission,
     PolicyDecision,
 )
-from raphael_bob.evidence_ledger import EvidenceLedger, digest_id
-from raphael_bob.finding import FindingStore, InvalidTransitionError
-from raphael_bob.runtime import BOBRuntime, RuntimeResult
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger, digest_id
+from raphael_ibm_bob.finding import FindingStore, InvalidTransitionError
+from raphael_ibm_bob.runtime import BOBRuntime, RuntimeResult
 
 
 @dataclass(frozen=True)

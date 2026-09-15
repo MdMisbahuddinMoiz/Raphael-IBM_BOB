@@ -1,4 +1,4 @@
-"""raphael_bob.finding — M4 finding lifecycle store.
+"""raphael_ibm_bob.finding — M4 finding lifecycle store.
 
 Implements the brief's required lifecycle:
 
@@ -32,8 +32,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from raphael_bob.contracts import Finding, FindingState
-from raphael_bob.evidence_ledger import EvidenceLedger
+from raphael_ibm_bob.contracts import Finding, FindingState
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger
 
 
 _ALLOWED_TRANSITIONS = {

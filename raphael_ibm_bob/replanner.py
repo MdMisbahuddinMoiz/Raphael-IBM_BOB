@@ -1,4 +1,4 @@
-"""raphael_bob.replanner — M5 evidence-driven Replanner.
+"""raphael_ibm_bob.replanner — M5 evidence-driven Replanner.
 
 The Replanner's job is to produce a `Plan B` whose causal ancestry is the
 REFUTED finding from the prior plan. It MUST NOT be invoked speculatively;
@@ -46,15 +46,15 @@ import json
 from dataclasses import dataclass
 from typing import List, Optional
 
-from raphael_bob.contracts import (
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     Capability,
     FocusedContext,
     Mission,
     Plan,
 )
-from raphael_bob.evidence_ledger import EvidenceLedger, digest_id
-from raphael_bob.finding import FindingStore
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger, digest_id
+from raphael_ibm_bob.finding import FindingStore
 
 
 def _canonical(payload: dict) -> str:

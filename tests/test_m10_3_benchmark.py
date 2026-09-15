@@ -27,14 +27,14 @@ _SPEC = importlib.util.spec_from_file_location(
 audit_runs = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(audit_runs)
 
-from raphael_bob.contracts import (
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     Capability,
     Decision,
     ExecutionResult,
     PolicyDecision,
 )
-from raphael_bob.evidence_ledger import (
+from raphael_ibm_bob.evidence_ledger import (
     EvidenceLedger,
     append_run_provenance,
     create_run_dir,
@@ -239,7 +239,7 @@ class BenchmarkModesEndToEnd(unittest.TestCase):
         self.assertIn("Gate: COMPLETE", self.raphael_proc.stdout)
 
     def test_modes_use_equivalent_setup(self):
-        from raphael_bob.evidence_ledger import LedgerReader
+        from raphael_ibm_bob.evidence_ledger import LedgerReader
         base_gates = LedgerReader(self.base_ledger).gate_decisions()
         raph_gates = LedgerReader(self.raph_ledger).gate_decisions()
         self.assertEqual(len(base_gates), 1)
@@ -261,7 +261,7 @@ class BenchmarkModesEndToEnd(unittest.TestCase):
         self.assertEqual(raph_gates[0]["decision"], "complete")
 
     def test_mode_provenance_on_disk(self):
-        from raphael_bob.evidence_ledger import LedgerReader
+        from raphael_ibm_bob.evidence_ledger import LedgerReader
         for ledger_path, expected in (
                 (self.base_ledger, "baseline"),
                 (self.raph_ledger, "raphael")):

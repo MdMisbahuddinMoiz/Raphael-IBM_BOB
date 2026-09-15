@@ -1,4 +1,4 @@
-"""raphael_bob — IBM BOB Hackathon MVP seam package (M1..M5).
+"""raphael_ibm_bob — IBM BOB Hackathon MVP seam package (M1..M5).
 
 This package establishes the migration boundary between the existing
 Raphael v2.1.1 implementation and the IBM BOB MVP target.
@@ -23,7 +23,7 @@ Modules:
 
 """
 
-from raphael_bob.contracts import (
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     Capability,
     Decision,
@@ -39,7 +39,7 @@ from raphael_bob.contracts import (
     Seq,
     fresh_id,
 )
-from raphael_bob.seams import (
+from raphael_ibm_bob.seams import (
     Broker,
     EvidenceLedger,
     Falsifier,
@@ -51,12 +51,12 @@ from raphael_bob.seams import (
     Runtime,
     Verifier,
 )
-from raphael_bob.workspace import Workspace
-from raphael_bob.policy import BOBPolicy
-from raphael_bob.broker import BOBBroker, BrokerResult
-from raphael_bob.runtime import BOBRuntime, RuntimeResult
-from raphael_bob.capabilities import execute_capability
-from raphael_bob.evidence_ledger import (
+from raphael_ibm_bob.workspace import Workspace
+from raphael_ibm_bob.policy import BOBPolicy
+from raphael_ibm_bob.broker import BOBBroker, BrokerResult
+from raphael_ibm_bob.runtime import BOBRuntime, RuntimeResult
+from raphael_ibm_bob.capabilities import execute_capability
+from raphael_ibm_bob.evidence_ledger import (
     ArtifactSink,
     DecisionRecord,
     EvidenceLedger as _JSONL_EvidenceLedger,
@@ -72,21 +72,21 @@ from raphael_bob.evidence_ledger import (
     generate_run_id,
     append_run_provenance,
 )
-from raphael_bob.finding import (
+from raphael_ibm_bob.finding import (
     FindingStore,
     InvalidTransitionError,
     TransitionResult,
 )
-from raphael_bob.verifier import RetestSpec, VerifyOutcome, Verifier
-from raphael_bob.falsifier import (
+from raphael_ibm_bob.verifier import RetestSpec, VerifyOutcome, Verifier
+from raphael_ibm_bob.falsifier import (
     ChallengeOutcome,
     ChallengeSpec,
     Falsifier,
 )
-from raphael_bob.replanner import ReplanStrategy, Replanner, derive_plan_b_id
-from raphael_bob.runner import Runner, RunnerOutcome
-from raphael_bob.planner import Planner, derive_plan_a_id
-from raphael_bob.quality_gate import BOBQualityGate, GateEvaluation, GateInputs
+from raphael_ibm_bob.replanner import ReplanStrategy, Replanner, derive_plan_b_id
+from raphael_ibm_bob.runner import Runner, RunnerOutcome
+from raphael_ibm_bob.planner import Planner, derive_plan_a_id
+from raphael_ibm_bob.quality_gate import BOBQualityGate, GateEvaluation, GateInputs
 
 __all__ = [
     "Runner",

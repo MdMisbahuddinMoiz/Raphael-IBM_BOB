@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import unittest
 
-from raphael_bob import (
+from raphael_ibm_bob import (
     ActionRequest,
     Capability,
     Decision,
@@ -33,7 +33,7 @@ from raphael_bob import (
     Seq,
     fresh_id,
 )
-from raphael_bob.seams import (
+from raphael_ibm_bob.seams import (
     Broker,
     EvidenceLedger,
     Falsifier,
@@ -45,7 +45,7 @@ from raphael_bob.seams import (
     Runtime,
     Verifier,
 )
-from raphael_bob.adapters import (
+from raphael_ibm_bob.adapters import (
     ADAPT,
     ISOLATE,
     REPLACE,
@@ -245,7 +245,7 @@ class ProtocolSurfaceTests(unittest.TestCase):
 
 class AdapterSpecIndexTests(unittest.TestCase):
     """Tests against docs/migration/reuse-matrix.md, executed against the
-    code-level index in raphael_bob.adapters.legacy."""
+    code-level index in raphael_ibm_bob.adapters.legacy."""
 
     def test_all_seams_have_specs(self):
         expected_seams = {
@@ -335,51 +335,51 @@ class AntiClaimTests(unittest.TestCase):
     def test_m7_planner_module_exists(self):
         # M7 ships the real Planner.
         import importlib
-        mod = importlib.import_module("raphael_bob.planner")
+        mod = importlib.import_module("raphael_ibm_bob.planner")
     def test_m6_quality_gate_module_exists(self):
         # M6 ships the BOBQualityGate implementation.
         import importlib
-        mod = importlib.import_module("raphael_bob.quality_gate")
+        mod = importlib.import_module("raphael_ibm_bob.quality_gate")
         self.assertTrue(hasattr(mod, "BOBQualityGate"))
         self.assertTrue(hasattr(mod, "GateInputs"))
     def test_m5_replanner_and_runner_modules_exist(self):
         # M5 ships Replanner and Runner implementations.
         import importlib
-        rp = importlib.import_module("raphael_bob.replanner")
-        rn = importlib.import_module("raphael_bob.runner")
+        rp = importlib.import_module("raphael_ibm_bob.replanner")
+        rn = importlib.import_module("raphael_ibm_bob.runner")
         self.assertTrue(hasattr(rp, "Replanner"))
         self.assertTrue(hasattr(rn, "Runner"))
     def test_m4_verifier_and_falsifier_modules_exist(self):
         # M4 ships Verifier and Falsifier implementations.
         import importlib
-        v = importlib.import_module("raphael_bob.verifier")
-        f = importlib.import_module("raphael_bob.falsifier")
+        v = importlib.import_module("raphael_ibm_bob.verifier")
+        f = importlib.import_module("raphael_ibm_bob.falsifier")
         self.assertTrue(hasattr(v, "Verifier"))
         self.assertTrue(hasattr(f, "Falsifier"))
 
     def test_m3_evidence_ledger_module_exists(self):
         import importlib
         # M3 ships the EvidenceLedger; the module MUST be importable.
-        mod = importlib.import_module("raphael_bob.evidence_ledger")
+        mod = importlib.import_module("raphael_ibm_bob.evidence_ledger")
         self.assertTrue(hasattr(mod, "EvidenceLedger"))
         self.assertTrue(hasattr(mod, "LedgerWriter"))
         self.assertTrue(hasattr(mod, "LedgerReader"))
     def test_m5_replanner_and_runner_modules_exist(self):
         # M5 ships Replanner and Runner implementations.
         import importlib
-        rp = importlib.import_module("raphael_bob.replanner")
-        rn = importlib.import_module("raphael_bob.runner")
+        rp = importlib.import_module("raphael_ibm_bob.replanner")
+        rn = importlib.import_module("raphael_ibm_bob.runner")
         self.assertTrue(hasattr(rp, "Replanner"))
         self.assertTrue(hasattr(rn, "Runner"))
     def test_m2_broker_is_subclass_of_seam_protocol(self):
         # The M2 Broker implementation must satisfy the M1 seam Protocol.
-        from raphael_bob.broker import BOBBroker
-        from raphael_bob.seams import Broker
+        from raphael_ibm_bob.broker import BOBBroker
+        from raphael_ibm_bob.seams import Broker
         self.assertTrue(isinstance(BOBBroker.__new__(BOBBroker), Broker))  # runtime_checkable
 
     def test_m2_runtime_is_subclass_of_seam_protocol(self):
-        from raphael_bob.runtime import BOBRuntime
-        from raphael_bob.seams import Runtime
+        from raphael_ibm_bob.runtime import BOBRuntime
+        from raphael_ibm_bob.seams import Runtime
         # BOBRuntime is not runtime_checkable on instance because
         # Protocol requires class-level methods. We assert that
         # BOBRuntime has the documented method `submit`.

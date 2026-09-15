@@ -34,7 +34,7 @@ def _setup_path() -> Path:
 
 ROOT = _setup_path()
 
-from raphael_bob import (
+from raphael_ibm_bob import (
     ActionRequest,
     BOBBroker,
     BOBPolicy,
@@ -52,15 +52,15 @@ from raphael_bob import (
     Replanner,
     Workspace,
 )
-from raphael_bob.evidence_ledger import (
+from raphael_ibm_bob.evidence_ledger import (
     EvidenceLedger,
     append_run_provenance,
     create_run_dir,
     digest_id,
 )
-from raphael_bob.falsifier import ChallengeSpec, Falsifier
-from raphael_bob.finding import FindingStore
-from raphael_bob.verifier import RetestSpec, Verifier
+from raphael_ibm_bob.falsifier import ChallengeSpec, Falsifier
+from raphael_ibm_bob.finding import FindingStore
+from raphael_ibm_bob.verifier import RetestSpec, Verifier
 
 
 def _step(idx: int, label: str, detail: str = "") -> None:

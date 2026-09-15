@@ -1,4 +1,4 @@
-"""raphael_bob.planner — M7/M8 real Planner.
+"""raphael_ibm_bob.planner — M7/M8 real Planner.
 
 The Planner reads a Mission and produces Plan A: a sequence of
 BOB-native ActionRequests.
@@ -59,7 +59,7 @@ import json
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from raphael_bob.contracts import (
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     Capability,
     Mission,

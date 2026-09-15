@@ -26,7 +26,7 @@ if str(ROOT) not in sys.path:
 
 class MissionDrivenPlanner(unittest.TestCase):
     def test_planner_derives_target_from_mission(self):
-        from raphael_bob import Mission, Planner
+        from raphael_ibm_bob import Mission, Planner
         mission = Mission(
             mission_id="M-derived",
             description="x",
@@ -40,7 +40,7 @@ class MissionDrivenPlanner(unittest.TestCase):
     def test_runner_does_not_supply_target_directly(self):
         # Structural: Planner must have no constructor arg; plan_a must
         # take only mission. This is the M8 architectural rule.
-        from raphael_bob import Planner
+        from raphael_ibm_bob import Planner
         sig = inspect.signature(Planner.__init__)
         self.assertEqual(list(sig.parameters.keys()), ["self"],
             msg=f"Planner.__init__ must take no args, got {list(sig.parameters)}")
@@ -49,7 +49,7 @@ class MissionDrivenPlanner(unittest.TestCase):
             msg=f"Planner.plan_a must take only mission, got {list(sig2.parameters)}")
 
     def test_different_missions_produce_different_targets(self):
-        from raphael_bob import Mission, Planner
+        from raphael_ibm_bob import Mission, Planner
         m1 = Mission(mission_id="M-1", description="x", scope="x", criteria=["x"],
                      problem={"symptom_target": "src/a.py"})
         m2 = Mission(mission_id="M-2", description="x", scope="x", criteria=["x"],
@@ -61,7 +61,7 @@ class MissionDrivenPlanner(unittest.TestCase):
                             p.plan_a(m2).steps[0].target)
 
     def test_planner_is_deterministic(self):
-        from raphael_bob import Mission, Planner
+        from raphael_ibm_bob import Mission, Planner
         m = Mission(mission_id="M-det", description="x", scope="x", criteria=["x"],
                    problem={"symptom_target": "src/x.py"})
         p = Planner()
@@ -71,39 +71,39 @@ class MissionDrivenPlanner(unittest.TestCase):
         self.assertEqual(len(set(targets)), 1)
 
     def test_planner_does_not_import_runtime_broker_policy(self):
-        from raphael_bob import Planner
-        planner_text = Path("raphael_bob/planner.py").read_text(encoding="utf-8")
+        from raphael_ibm_bob import Planner
+        planner_text = Path("raphael_ibm_bob/planner.py").read_text(encoding="utf-8")
         for forbidden in [
-            "from raphael_bob.runtime",
-            "from raphael_bob.broker",
-            "from raphael_bob.policy",
+            "from raphael_ibm_bob.runtime",
+            "from raphael_ibm_bob.broker",
+            "from raphael_ibm_bob.policy",
         ]:
             self.assertNotIn(forbidden, planner_text,
                 msg=f"planner.py still references {forbidden}")
 
     def test_planner_does_not_invoke_wave1(self):
-        from raphael_bob import Planner
-        planner_text = Path("raphael_bob/planner.py").read_text(encoding="utf-8")
+        from raphael_ibm_bob import Planner
+        planner_text = Path("raphael_ibm_bob/planner.py").read_text(encoding="utf-8")
         forbidden = ["from raphael.main", "Wave1 cognitive", "wave1_loop"]
         for f in forbidden:
             self.assertNotIn(f, planner_text,
                 msg=f"planner.py references {f}")
 
     def test_replanner_remains_only_plan_B_generator(self):
-        from raphael_bob import Planner, Replanner
-        planner_text = Path("raphael_bob/planner.py").read_text(encoding="utf-8")
-        replanner_text = Path("raphael_bob/replanner.py").read_text(encoding="utf-8")
+        from raphael_ibm_bob import Planner, Replanner
+        planner_text = Path("raphael_ibm_bob/planner.py").read_text(encoding="utf-8")
+        replanner_text = Path("raphael_ibm_bob/replanner.py").read_text(encoding="utf-8")
         self.assertNotIn("plan_b", planner_text.lower())
         self.assertIn("plan_b", replanner_text.lower())
 
     def test_planner_raises_when_problem_missing(self):
-        from raphael_bob import Mission, Planner
+        from raphael_ibm_bob import Mission, Planner
         m = Mission(mission_id="M", description="x", scope="x", criteria=["x"])
         with self.assertRaises(ValueError):
             Planner().plan_a(m)
 
     def test_planner_raises_when_symptom_target_missing(self):
-        from raphael_bob import Mission, Planner
+        from raphael_ibm_bob import Mission, Planner
         m = Mission(mission_id="M", description="x", scope="x", criteria=["x"],
                    problem={"capability": "read"})
         with self.assertRaises(ValueError):

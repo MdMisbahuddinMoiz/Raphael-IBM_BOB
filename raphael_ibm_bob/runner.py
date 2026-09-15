@@ -1,4 +1,4 @@
-"""raphael_bob.runner — M5/M6/M9 Runner.
+"""raphael_ibm_bob.runner — M5/M6/M9 Runner.
 
 M5: drives the BOB control loop (Plan A -> Verifier -> Falsifier ->
     Replanner -> Plan B). Returns REFUSE unconditionally.
@@ -20,8 +20,8 @@ import threading
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-from raphael_bob.broker import BOBBroker
-from raphael_bob.contracts import (
+from raphael_ibm_bob.broker import BOBBroker
+from raphael_ibm_bob.contracts import (
     ActionRequest,
     Capability,
     EvidenceReceipt,
@@ -32,15 +32,15 @@ from raphael_bob.contracts import (
     Mission,
     Plan,
 )
-from raphael_bob.evidence_ledger import EvidenceLedger, digest_id
-from raphael_bob.falsifier import ChallengeSpec, Falsifier
-from raphael_bob.finding import FindingStore
-from raphael_bob.policy import BOBPolicy
-from raphael_bob.quality_gate import BOBQualityGate, GateEvaluation, GateInputs
-from raphael_bob.replanner import Replanner
-from raphael_bob.runtime import BOBRuntime
-from raphael_bob.planner import Planner
-from raphael_bob.verifier import RetestSpec, Verifier
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger, digest_id
+from raphael_ibm_bob.falsifier import ChallengeSpec, Falsifier
+from raphael_ibm_bob.finding import FindingStore
+from raphael_ibm_bob.policy import BOBPolicy
+from raphael_ibm_bob.quality_gate import BOBQualityGate, GateEvaluation, GateInputs
+from raphael_ibm_bob.replanner import Replanner
+from raphael_ibm_bob.runtime import BOBRuntime
+from raphael_ibm_bob.planner import Planner
+from raphael_ibm_bob.verifier import RetestSpec, Verifier
 
 
 def _canonical(payload: dict) -> str:

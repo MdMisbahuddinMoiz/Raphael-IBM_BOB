@@ -14,7 +14,7 @@ Terminal states are explicit data, never exceptions escaping:
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from raphael_ibm_bob.contracts import Mission
 from raphael_ibm_bob.finding import FindingStore
@@ -60,12 +60,32 @@ class LoopOutcome:
         }
 
 
+def _turn_summary(record: "TurnRecord") -> Dict[str, Any]:
+    """Compact observation of one governed turn for the next context."""
+    return {
+        "capability": record.request.get("capability"),
+        "target": record.request.get("target"),
+        "decision": record.decision,
+        "executed": record.executed,
+        "success": record.success,
+        "error": (record.error or "")[:300],
+    }
+
+
 def drive_turns(*, model: ModelAdapter, runtime: BOBRuntime,
                 mission: Mission,
                 store: Optional[FindingStore] = None,
                 workspace_root: str = "",
+                workspace_files: Tuple[str, ...] = (),
+                history_window: int = 5,
                 max_turns: int = 5) -> LoopOutcome:
-    """Run model turns until a terminal state (bounded by max_turns)."""
+    """Run model turns until a terminal state (bounded by max_turns).
+
+    Each turn's context carries finding states plus the recent turn
+    outcomes, so the model observes governed results (including
+    denials) and can adapt. Nothing here verifies or gates: use the
+    Verifier/Falsifier/QualityGate on the resulting evidence.
+    """
     if max_turns < 1:
         raise ValueError("max_turns must be >= 1")
     turns: List[TurnRecord] = []
@@ -74,7 +94,11 @@ def drive_turns(*, model: ModelAdapter, runtime: BOBRuntime,
         context = ModelContext(
             mission=mission, findings=findings,
             workspace_root=workspace_root,
-            evidence_count=sum(1 for _ in _iter_evidence(runtime)))
+            evidence_count=sum(1 for _ in _iter_evidence(runtime)),
+            workspace_files=tuple(workspace_files),
+            recent_turns=tuple(
+                _turn_summary(t) for t in turns[-history_window:]),
+        )
         try:
             request = model.propose(context)
         except DoneSignal:

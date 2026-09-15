@@ -11,7 +11,7 @@ presented as a working model provider.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Protocol, runtime_checkable
+from typing import Any, Dict, List, Protocol, Tuple, runtime_checkable
 
 from raphael_ibm_bob.contracts import ActionRequest, Finding, Mission
 
@@ -21,13 +21,16 @@ class ModelContext:
     """What the Harness shows the model: mission + current state.
 
     Deliberately small (same discipline as FocusedContext): the model
-    sees the mission, finding summaries with states, and workspace
-    facts — never credentials, never raw policy internals.
+    sees the mission, finding summaries with states, workspace
+    facts, a bounded file listing, and recent turn outcomes — never
+    credentials, never raw policy internals, never the full ledger.
     """
     mission: Mission
     findings: List[Finding] = field(default_factory=list)
     workspace_root: str = ""
     evidence_count: int = 0
+    workspace_files: Tuple[str, ...] = ()
+    recent_turns: Tuple[Dict[str, Any], ...] = ()
 
     def summary(self) -> Dict[str, Any]:
         return {
@@ -41,6 +44,8 @@ class ModelContext:
             ],
             "workspace_root": self.workspace_root,
             "evidence_count": self.evidence_count,
+            "workspace_files": list(self.workspace_files),
+            "recent_turns": list(self.recent_turns),
         }
 
 

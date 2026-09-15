@@ -5,6 +5,8 @@ contract and parses ONE structured proposal per call:
 
     {"intent": "act", "skill": "<skill-id>",
      "target": "<target>", "purpose": "<why>"}
+    {"intent": "act", "skill": "write-file", "target": "<path>",
+     "purpose": "<why>", "content": "<complete file text>"}
     {"intent": "done"}
 
 The proposal is validated against the T1-1 registry (skill exists,
@@ -28,7 +30,7 @@ import os
 import threading
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from raphael_ibm_bob.contracts import ActionRequest
@@ -76,6 +78,7 @@ class OpenAICompatConfig:
     api_key: str = ""
     timeout_seconds: float = 30.0
     max_tokens: int = 512
+    extra_body: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.endpoint.startswith(("http://", "https://")):
@@ -112,11 +115,24 @@ def config_from_env() -> OpenAICompatConfig:
     except ValueError:
         raise ProviderConfigError(
             "RAPHAEL_MODEL_TIMEOUT must be numeric") from None
+    extra_raw = os.environ.get("RAPHAEL_MODEL_EXTRA_BODY", "")
+    extra_body: Dict[str, Any] = {}
+    if extra_raw:
+        try:
+            parsed_extra = json.loads(extra_raw)
+        except ValueError:
+            raise ProviderConfigError(
+                "RAPHAEL_MODEL_EXTRA_BODY must be a JSON object") from None
+        if not isinstance(parsed_extra, dict):
+            raise ProviderConfigError(
+                "RAPHAEL_MODEL_EXTRA_BODY must be a JSON object")
+        extra_body = parsed_extra
     return OpenAICompatConfig(
         endpoint=endpoint.rstrip("/"),
         model=model,
         api_key=os.environ.get(API_KEY_ENV, ""),
         timeout_seconds=timeout,
+        extra_body=extra_body,
     )
 
 
@@ -155,8 +171,14 @@ _SYSTEM_PROMPT = (
     '{"intent": "act", "skill": "<skill-id from the catalog>", '
     '"target": "<concrete target>", "purpose": "<why>"} '
     'or {"intent": "done"} when the mission needs no further action. '
+    "For the write-file skill ONLY, add "
+    '"content": "<complete intended file text, max 8000 chars>; '
+    "content is forbidden for every other skill. "
     "Never invent skills, capabilities, or targets outside the catalog."
 )
+
+#: Maximum model-supplied file content accepted for WRITE proposals.
+MAX_CONTENT_CHARS = 8000
 
 
 def build_request_body(config: OpenAICompatConfig, context: ModelContext,
@@ -166,7 +188,7 @@ def build_request_body(config: OpenAICompatConfig, context: ModelContext,
         "mission": context.summary(),
         "available_skills": catalog,
     }, sort_keys=True)
-    return {
+    body = {
         "model": config.model,
         "messages": [
             {"role": "system", "content": _SYSTEM_PROMPT},
@@ -176,6 +198,12 @@ def build_request_body(config: OpenAICompatConfig, context: ModelContext,
         "max_tokens": config.max_tokens,
         "temperature": 0,
     }
+    for key, value in config.extra_body.items():
+        # Provider-specific knobs (e.g. reasoning controls) ride along
+        # without touching the governed fields above.
+        if key not in body:
+            body[key] = value
+    return body
 
 
 def parse_response_body(body: Dict[str, Any]) -> str:
@@ -212,6 +240,7 @@ def validate_proposal(data: Any,
     skill_id = data.get("skill")
     target = data.get("target")
     purpose = data.get("purpose")
+    content = data.get("content")
     if not isinstance(skill_id, str) or not skill_id:
         raise StructuredProposalError("missing skill id")
     if not isinstance(target, str) or not target:
@@ -223,12 +252,26 @@ def validate_proposal(data: Any,
     except (KeyError, ValueError) as exc:
         raise StructuredProposalError(f"invalid skill: {exc}") from None
     request = proposal.request
+    if request.capability.value == "write":
+        if not isinstance(content, str) or not content:
+            raise StructuredProposalError(
+                "WRITE proposals require content")
+        if len(content) > MAX_CONTENT_CHARS:
+            raise StructuredProposalError(
+                f"content exceeds {MAX_CONTENT_CHARS} chars")
+        # Boundary convention: WRITE carries content in purpose.
+        purpose = "content=" + content
+    elif content is not None:
+        raise StructuredProposalError(
+            "content is only allowed for WRITE proposals")
+    final_purpose = (purpose if request.capability.value == "write"
+                     else purpose[:500])
     return ActionRequest(
         sequence=request.sequence,
         requester=request.requester,
         capability=request.capability,
         target=request.target,
-        purpose=purpose[:500],
+        purpose=final_purpose,
         plan_id=request.plan_id,
         finding_id=request.finding_id,
         timeout_seconds=request.timeout_seconds,

@@ -318,5 +318,106 @@ class LivePropose(unittest.TestCase):
             self.assertNotIn("super-secret-value", str(exc))
 
 
+class WriteContentRules(unittest.TestCase):
+    def _wregistry(self):
+        from raphael_ibm_bob.skills import SkillDefinition
+        reg = _registry()
+        reg.register_skill(SkillDefinition(
+            id="write-file", name="Write file", version="1.0",
+            description="Write a file.", capability=Capability.WRITE,
+            target_schema="relative path",
+            purpose_template="write:{target}"))
+        return reg
+
+    def test_write_with_content(self):
+        req = validate_proposal(
+            {"intent": "act", "skill": "write-file",
+             "target": "src/a.txt", "purpose": "fix it",
+             "content": "OK\n"},
+            self._wregistry())
+        self.assertEqual(req.capability, Capability.WRITE)
+        self.assertTrue(req.purpose.startswith("content="))
+        self.assertIn("OK", req.purpose)
+
+    def test_write_without_content_rejected(self):
+        with self.assertRaises(StructuredProposalError):
+            validate_proposal(
+                {"intent": "act", "skill": "write-file",
+                 "target": "src/a.txt", "purpose": "fix it"},
+                self._wregistry())
+
+    def test_content_on_read_rejected(self):
+        with self.assertRaises(StructuredProposalError):
+            validate_proposal(
+                {"intent": "act", "skill": "read-file",
+                 "target": "src/a.txt", "purpose": "look",
+                 "content": "sneaky"},
+                _registry())
+
+    def test_oversize_content_rejected(self):
+        with self.assertRaises(StructuredProposalError):
+            validate_proposal(
+                {"intent": "act", "skill": "write-file",
+                 "target": "src/a.txt", "purpose": "fix it",
+                 "content": "x" * 9000},
+                self._wregistry())
+
+
+class ExtraBodyConfig(unittest.TestCase):
+    def test_extra_body_merged(self):
+        from raphael_ibm_bob.harness.model import ModelContext
+        from raphael_ibm_bob import Mission
+        config = OpenAICompatConfig(
+            endpoint="http://x", model="m",
+            extra_body={"reasoning_effort": "none"})
+        ctx = ModelContext(
+            mission=Mission(mission_id="M", description="x",
+                            scope="src/", criteria=["x"]))
+        body = build_request_body(config, ctx, [])
+        self.assertEqual(body["reasoning_effort"], "none")
+        self.assertEqual(body["model"], "m")
+        self.assertIn("messages", body)
+
+    def test_extra_body_cannot_override_core_fields(self):
+        from raphael_ibm_bob.harness.model import ModelContext
+        from raphael_ibm_bob import Mission
+        config = OpenAICompatConfig(
+            endpoint="http://x", model="m",
+            extra_body={"model": "evil",
+                        "reasoning_effort": "none"})
+        ctx = ModelContext(
+            mission=Mission(mission_id="M", description="x",
+                            scope="src/", criteria=["x"]))
+        body = build_request_body(config, ctx, [])
+        self.assertEqual(body["model"], "m")
+        self.assertEqual(body["reasoning_effort"], "none")
+
+    def test_extra_body_from_env(self):
+        from unittest.mock import patch
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            config_from_env,
+        )
+        env = {"RAPHAEL_MODEL_ENDPOINT": "http://x/v1",
+               "RAPHAEL_MODEL_NAME": "m",
+               "RAPHAEL_MODEL_EXTRA_BODY":
+                   '{"reasoning_effort": "none"}'}
+        with patch.dict("os.environ", env, clear=True):
+            config = config_from_env()
+        self.assertEqual(config.extra_body,
+                         {"reasoning_effort": "none"})
+
+    def test_extra_body_bad_json_rejected(self):
+        from unittest.mock import patch
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            config_from_env,
+        )
+        env = {"RAPHAEL_MODEL_ENDPOINT": "http://x/v1",
+               "RAPHAEL_MODEL_NAME": "m",
+               "RAPHAEL_MODEL_EXTRA_BODY": "not-json"}
+        with patch.dict("os.environ", env, clear=True):
+            with self.assertRaises(ProviderConfigError):
+                config_from_env()
+
+
 if __name__ == "__main__":
     unittest.main()

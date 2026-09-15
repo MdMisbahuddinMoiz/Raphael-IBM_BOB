@@ -76,10 +76,16 @@ network function. The core never imports this package
 | GET  | `/roles` | `list_roles()` |
 | GET  | `/skills` | `list_skills()` |
 | GET  | `/capabilities` | `list_capabilities()` |
+| GET  | `/operations/{run_id}/decision-trace` | `get_run/events/evidence/gate/tasks/seal` (HTML) |
 
 Read = sessions/runs/events/evidence/artifacts/gate/seal/tasks/
 workspace/discovery. Write/control = create session, submit mission,
 start run, model run, cancel. There are **no execution endpoints**.
+
+`GET /operations/{run_id}/decision-trace` is the M15.3 read-only
+operator screen: it renders the observable decision/evidence chain as
+HTML from the same `harness.api` data. It is presentation only — see
+`docs/decision-trace.md`.
 
 ## 3. Request / response examples
 

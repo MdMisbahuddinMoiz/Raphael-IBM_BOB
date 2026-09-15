@@ -108,9 +108,18 @@ class Request:
 class Response:
     status: int
     body: Any
+    content_type: str = "application/json"
 
     def to_json(self) -> bytes:
         return (json.dumps(self.body, sort_keys=True) + "\n").encode("utf-8")
+
+    def to_bytes(self) -> bytes:
+        """Serialise the body for the wire (JSON by default, HTML opt-in)."""
+        if self.content_type.startswith("application/json"):
+            return self.to_json()
+        if isinstance(self.body, bytes):
+            return self.body
+        return str(self.body).encode("utf-8")
 
 
 Handler = Callable[[Request, Dict[str, str], RaphaelHTTPConfig],
@@ -297,6 +306,7 @@ def build_router() -> Router:
     from raphael_ibm_bob.http.routes import (
         discovery,
         health,
+        operations,
         runs,
         sessions,
         tasks,
@@ -330,6 +340,11 @@ def build_router() -> Router:
     router.add("GET", "/roles", discovery.list_roles)
     router.add("GET", "/skills", discovery.list_skills)
     router.add("GET", "/capabilities", discovery.list_capabilities)
+
+    # M15.3 — read-only operator screen. Renders observable, persisted
+    # decision/evidence data from harness.api. Presentation only.
+    router.add("GET", "/operations/{run_id}/decision-trace",
+               operations.decision_trace)
     return router
 
 
@@ -387,9 +402,9 @@ class HarnessRequestHandler(BaseHTTPRequestHandler):
     do_POST = _handle
 
     def _write(self, response: Response) -> None:
-        payload = response.to_json()
+        payload = response.to_bytes()
         self.send_response(response.status)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", response.content_type)
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()

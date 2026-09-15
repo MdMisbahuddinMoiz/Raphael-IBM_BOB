@@ -73,6 +73,15 @@ design artifact; the implemented screen is authoritative.
   by a GET.
 - A missing run returns `404 RUN_NOT_FOUND`.
 
+## Live updates (M15.4)
+
+The Decision Trace page is now **live**: it subscribes to
+`GET /runs/{run_id}/events/stream` (SSE over the existing event
+projection) and updates the pipeline, gate panel, and evidence counts in
+place — no full-page refresh. It shares a single client renderer with
+the live Operations Console (`docs/http-api.md` §2b/2c). The page still
+renders correctly without JavaScript (server-rendered snapshot).
+
 ## Limitations
 
 - Presentation only — no live push/streaming (no WebSocket/SSE).

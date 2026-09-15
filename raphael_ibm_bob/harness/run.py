@@ -157,6 +157,10 @@ def start_run(session: RaphaelSession, mission: Mission,
         ledger_dir=str(run_dir),
     )
     session.add_run(run_id)
+    # Persist the run record immediately (state="running") so an active
+    # run is observable while it executes (live operator streaming). The
+    # final save below overwrites it with the terminal record.
+    save_run(run)
     workspace = Workspace(workspace_root)
     ledger = EvidenceLedger(run_dir)
     try:

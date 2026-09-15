@@ -16,11 +16,13 @@ cannot execute, authorize, or persist anything.
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from html import escape
 from typing import Any, Dict, List, Optional, Tuple
 
 from raphael_ibm_bob.harness import api
+from raphael_ibm_bob.http.views import event_stream as _event_stream
 
 _CAP_READ = ("read", "list", "search")
 
@@ -644,7 +646,8 @@ def _pipeline_html(d: Dict[str, Any]) -> str:
         mark = {"complete": "✓", "active": "●", "refused": "✕",
                 "pending": "○", "attention": "!"}.get(status, "○")
         parts.append(
-            f'<div class="phase {status}"><span class="pmark">{mark}</span>'
+            f'<div class="phase {status}" data-phase="{_e(label)}">'
+            f'<span class="pmark">{mark}</span>'
             f'<span class="plabel">{_e(label)}</span></div>')
     return f'<section class="pipeline" aria-label="Operation pipeline">{"".join(parts)}</section>'
 
@@ -699,6 +702,13 @@ def _gate_panel(d: Dict[str, Any]) -> str:
 # render
 # ---------------------------------------------------------------------------
 
+def _live_config(data: Dict[str, Any]) -> str:
+    skill_role = {s.id: (s.role or "") for s in data["skills"].values()}
+    return json.dumps({"runId": data["run_id"], "skillRole": skill_role,
+                       "terminal": data["run"].is_terminal()},
+                      sort_keys=True)
+
+
 def render_decision_trace(run_id: str, *, runs_root, sessions_root) -> str:
     """Return the full HTML page for a run's Decision Trace."""
     data = collect(run_id, runs_root=runs_root,
@@ -736,7 +746,9 @@ def render_decision_trace(run_id: str, *, runs_root, sessions_root) -> str:
         '</main>'
         '<footer class="policystrip mono">'
         'POLICY: FAIL-CLOSED · MODE: GOVERNED · GATE: QUALITY</footer>'
+        f'<script>window.RAPHAEL={_live_config(data)};</script>'
         f'<script>{_JS}</script>'
+        f'<script>{_event_stream.LIVE_JS}</script>'
         '</body></html>')
 
 

@@ -72,11 +72,16 @@ network function. The core never imports this package
 | GET  | `/runs/{run_id}/seal` | `get_seal()` |
 | GET  | `/runs/{run_id}/tasks` | `get_tasks()` |
 | GET  | `/runs/{run_id}/tasks/{task_id}` | `get_tasks()` |
+| GET  | `/runs/{run_id}/events/stream` | `get_events()` (SSE) |
 | GET  | `/workspaces/{workspace_id}` | `describe_workspace()` |
 | GET  | `/roles` | `list_roles()` |
 | GET  | `/skills` | `list_skills()` |
 | GET  | `/capabilities` | `list_capabilities()` |
+| GET  | `/operations` | `get_runs()` (HTML index + start form) |
+| GET  | `/operations/{run_id}` | `get_run/events/evidence/gate/tasks/seal` (live HTML) |
 | GET  | `/operations/{run_id}/decision-trace` | `get_run/events/evidence/gate/tasks/seal` (HTML) |
+| POST | `/operations/start` | `start_run()` / `start_model_run()` |
+| POST | `/operations/{run_id}/cancel` | `cancel_run()` |
 
 Read = sessions/runs/events/evidence/artifacts/gate/seal/tasks/
 workspace/discovery. Write/control = create session, submit mission,
@@ -86,6 +91,80 @@ start run, model run, cancel. There are **no execution endpoints**.
 operator screen: it renders the observable decision/evidence chain as
 HTML from the same `harness.api` data. It is presentation only — see
 `docs/decision-trace.md`.
+
+## 2b. Live event stream (SSE) — M15.4
+
+```
+GET /runs/{run_id}/events/stream          text/event-stream
+```
+
+Server-Sent Events over the **existing** event projection
+(`harness.events.collect_events`). There is no second event store: each
+frame is the same ledger fold the JSON API returns, polled at a bounded
+interval (default 250 ms) and emitted as it appears.
+
+Envelope (one JSON object per `data:` line):
+
+```
+event: RAPHAEL_EVENT
+id: 42
+data: {"sequence":42,"type":"POLICY_DECISION","run_id":"…",
+       "timestamp":"2026-09-15T19:08:51.204+00:00","payload":{…}}
+```
+
+- `id` is the position in the deterministic projection — a **cursor**,
+  not a new ID authority. Ordering is stable and increasing.
+- `payload` is the rest of the projected event (capability, target,
+  decision, requester, …). Only existing event types are emitted.
+- `timestamp` comes from the persisted ledger record (`ts`); synthetic
+  events have `null`.
+
+**Replay / resume.** Reconnect with `Last-Event-ID: <id>` (browsers send
+this automatically) or `?after=<id>`; the stream resumes at the next
+event. Already-seen events are not silently re-sent or lost.
+
+**Lifecycle.** `retry: 3000` is sent first; `: ping` heartbeats every
+~10 s; when the run is terminal the remaining events are sent and then
+`event: stream_end` closes the stream. The stream is bounded by
+`max_seconds` (default 300) → `stream_end` with state `stream-timeout`.
+A client disconnect stops the pump immediately (no leaked work).
+
+## 2c. Operator controls — M15.4
+
+The UI may **orchestrate** through the Harness API; it may not bypass it.
+
+- `GET /operations` — run list + **New Operation** form. The form POSTs
+  to `/operations/start`, which calls `api.start_run` /
+  `api.start_model_run` (existing API; no second Runner, ModelAdapter,
+  or model loop) and redirects to the console. **HTTP start is
+  synchronous** — a model run completes before the response. For live
+  observation of an in-flight run, start out-of-band (CLI/demo); the
+  live console streams whichever run is active.
+- `POST /operations/{run_id}/cancel` — cooperative `api.cancel_run`.
+  Honest semantics: pending → cancelled; running synchronous →
+  cannot be force-killed (button disabled, timeout remains the bound);
+  terminal → unchanged (cannot be silently restarted).
+- Operator context updates (mission clarification/messages) are
+  **deferred** — the Harness has no such API, and the UI does not fake
+  one.
+
+The live console (`GET /operations/{run_id}`) and the Decision Trace
+page both subscribe to the SSE stream and update the pipeline,
+specialists, operation stream, IBM BOB control plane, and Quality Gate
+in place (one shared client renderer; no full-page refresh). The gate
+shows `IN-PROGRESS` until an authoritative `GATE_EVALUATED` event
+arrives; `COMPLETE` is never manufactured client-side.
+
+**Security boundary.** SSE honours the existing API-key auth
+(`X-API-Key` / `Authorization: Bearer`). Authenticated browser
+`EventSource` cannot set headers — when auth is enabled, use a client
+that can (or keep the server loopback-only). No secret, credential, or
+hidden model reasoning is ever emitted.
+
+**Active-run observability.** The Harness now persists the run record
+(`harness.json`, state `running`) at run start, so an in-flight run is
+inspectable and streamable before it terminates; the terminal save
+overwrites it.
 
 ## 3. Request / response examples
 

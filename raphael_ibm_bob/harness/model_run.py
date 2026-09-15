@@ -236,6 +236,9 @@ def run_model_mission(session: RaphaelSession, mission: Mission,
         ledger_dir=str(run_dir),
     )
     session.add_run(run_id)
+    # Persist the run record immediately (state="running") so an active
+    # model run is observable while it executes (live operator streaming).
+    save_run(run)
 
     workspace = Workspace(workspace_root)
     ledger = EvidenceLedger(run_dir)

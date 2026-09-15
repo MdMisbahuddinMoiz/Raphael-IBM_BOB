@@ -122,6 +122,20 @@ class Response:
         return str(self.body).encode("utf-8")
 
 
+@dataclass
+class StreamResponse:
+    """A long-lived streaming response (e.g. Server-Sent Events).
+
+    `stream` is a callable that receives a `write(bytes)` sink and
+    pumps frames until done or the client disconnects. It never touches
+    the harness: the route builds it from a generator over the existing
+    event projection.
+    """
+    stream: Callable[[Callable[[bytes], None]], None]
+    status: int = 200
+    content_type: str = "text/event-stream; charset=utf-8"
+
+
 Handler = Callable[[Request, Dict[str, str], RaphaelHTTPConfig],
                    Response]
 
@@ -257,7 +271,7 @@ def dispatch(request: Request, config: RaphaelHTTPConfig,
 
 
 def _dispatch(request: Request, config: RaphaelHTTPConfig,
-              router: Optional[Router]) -> Response:
+              router: Optional[Router]):
     router = router or build_router()
     if _auth_required(config, request.path) and \
             not _authorized(request, config):
@@ -274,7 +288,7 @@ def _dispatch(request: Request, config: RaphaelHTTPConfig,
         raise ApiError(404, errors.NOT_FOUND, str(exc)) from None
     except (ValueError, TypeError) as exc:
         raise errors.invalid_input(str(exc)) from None
-    if isinstance(response, Response):
+    if isinstance(response, (Response, StreamResponse)):
         return response
     if (isinstance(response, tuple) and len(response) == 2
             and isinstance(response[0], int)):
@@ -345,6 +359,15 @@ def build_router() -> Router:
     # decision/evidence data from harness.api. Presentation only.
     router.add("GET", "/operations/{run_id}/decision-trace",
                operations.decision_trace)
+
+    # M15.4 — live operator console + controls (orchestration only).
+    router.add("GET", "/operations", operations.list_operations)
+    router.add("GET", "/operations/{run_id}", operations.console)
+    router.add("POST", "/operations/start", operations.start_operation)
+    router.add("POST", "/operations/{run_id}/cancel",
+               operations.cancel_operation)
+    router.add("GET", "/runs/{run_id}/events/stream",
+               operations.events_stream)
     return router
 
 
@@ -372,12 +395,18 @@ class HarnessRequestHandler(BaseHTTPRequestHandler):
             raise ApiError(413, errors.PAYLOAD_TOO_LARGE,
                            "request body too large")
         raw = self.rfile.read(length) if length else b""
+        content_type = (self.headers.get("Content-Type") or "").lower()
         body: Any = None
         if raw:
-            try:
-                body = json.loads(raw.decode("utf-8"))
-            except (UnicodeDecodeError, ValueError):
-                raise errors.bad_request("malformed JSON body")
+            if content_type.startswith(
+                    "application/x-www-form-urlencoded"):
+                parsed = _parse_query(raw.decode("utf-8", "replace"))
+                body = {k: v[-1] for k, v in parsed.items()}
+            else:
+                try:
+                    body = json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, ValueError):
+                    raise errors.bad_request("malformed JSON body")
         headers = {k.lower(): v for k, v in self.headers.items()}
         return Request(
             method=self.command,
@@ -396,10 +425,31 @@ class HarnessRequestHandler(BaseHTTPRequestHandler):
         except Exception:  # never leak a stack trace to a client
             response = error_response(ApiError(
                 500, errors.INTERNAL_ERROR, "internal server error"))
+        if isinstance(response, StreamResponse):
+            self._stream(response)
+            return
         self._write(response)
 
     do_GET = _handle
     do_POST = _handle
+
+    def _stream(self, response: StreamResponse) -> None:
+        """Pump a streaming response; stop cleanly on client disconnect."""
+        self.send_response(response.status)
+        self.send_header("Content-Type", response.content_type)
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+
+        def write(chunk: bytes) -> None:
+            self.wfile.write(chunk)
+            self.wfile.flush()
+
+        try:
+            response.stream(write)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
 
     def _write(self, response: Response) -> None:
         payload = response.to_bytes()

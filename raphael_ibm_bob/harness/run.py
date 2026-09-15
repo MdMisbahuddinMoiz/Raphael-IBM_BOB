@@ -35,6 +35,10 @@ from raphael_ibm_bob.workspace import Workspace
 RUN_STATES = ("pending", "running", "completed", "refused", "failed",
               "cancelled")
 
+#: `pending` is the Harness's "CREATED" state (run dir allocated, not
+#: yet executing). A run is terminal once it leaves {pending, running}.
+TERMINAL_STATES = ("completed", "refused", "failed", "cancelled")
+
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -64,6 +68,10 @@ class RaphaelRun:
         self.state = "cancelled"
         self.finished_at = _utcnow()
         return True
+
+    def is_terminal(self) -> bool:
+        """True once the run has reached a terminal state."""
+        return self.state in TERMINAL_STATES
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
@@ -108,6 +116,21 @@ def load_run(ledger_dir: Path) -> RaphaelRun:
         _harness_path(ledger_dir).read_text(encoding="utf-8")))
 
 
+def find_run_dir(runs_root: Path, run_id: str) -> Path:
+    """Resolve a run directory by id under runs_root.
+
+    Raises FileNotFoundError when the directory or its Harness record
+    is absent — explicit rather than a silent empty result.
+    """
+    run_dir = Path(runs_root) / run_id
+    if not run_dir.is_dir():
+        raise FileNotFoundError(f"run directory not found: {run_dir}")
+    if not _harness_path(run_dir).is_file():
+        raise FileNotFoundError(
+            f"run has no Harness record: {_harness_path(run_dir)}")
+    return run_dir
+
+
 def start_run(session: RaphaelSession, mission: Mission,
               workspace_root: Path, *, runs_root: Path,
               sessions_root: Optional[Path] = None,
@@ -133,6 +156,7 @@ def start_run(session: RaphaelSession, mission: Mission,
         state="running",
         ledger_dir=str(run_dir),
     )
+    session.add_run(run_id)
     workspace = Workspace(workspace_root)
     ledger = EvidenceLedger(run_dir)
     try:
@@ -170,10 +194,11 @@ def start_run(session: RaphaelSession, mission: Mission,
         run.finished_at = _utcnow()
         save_run(run)
         ledger.close()
+        if sessions_root is not None:
+            save_session(session, sessions_root)
         raise
     save_run(run)
     ledger.close()
-    session.current_run_id = run_id
     if sessions_root is not None:
         save_session(session, sessions_root)
     return run
@@ -181,7 +206,9 @@ def start_run(session: RaphaelSession, mission: Mission,
 
 __all__ = [
     "RUN_STATES",
+    "TERMINAL_STATES",
     "RaphaelRun",
+    "find_run_dir",
     "load_run",
     "save_run",
     "start_run",

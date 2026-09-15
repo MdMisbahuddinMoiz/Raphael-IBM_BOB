@@ -1,10 +1,11 @@
-"""raphael_ibm_bob.harness.cli — smallest usable Harness CLI.
+"""raphael_ibm_bob.harness.cli — Harness CLI.
 
 Session/mission intake, governed run delegation, and post-process
-inspection. Every run goes through `harness.run.start_run` (hence the
-existing Runner); inspection reads from disk. The opening probe may
-come from a scripted proposal or, with --model-provider, a real
-provider adapter (env-configured; missing config fails loudly).
+inspection. Commands call the public Harness API (`harness.api`); the
+API delegates to the existing Runner / core. Inspection reads from
+disk. The opening probe may come from a scripted proposal, a single
+live provider proposal, or a multi-turn live model run
+(`--model-turns`).
 """
 from __future__ import annotations
 
@@ -20,16 +21,11 @@ from raphael_ibm_bob.contracts import (
     Mission,
 )
 from raphael_ibm_bob.evidence_ledger import LedgerReader
+from raphael_ibm_bob.harness import api
 from raphael_ibm_bob.harness.events import collect_events
 from raphael_ibm_bob.harness.model import ScriptedModelAdapter
 from raphael_ibm_bob.harness.providers import ProviderConfigError
-from raphael_ibm_bob.harness.run import load_run, start_run
-from raphael_ibm_bob.harness.session import (
-    RaphaelSession,
-    WorkspaceContext,
-    load_session,
-    save_session,
-)
+from raphael_ibm_bob.harness.run import find_run_dir, load_run
 
 
 def _mission_from_args(args) -> Mission:
@@ -59,35 +55,48 @@ def _add_mission_flags(parser) -> None:
 
 def cmd_session_create(args) -> int:
     mission = _mission_from_args(args) if args.with_mission else None
-    workspace = WorkspaceContext(
-        workspace_root=str(Path(args.workspace).resolve()),
-        project_name=args.project)
-    session = RaphaelSession.create(
-        mission=mission, workspace=workspace, model=args.model)
-    path = save_session(session, args.sessions_root)
+    session = api.create_session(
+        mission=mission,
+        workspace_root=Path(args.workspace),
+        project_name=args.project,
+        model=args.model,
+        provider=args.provider,
+        sessions_root=args.sessions_root)
     print(f"session: {session.session_id}")
-    print(f"saved: {path}")
+    print(f"saved: {Path(args.sessions_root) / session.session_id / 'session.json'}")
     return 0
 
 
 def cmd_session_show(args) -> int:
-    session = load_session(args.session_id, args.sessions_root)
+    session = api.get_session(args.session_id, args.sessions_root)
     print(json.dumps(session.to_dict(), indent=2, sort_keys=True))
     return 0
 
 
-def cmd_mission_submit(args) -> int:
-    session = load_session(args.session_id, args.sessions_root)
-    session.mission = _mission_from_args(args)
-    path = save_session(session, args.sessions_root)
-    print(f"mission {session.mission.mission_id} stored for "
-          f"session {session.session_id}")
-    print(f"saved: {path}")
+def cmd_session_list(args) -> int:
+    for session_id in api.get_sessions(args.sessions_root):
+        print(session_id)
     return 0
 
 
+def cmd_mission_submit(args) -> int:
+    session = api.submit_mission(
+        args.session_id, _mission_from_args(args), args.sessions_root)
+    print(f"mission {session.mission.mission_id} stored for "
+          f"session {session.session_id}")
+    return 0
+
+
+def _build_provider(args):
+    try:
+        return api.make_model_adapter(args.model_provider)
+    except ProviderConfigError as exc:
+        print(f"error: model provider unusable: {exc}", file=sys.stderr)
+        return None
+
+
 def cmd_run_start(args) -> int:
-    session = load_session(args.session_id, args.sessions_root)
+    session = api.get_session(args.session_id, args.sessions_root)
     if session.mission is None:
         print("error: session has no mission; use mission submit first",
               file=sys.stderr)
@@ -95,6 +104,7 @@ def cmd_run_start(args) -> int:
     if session.workspace is None:
         print("error: session has no workspace", file=sys.stderr)
         return 2
+
     model = None
     if args.probe_target:
         proposal = ActionRequest(
@@ -104,31 +114,32 @@ def cmd_run_start(args) -> int:
         model = ScriptedModelAdapter(
             {session.mission.mission_id: proposal})
     elif args.model_provider != "none":
-        from raphael_ibm_bob.harness.providers import provider_from_env
-        from raphael_ibm_bob.skills import (
-            default_registry,
-            register_default_skills,
-        )
-        try:
-            model = provider_from_env(
-                args.model_provider,
-                register_default_skills(default_registry()))
-        except ProviderConfigError as exc:
-            print(f"error: model provider unusable: {exc}",
-                  file=sys.stderr)
+        model = _build_provider(args)
+        if model is None:
             return 2
+
     verification = [t for t in (args.verification_tests or "").split(",")
                     if t]
-    run = start_run(
-        session, session.mission,
-        Path(session.workspace.workspace_root),
-        runs_root=args.runs_root,
-        sessions_root=args.sessions_root,
-        model=model,
-        candidate_target=args.candidate_target,
-        max_replans=args.max_replans,
-        verification_tests=tuple(verification),
-    )
+    if args.model_turns > 0:
+        if model is None:
+            print("error: --model-turns requires --model-provider",
+                  file=sys.stderr)
+            return 2
+        result = api.start_model_run(
+            session, model=model, max_turns=args.model_turns,
+            sessions_root=args.sessions_root, runs_root=args.runs_root)
+        run = result.run
+        print(f"terminal: {result.terminal} turns: {result.turns}")
+    else:
+        run = api.start_run(
+            session,
+            model=model,
+            sessions_root=args.sessions_root,
+            runs_root=args.runs_root,
+            candidate_target=args.candidate_target,
+            max_replans=args.max_replans,
+            verification_tests=tuple(verification),
+        )
     print(f"run: {run.run_id}")
     print(f"state: {run.state}")
     print(f"gate: {run.gate_verdict}")
@@ -136,23 +147,34 @@ def cmd_run_start(args) -> int:
     return 0
 
 
-def _resolve_run(args) -> Path:
-    return Path(args.run)
+def cmd_run_cancel(args) -> int:
+    run = api.cancel_run(args.run, args.runs_root)
+    print(f"run: {run.run_id}")
+    print(f"state: {run.state}")
+    print(f"cancelled: {run.state == 'cancelled'}")
+    return 0
+
+
+def _run_dir_from_arg(args) -> Path:
+    candidate = Path(args.run)
+    if candidate.is_dir():
+        return candidate
+    return find_run_dir(Path(args.runs_root), args.run)
 
 
 def cmd_run_show(args) -> int:
-    run = load_run(_resolve_run(args))
+    run = load_run(_run_dir_from_arg(args))
     print(json.dumps(run.to_dict(), indent=2, sort_keys=True))
     return 0
 
 
 def cmd_run_events(args) -> int:
-    run_dir = _resolve_run(args)
+    run_dir = _run_dir_from_arg(args)
     records = list(LedgerReader(run_dir / "evidence.jsonl").records())
     run = load_run(run_dir)
     for event in collect_events(
             records, session_id=run.session_id, run_id=run.run_id,
-            mission_id=run.mission.mission_id):
+            mission_id=run.mission.mission_id, terminal=run.state):
         detail = {k: v for k, v in event.items()
                   if k not in ("seq", "type")}
         print(f"{event['seq']:4d} {event['type']:22s} {detail}")
@@ -160,7 +182,7 @@ def cmd_run_events(args) -> int:
 
 
 def cmd_run_evidence(args) -> int:
-    run_dir = _resolve_run(args)
+    run_dir = _run_dir_from_arg(args)
     records = list(LedgerReader(run_dir / "evidence.jsonl").records())
     kinds: dict = {}
     for rec in records:
@@ -176,7 +198,7 @@ def cmd_run_evidence(args) -> int:
 
 
 def cmd_run_artifacts(args) -> int:
-    artifacts = _resolve_run(args) / "artifacts"
+    artifacts = _run_dir_from_arg(args) / "artifacts"
     if not artifacts.is_dir():
         print(f"error: no artifacts dir: {artifacts}", file=sys.stderr)
         return 2
@@ -188,17 +210,17 @@ def cmd_run_artifacts(args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="harness",
-        description="Thin RAPHAEL Harness CLI (wraps the existing "
-                    "Runner; never reimplements it).")
+        description="RAPHAEL Harness CLI (wraps the existing Runner "
+                    "and core; never reimplements them).")
     parser.add_argument("--sessions-root", default="sessions")
     parser.add_argument("--runs-root", default="runs")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_create = sub.add_parser("session-create",
-                              help="create a session")
+    p_create = sub.add_parser("session-create", help="create a session")
     p_create.add_argument("--workspace", default=".")
     p_create.add_argument("--project", default="raphael")
     p_create.add_argument("--model", default="unconfigured")
+    p_create.add_argument("--provider", default="none")
     p_create.add_argument("--with-mission", action="store_true")
     _add_mission_flags(p_create)
     p_create.set_defaults(func=cmd_session_create)
@@ -206,6 +228,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_show = sub.add_parser("session-show", help="print a session")
     p_show.add_argument("session_id")
     p_show.set_defaults(func=cmd_session_show)
+
+    p_list = sub.add_parser("session-list", help="list sessions")
+    p_list.set_defaults(func=cmd_session_list)
 
     p_submit = sub.add_parser("mission-submit",
                               help="attach a mission to a session")
@@ -220,10 +245,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("--verification-tests", default="")
     p_start.add_argument("--probe-target", default="")
     p_start.add_argument("--model-provider", default="none",
-                         help="live model provider for the opening "
-                              "proposal (env-configured); "
+                         help="live model provider (env-configured); "
                               "'none' disables it")
+    p_start.add_argument("--model-turns", type=int, default=0,
+                         help="drive a multi-turn model-led run "
+                              "(requires --model-provider)")
     p_start.set_defaults(func=cmd_run_start)
+
+    p_cancel = sub.add_parser("run-cancel",
+                              help="cooperatively cancel a pending run")
+    p_cancel.add_argument("run", help="run id or run directory")
+    p_cancel.set_defaults(func=cmd_run_cancel)
 
     for name, func, help_text in (
             ("run-show", cmd_run_show, "print a run record"),
@@ -231,7 +263,7 @@ def build_parser() -> argparse.ArgumentParser:
             ("run-evidence", cmd_run_evidence, "summarize ledger"),
             ("run-artifacts", cmd_run_artifacts, "list artifacts")):
         p = sub.add_parser(name, help=help_text)
-        p.add_argument("run", help="run ledger directory")
+        p.add_argument("run", help="run id or run directory")
         p.set_defaults(func=func)
     return parser
 

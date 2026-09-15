@@ -25,10 +25,22 @@ clearly-labeled scripted test double; no provider is fabricated.
 from raphael_ibm_bob.harness.session import (
     RaphaelSession,
     WorkspaceContext,
+    list_sessions,
     load_session,
     save_session,
 )
-from raphael_ibm_bob.harness.run import RaphaelRun, start_run
+from raphael_ibm_bob.harness.run import (
+    RUN_STATES,
+    TERMINAL_STATES,
+    RaphaelRun,
+    find_run_dir,
+    start_run,
+)
+from raphael_ibm_bob.harness.model_run import (
+    ModelRunResult,
+    passing_run_tests,
+    run_model_mission,
+)
 from raphael_ibm_bob.harness.loop import (
     LoopOutcome,
     TurnRecord,
@@ -44,14 +56,22 @@ from raphael_ibm_bob.harness.events import (
     EVENT_TYPES,
     collect_events,
 )
+from raphael_ibm_bob.harness import api
 
 __all__ = [
     "RaphaelSession",
     "WorkspaceContext",
     "load_session",
     "save_session",
+    "list_sessions",
     "RaphaelRun",
+    "RUN_STATES",
+    "TERMINAL_STATES",
+    "find_run_dir",
     "start_run",
+    "ModelRunResult",
+    "passing_run_tests",
+    "run_model_mission",
     "LoopOutcome",
     "TurnRecord",
     "drive_turns",
@@ -61,4 +81,5 @@ __all__ = [
     "ScriptedModelAdapter",
     "EVENT_TYPES",
     "collect_events",
+    "api",
 ]

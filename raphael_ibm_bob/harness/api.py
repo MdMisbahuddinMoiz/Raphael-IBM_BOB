@@ -17,6 +17,7 @@ Conceptual boundary:
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -244,6 +245,59 @@ def get_seal(run_id: str,
     return verify_seal(_run_dir(run_id, runs_root))
 
 
+def get_tasks(run_id: str,
+              runs_root: Path = DEFAULT_RUNS_ROOT) -> Dict[str, Any]:
+    """Read a run's task decomposition (read-only).
+
+    Prefers the persisted `tasks.json` written by a model-led run;
+    otherwise derives the deterministic decomposition from the run's
+    mission. Descriptive orchestration metadata only — never execution,
+    and never a completion authority.
+    """
+    run_dir = _run_dir(run_id, runs_root)
+    tasks_path = run_dir / "tasks.json"
+    if tasks_path.is_file():
+        return json.loads(tasks_path.read_text(encoding="utf-8"))
+    from raphael_ibm_bob.specialization import decompose_mission
+    return decompose_mission(load_run(run_dir).mission).to_dict()
+
+
+# -----------------------------------------------------------------------------
+# Discovery (M14 read-only catalog; declarations grant no authority)
+# -----------------------------------------------------------------------------
+
+def _skill_registry():
+    """The authoritative CapabilityRegistry (single source of truth)."""
+    from raphael_ibm_bob.skills import (
+        default_registry,
+        register_default_skills,
+    )
+    return register_default_skills(default_registry())
+
+
+def list_roles() -> List[Any]:
+    """Declared specialist roles (read-only)."""
+    return _skill_registry().list_roles()
+
+
+def list_capabilities(role: Optional[str] = None) -> List[Any]:
+    """Declared capability definitions, optionally filtered by role."""
+    registry = _skill_registry()
+    definitions = registry.list_capabilities()
+    if role is None:
+        return definitions
+    allowed = set(registry.list_capabilities_for_role(role))
+    return [d for d in definitions if d.capability in allowed]
+
+
+def list_skills(*, role: Optional[str] = None, capability: Optional[Any] = None,
+                evidence_available: Tuple[str, ...] = ()) -> List[Any]:
+    """Read-only role/capability/evidence-aware skill discovery."""
+    return _skill_registry().discover_skills(
+        role=role, capability=capability,
+        evidence_available=tuple(evidence_available))
+
+
 # -----------------------------------------------------------------------------
 # Workspace view
 # -----------------------------------------------------------------------------
@@ -294,6 +348,10 @@ __all__ = [
     "get_seal",
     "get_session",
     "get_sessions",
+    "get_tasks",
+    "list_capabilities",
+    "list_roles",
+    "list_skills",
     "make_model_adapter",
     "start_model_run",
     "start_run",

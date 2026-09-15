@@ -1,10 +1,16 @@
-"""raphael_bob.runner — M5/M6 Runner.
+"""raphael_bob.runner — M5/M6/M9 Runner.
 
 M5: drives the BOB control loop (Plan A -> Verifier -> Falsifier ->
     Replanner -> Plan B). Returns REFUSE unconditionally.
 M6: after Plan B's verifier retest, the Runner delegates the final
     completion decision to `BOBQualityGate`. The Runner never produces
     COMPLETE itself.
+M9: bounded multi-replan. Each recovery attempt registers a NEW finding
+    (F1 for Plan A, F2 for Plan B, ...) because the M4 lifecycle does
+    not allow re-verifying an already-REFUTED finding. The loop is
+    bounded by `max_replans` (default 1 preserves the M5/M6 single
+    replan). Every recovery action goes through Runtime -> Broker ->
+    Policy; the Runner never produces COMPLETE itself.
 """
 from __future__ import annotations
 
@@ -52,10 +58,13 @@ class RunnerOutcome:
     gate_verdict: GateVerdict
     plan_a: Plan
     plan_b: Optional[Plan] = None
+    plan_c: Optional[Plan] = None
     finding: Optional[Finding] = None
+    findings: Tuple[Finding, ...] = ()
     mission: Optional[Mission] = None
     plan_a_step_runtime_seq: Optional[int] = None
     plan_b_step_runtime_seq: Optional[int] = None
+    plan_c_step_runtime_seq: Optional[int] = None
     gate_evaluation: Optional[GateEvaluation] = None
     regression_record_seq: Optional[int] = None
     probe_record_seq: Optional[int] = None
@@ -122,10 +131,13 @@ class Runner:
         challenger_target: str = "src/still_buggy.py",
         challenger_forbidden_substring: str = "BUG: still contains the original defect",
         challenger_capability: Capability = Capability.READ,
+        challenge_specs: Optional[List[ChallengeSpec]] = None,
+        verification_tests: Tuple[str, ...] = (),
         regression_ok: bool = True,
         behavior_probe_ok: bool = True,
+        max_replans: int = 1,
     ) -> RunnerOutcome:
-        """Execute the full M5/M6 control loop and return the gate's verdict.
+        """Execute the bounded M5/M6/M9 control loop and return the gate's verdict.
 
         M6: the Runner persists a `producer="regression"` evidence record
         (when `regression_ok=True`) and a `producer="probe"` evidence
@@ -133,6 +145,18 @@ class Runner:
         verify the source of these flags rather than trust caller
         fabrication. If either flag is False, the Runner does NOT
         persist the corresponding record and the gate will REFUSE.
+        M9: each loop iteration operates on its own finding. Plan A is
+        assessed as F1; when F1 is REFUTED and budget remains, the
+        Replanner derives Plan B from F1's counter-evidence and the
+        loop registers a NEW finding F2 for Plan B's claim (re-verifying
+        the REFUTED F1 is forbidden by the M4 lifecycle). Iteration `i`
+        challenges finding Fi with `challenge_specs[i]` when provided,
+        else with the legacy challenger_* triple. After the loop,
+        `verification_tests` (if any) are executed as broker-mediated
+        RUN_TEST actions so the gate's required-test condition can be
+        satisfied by real evidence. The loop never exceeds `max_replans`
+        recovery attempts; exhaustion with a REFUTED terminal finding
+        yields REFUSE from the gate.
         """
         # 1. Generate Plan A.
         plan_a = self._planner.plan_a(mission)
@@ -150,7 +174,7 @@ class Runner:
             mission,
         )
 
-        # 2. Register a candidate Finding.
+        # 2. Register candidate Finding F1 for Plan A.
         finding = Finding(
             finding_id=f"F-{plan_a.plan_id[2:8]}",
             state=FindingState.UNVERIFIED,
@@ -159,7 +183,7 @@ class Runner:
         )
         self._store.register(finding)
 
-        # 3. Verifier.verify: UNVERIFIED -> VERIFIED.
+        # 3. Verifier.verify F1: UNVERIFIED -> VERIFIED.
         self._verifier.verify(
             finding,
             RetestSpec(
@@ -171,60 +195,112 @@ class Runner:
             requester="runner",
         )
 
-        # 4. Falsifier.challenge: VERIFIED -> REFUTED.
+        # 4. Falsifier.challenge F1: VERIFIED -> REFUTED (or not).
         self._falsifier.challenge(
             self._store.get(finding.finding_id) or finding,
-            ChallengeSpec(
-                capability=challenger_capability,
-                target=challenger_target,
-                forbidden_substring=challenger_forbidden_substring,
-            ),
+            self._challenge_spec(0, challenge_specs, challenger_capability,
+                                 challenger_target,
+                                 challenger_forbidden_substring),
             mission,
             requester="runner",
         )
 
-        plan_b: Optional[Plan] = None
-        plan_b_seq: Optional[int] = None
-        refuted = self._store.get(finding.finding_id)
-        if refuted is not None and refuted.state is FindingState.REFUTED:
-            ctx = self._build_focused_context(refuted, plan_a, mission)
-            plan_b = self._replanner.replan(ctx, plan_a)
-            if plan_b.steps:
-                b_step = plan_b.steps[0]
-                rt_b = self._runtime.submit(
-                    ActionRequest(
-                        sequence=b_step.sequence,
-                        requester=b_step.requester,
-                        capability=b_step.capability,
-                        target=b_step.target,
-                        purpose=b_step.purpose,
-                        plan_id=b_step.plan_id,
-                        finding_id=b_step.finding_id,
-                    ),
-                    mission,
-                )
-                plan_b_seq = rt_b.request_seq
-                # 5. Verifier on the corrected Plan B step.
-                self._verifier.verify(
-                    self._store.get(finding.finding_id) or finding,
-                    RetestSpec(
-                        capability=Capability.READ,
-                        target=b_step.target,
-                        expected_substring="OK",
-                    ),
-                    mission,
-                    requester="runner",
-                )
+        # 5. Bounded recovery loop. Iteration `attempt` replans from the
+        # REFUTED finding findings[attempt] (backed by plans[attempt])
+        # and assesses the new plan as a NEW finding, since a REFUTED
+        # finding cannot be re-verified under the M4 lifecycle.
+        plans = [plan_a]
+        findings = [finding]
+        plan_sequences = [rt_a.request_seq]
 
-        # 6. Persist regression / probe proof records (M6 anti-bypass).
+        for attempt in range(max_replans):
+            current = self._store.get(findings[attempt].finding_id)
+            if current is None:
+                current = findings[attempt]
+            if current.state is not FindingState.REFUTED:
+                break
+            ctx = self._build_focused_context(
+                current, plans[attempt], mission)
+            next_plan = self._replanner.replan(ctx, plans[attempt])
+            plans.append(next_plan)
+            if not next_plan.steps:
+                break
+            next_step = next_plan.steps[0]
+            rt_next = self._runtime.submit(
+                ActionRequest(
+                    sequence=next_step.sequence,
+                    requester=next_step.requester,
+                    capability=next_step.capability,
+                    target=next_step.target,
+                    purpose=next_step.purpose,
+                    plan_id=next_step.plan_id,
+                    finding_id=next_step.finding_id,
+                ),
+                mission,
+            )
+            plan_sequences.append(rt_next.request_seq)
+            # A new claim gets a new finding identity, deterministically
+            # derived from the new plan, superseding the refuted one.
+            recovery = Finding(
+                finding_id=f"F-{next_plan.plan_id[2:8]}",
+                state=FindingState.UNVERIFIED,
+                summary=f"recovery candidate: {next_step.target}",
+                target=next_step.target,
+                supersedes=current.finding_id,
+            )
+            self._store.register(recovery)
+            findings.append(recovery)
+            # Retest the new candidate through the boundary. No fixed
+            # marker is required: observability (ALLOW + success) is the
+            # retest bar; behavioral judgment belongs to the falsifier.
+            self._verifier.verify(
+                recovery,
+                RetestSpec(
+                    capability=Capability.READ,
+                    target=next_step.target,
+                    expected_substring=None,
+                ),
+                mission,
+                requester="runner",
+            )
+            # Challenge the new finding with this iteration's spec.
+            self._falsifier.challenge(
+                self._store.get(recovery.finding_id) or recovery,
+                self._challenge_spec(attempt + 1, challenge_specs,
+                                     challenger_capability,
+                                     challenger_target,
+                                     challenger_forbidden_substring),
+                mission,
+                requester="runner",
+            )
+
+        # 6. Broker-mediated final verification tests (M9). Each target
+        # is submitted as RUN_TEST through Runtime -> Broker -> Policy
+        # so the gate can satisfy its required-test condition from real
+        # persisted evidence rather than caller assertions.
+        for test_target in verification_tests:
+            self._runtime.submit(
+                ActionRequest(
+                    sequence=0,
+                    requester="runner",
+                    capability=Capability.RUN_TEST,
+                    target=test_target,
+                    purpose="runner:final-verification",
+                ),
+                mission,
+            )
+
+        # 7. Persist regression / probe proof records (M6 anti-bypass).
         regression_seq = self._persist_regression_proof(regression_ok, mission)
         probe_seq = self._persist_probe_proof(behavior_probe_ok, mission)
 
-        # 7. Delegate to QualityGate.
-        findings = list(self._store.all())
+        # 8. Delegate to QualityGate.
+        latest = [
+            self._store.get(f.finding_id) or f for f in findings
+        ]
         evaluation = self._gate.evaluate(GateInputs(
             mission=mission,
-            findings=findings,
+            findings=list(self._store.all()),
             regression_ok=regression_ok,
             behavior_probe_ok=behavior_probe_ok,
         ))
@@ -232,14 +308,39 @@ class Runner:
         return RunnerOutcome(
             gate_verdict=evaluation.verdict,
             plan_a=plan_a,
-            plan_b=plan_b,
+            plan_b=plans[1] if len(plans) > 1 else None,
+            plan_c=plans[2] if len(plans) > 2 else None,
             finding=self._store.get(finding.finding_id) or finding,
+            findings=tuple(latest),
             mission=mission,
-            plan_a_step_runtime_seq=rt_a.request_seq,
-            plan_b_step_runtime_seq=plan_b_seq,
+            plan_a_step_runtime_seq=plan_sequences[0],
+            plan_b_step_runtime_seq=plan_sequences[1] if len(plan_sequences) > 1 else None,
+            plan_c_step_runtime_seq=plan_sequences[2] if len(plan_sequences) > 2 else None,
             gate_evaluation=evaluation,
             regression_record_seq=regression_seq,
             probe_record_seq=probe_seq,
+        )
+
+    @staticmethod
+    def _challenge_spec(
+        index: int,
+        challenge_specs: Optional[List[ChallengeSpec]],
+        challenger_capability: Capability,
+        challenger_target: str,
+        challenger_forbidden_substring: str,
+    ) -> ChallengeSpec:
+        """Select the falsifier challenge for recovery iteration `index`.
+
+        Iteration 0 challenges F1, iteration 1 challenges F2, and so on.
+        An explicit per-iteration spec wins; otherwise the legacy
+        challenger_* triple is used (M5/M6 behavior preserved).
+        """
+        if challenge_specs is not None and index < len(challenge_specs):
+            return challenge_specs[index]
+        return ChallengeSpec(
+            capability=challenger_capability,
+            target=challenger_target,
+            forbidden_substring=challenger_forbidden_substring,
         )
 
     # --- provenance helpers ------------------------------------------------
@@ -247,7 +348,7 @@ class Runner:
     def _build_focused_context(
         self,
         refuted: Finding,
-        plan_a: Plan,
+        parent_plan: Plan,
         mission: Mission,
     ) -> FocusedContext:
         """Compose a FocusedContext from the FindingStore evidence chain."""

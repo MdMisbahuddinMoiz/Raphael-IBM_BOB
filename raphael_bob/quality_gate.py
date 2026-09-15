@@ -14,10 +14,17 @@ Conditions:
     A  Mission criterion      - the Mission has non-empty criteria
                                 (semantic match is left to the M7 hero).
     B  Required tests         - regression_ok=True and the ledger
-                                contains at least one "test"-shaped
-                                RUN_TEST record.
-    C  Full regression        - regression_ok=True; the ledger shows
-                                multiple distinct capability invocations.
+                                 shows a RUN_TEST request with a Policy
+                                 ALLOW decision, a successful result,
+                                 and a persisted artifact proving
+                                 returncode == 0. DENIED or failed
+                                 tests never satisfy B. (M9 repair.)
+    C  Full regression        - regression_ok=True backed by a
+                                 producer="regression" record; the
+                                 ledger shows >=2 distinct ALLOWed
+                                 capability invocations. DENIED
+                                 requests contribute no breadth.
+                                 (M9 repair.)
     D  Independent probe      - behavior_probe_ok=True.
     E  Scope                  - every recorded target must be inside the
                                 declared workspace AND mission scope.
@@ -46,7 +53,9 @@ Anti-bypass:
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 from raphael_bob.contracts import (
@@ -110,6 +119,32 @@ class BOBQualityGate:
     def ledger(self) -> EvidenceLedger:
         return self._ledger
 
+    @staticmethod
+    def _artifact_reports_success(result_record: dict) -> bool:
+        """Check the persisted result artifact for returncode == 0.
+
+        The ledger's ResultRecord carries only success/output digests;
+        the RUN_TEST returncode lives in the artifact JSON written by
+        ArtifactSink. Fail-closed: any missing file, parse error, or
+        missing key reports False.
+        """
+        ref = result_record.get("artifact_ref", "")
+        if not ref:
+            return False
+        try:
+            path = Path(ref)
+            if not path.is_file():
+                return False
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        if data.get("success") is not True:
+            return False
+        evidence = data.get("evidence", {})
+        if not isinstance(evidence, dict):
+            return False
+        return evidence.get("returncode") == 0
+
     # --- main entry point ---------------------------------------------------
 
     def evaluate(self, inputs: GateInputs) -> GateEvaluation:
@@ -137,34 +172,87 @@ class BOBQualityGate:
             failed.append("A:mission-criterion")
             reasons.append("mission has no criteria")
 
-        # ---- Condition B: required tests ----
-        run_test_records = [
-            r for r in request_records
+        # ---- Condition B: required tests (ledger-backed) ----
+        # A RUN_TEST request satisfies B only when the ledger shows the
+        # full chain for the same request: Policy ALLOW decision, an
+        # executed successful result, and a persisted artifact proving
+        # returncode == 0. A DENIED request, a failed test, or a missing
+        # artifact never satisfies B. (M9 repair: the M6 check counted
+        # any RUN_TEST request, including DENIED ones.)
+        decisions_by_request = {}
+        for r in decision_records:
+            decisions_by_request[r.get("request_seq")] = r.get("decision")
+        results_by_request = {}
+        for r in result_records:
+            if r.get("success") is True:
+                results_by_request[r.get("request_seq")] = r
+        passing_test_evidence: List[str] = []
+        run_test_requests = [
+            r for r in sorted(request_records, key=lambda x: x.get("seq", 0))
             if r.get("capability") == "run_test"
         ]
-        if inputs.regression_ok and run_test_records:
+        denied_tests = 0
+        unsuccessful_tests = 0
+        for r in run_test_requests:
+            req_seq = r.get("seq")
+            if decisions_by_request.get(req_seq) != "allow":
+                denied_tests += 1
+                continue
+            res = results_by_request.get(req_seq)
+            if res is None or not self._artifact_reports_success(res):
+                unsuccessful_tests += 1
+                continue
+            for e in evidence_records:
+                if (e.get("producer") == "execution"
+                        and e.get("request_seq") == req_seq):
+                    eid = e.get("evidence_id", "")
+                    if eid:
+                        passing_test_evidence.append(eid)
+        if inputs.regression_ok and passing_test_evidence:
             passed.append("B:required-tests")
-            for r in run_test_records:
-                eid = r.get("evidence_id", "")
-                if eid:
-                    evidence_refs.append(eid)
+            evidence_refs.extend(sorted(set(passing_test_evidence)))
         else:
             failed.append("B:required-tests")
             if not inputs.regression_ok:
                 reasons.append("regression_ok=False (caller did not prove regression)")
-            else:
+            elif not run_test_requests:
                 reasons.append("no RUN_TEST capability invocation in the ledger")
+            else:
+                reasons.append(
+                    "no RUN_TEST invocation with ALLOW + successful result "
+                    "+ returncode 0 in persisted evidence "
+                    f"(denied={denied_tests} unsuccessful-or-unproven={unsuccessful_tests})"
+                )
 
-        # ---- Condition C: full regression ----
-        distinct_caps = {r.get("capability") for r in request_records}
-        if inputs.regression_ok and len(distinct_caps) >= 2:
+        # ---- Condition C: full regression (ledger-backed breadth) ----
+        # Only ALLOWed requests count as invocations: a DENIED request
+        # performed no work and contributes no breadth. The caller's
+        # regression_ok flag must additionally be backed by a
+        # producer="regression" evidence record. (M9 repair.)
+        regression_records = [
+            r for r in evidence_records if r.get("producer") == "regression"
+        ]
+        allowed_caps = {
+            r.get("capability") for r in request_records
+            if decisions_by_request.get(r.get("seq")) == "allow"
+        }
+        if (inputs.regression_ok and regression_records
+                and len(allowed_caps) >= 2):
             passed.append("C:regression")
         else:
             failed.append("C:regression")
             if not inputs.regression_ok:
                 reasons.append("regression_ok=False")
+            elif not regression_records:
+                reasons.append(
+                    "regression_ok=True but no producer='regression' "
+                    "evidence record in the ledger"
+                )
             else:
-                reasons.append(f"only {len(distinct_caps)} distinct capability(ies) in ledger (need >=2)")
+                reasons.append(
+                    f"only {len(allowed_caps)} distinct ALLOWed "
+                    f"capability(ies) in ledger (need >=2)"
+                )
 
         # ---- Condition D: independent behavior probe ----
         # The probe MUST have a producer="probe" evidence record with

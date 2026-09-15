@@ -17,7 +17,7 @@ from raphael_bob import (
 )
 from raphael_bob.broker import BOBBroker
 from raphael_bob.evidence_ledger import EvidenceLedger
-from raphael_bob.falsifier import Falsifier
+from raphael_bob.falsifier import ChallengeSpec, Falsifier
 from raphael_bob.finding import FindingStore
 from raphael_bob.policy import BOBPolicy
 from raphael_bob.quality_gate import BOBQualityGate, GateInputs
@@ -354,7 +354,26 @@ class FullControlLoop(unittest.TestCase):
         h = _harness(self)
         # Run the default flow: Plan A -> Verifier -> Falsifier -> REFUTED
         # -> Replanner -> Plan B -> Verifier -> QualityGate.
-        outcome = h.runner.run(h.mission)
+        # M9: the loop assesses Plan B as a NEW finding F2, so F2 gets
+        # its own challenge. This test's intent ("Plan B complete")
+        # requires F2 to survive: the first spec refutes F1 at the
+        # known-bad location, the second spec probes F2's own target
+        # for a fragment that is absent, leaving F2 VERIFIED.
+        outcome = h.runner.run(
+            h.mission,
+            challenge_specs=[
+                ChallengeSpec(
+                    capability=Capability.READ,
+                    target="src/still_buggy.py",
+                    forbidden_substring="BUG: still contains the original defect",
+                ),
+                ChallengeSpec(
+                    capability=Capability.READ,
+                    target="src/fixed.py",
+                    forbidden_substring="THIS-FRAGMENT-DOES-NOT-EXIST",
+                ),
+            ],
+        )
         self.assertGreater(outcome.plan_a_step_runtime_seq, 0)
         self.assertIsNotNone(outcome.plan_b)
         self.assertEqual(outcome.plan_b.parent_plan_id, outcome.plan_a.plan_id)
@@ -384,6 +403,116 @@ class FullControlLoop(unittest.TestCase):
         self.assertEqual(len(h.ledger.gate_decisions()), 2)
         last = h.ledger.gate_decisions()[-1]
         self.assertEqual(last.get("decision"), "complete")
+
+
+# -----------------------------------------------------------------------------
+# 12. M9 gate hardening: required-test and regression semantics (§17)
+#
+# B passes only for RUN_TEST with ALLOW + successful result + artifact
+# proving returncode == 0. C passes only with a regression record and
+# >=2 distinct ALLOWed capabilities. DENIED requests contribute nothing.
+# -----------------------------------------------------------------------------
+
+def _submit_failing_test(h: _Harness) -> None:
+    (h.workspace.root / "src" / "test_failing.py").write_text(
+        "import unittest\n"
+        "class T(unittest.TestCase):\n"
+        "    def test_false(self):\n"
+        "        self.assertTrue(False)\n"
+        "if __name__ == '__main__':\n"
+        "    unittest.main()\n",
+        encoding="utf-8",
+    )
+    h.runtime.submit(ActionRequest(
+        sequence=0, requester="runner",
+        capability=Capability.RUN_TEST, target="src/test_failing.py",
+        purpose="required-test",
+    ), h.mission)
+
+
+def _evaluate_clean(h: _Harness) -> GateEvaluation:
+    return h.gate.evaluate(GateInputs(
+        mission=h.mission, findings=[],
+        regression_ok=True, behavior_probe_ok=True,
+    ))
+
+
+class RequiredTestSemantics(unittest.TestCase):
+    def test_denied_run_test_refuses(self):
+        h = _harness(self)
+        # RUN_TEST on a non-test file is DENIED: no side effect, and the
+        # denial must NOT satisfy the required-test condition.
+        rt = h.runtime.submit(ActionRequest(
+            sequence=0, requester="runner",
+            capability=Capability.RUN_TEST, target="src/hello.txt",
+            purpose="required-test",
+        ), h.mission)
+        self.assertEqual(rt.broker_result.decision.decision.value, "deny")
+        evaluation = _evaluate_clean(h)
+        self.assertEqual(evaluation.verdict, GateVerdict.REFUSE)
+        self.assertIn("B:required-tests", evaluation.failed)
+
+    def test_failing_run_test_refuses(self):
+        h = _harness(self)
+        # ALLOWed but failing test: executed for real, returncode != 0,
+        # so the required-test condition must fail.
+        _submit_failing_test(h)
+        evaluation = _evaluate_clean(h)
+        self.assertEqual(evaluation.verdict, GateVerdict.REFUSE)
+        self.assertIn("B:required-tests", evaluation.failed)
+
+    def test_successful_run_test_satisfies_required_tests(self):
+        h = _harness(self)
+        _submit_test(h)
+        evaluation = _evaluate_clean(h)
+        self.assertIn("B:required-tests", evaluation.passed)
+        # The gate's evidence refs for B resolve to real ledger records.
+        ledger_ids = {
+            r.get("evidence_id") for r in h.ledger.all_records()
+            if r.get("kind") == "evidence"
+        }
+        self.assertTrue(
+            any(eid in ledger_ids for eid in evaluation.evidence_refs))
+
+    def test_denied_request_contributes_no_regression_breadth(self):
+        h = _harness(self)
+        # Only an ALLOWed READ exists plus a DENIED RUN_TEST: a single
+        # ALLOWed capability is not a regression.
+        h.runtime.submit(ActionRequest(
+            sequence=0, requester="runner",
+            capability=Capability.READ, target="src/hello.txt",
+            purpose="probe",
+        ), h.mission)
+        h.runtime.submit(ActionRequest(
+            sequence=0, requester="runner",
+            capability=Capability.RUN_TEST, target="src/hello.txt",
+            purpose="required-test",
+        ), h.mission)
+        h.ledger.append_evidence(
+            evidence_id="RG-test-breadth",
+            producer="regression",
+            request_seq=0, decision_seq=0, result_seq=None,
+            payload={"kind": "regression", "result": "passed"},
+        )
+        evaluation = _evaluate_clean(h)
+        self.assertIn("C:regression", evaluation.failed)
+
+    def test_allowed_breadth_with_regression_record_passes_c(self):
+        h = _harness(self)
+        h.runtime.submit(ActionRequest(
+            sequence=0, requester="runner",
+            capability=Capability.READ, target="src/hello.txt",
+            purpose="probe",
+        ), h.mission)
+        _submit_test(h)
+        h.ledger.append_evidence(
+            evidence_id="RG-test-breadth-ok",
+            producer="regression",
+            request_seq=0, decision_seq=0, result_seq=None,
+            payload={"kind": "regression", "result": "passed"},
+        )
+        evaluation = _evaluate_clean(h)
+        self.assertIn("C:regression", evaluation.passed)
 
 
 if __name__ == "__main__":

@@ -80,13 +80,56 @@ def _persist_regression_proof(ledger: EvidenceLedger, ok: bool) -> int:
     )
 
 
-def _run_subprocess_test(module: str) -> Tuple[bool, str]:
-    proc = subprocess.run(
-        [sys.executable, "-m", "unittest", module, "-v"],
-        cwd=str(ROOT), capture_output=True, text=True,
-        env={**os.environ, "PYTHONPATH": str(ROOT)},
+def _run_broker_test(runtime, mission, target: str) -> Tuple[bool, str]:
+    """Execute a test file as a broker-mediated RUN_TEST action.
+
+    Returns (passed, detail). `passed` is True only for Policy ALLOW +
+    a successful result whose persisted evidence reports returncode 0.
+    A DENIED or failing test returns False: the ledger, not console
+    output, is the source of truth.
+    """
+    rt = runtime.submit(ActionRequest(
+        sequence=0, requester="runner",
+        capability=Capability.RUN_TEST, target=target,
+        purpose="hero:required-test",
+    ), mission)
+    decision = rt.broker_result.decision
+    if rt.execution is None:
+        return False, (
+            f"decision={decision.decision.value} reason={decision.reason} "
+            f"capability_invoked={rt.broker_result.capability_invoked}"
+        )
+    rc = (rt.execution.evidence or {}).get("returncode")
+    return bool(rt.execution.success and rc == 0), (
+        f"decision={decision.decision.value} returncode={rc}"
     )
-    return proc.returncode == 0, (proc.stdout or "") + (proc.stderr or "")
+
+
+def _write_via_broker(runtime, mission, target: str, content: str,
+                      purpose_detail: str) -> str:
+    """Apply a file mutation as a broker-mediated WRITE action.
+
+    The remediation side effect goes through Runtime -> Broker ->
+    Policy -> capability so the ledger records the write. Returns a
+    short human-readable decision summary. Raises on DENY: a refused
+    remediation must be loud, never silently skipped.
+    """
+    rt = runtime.submit(ActionRequest(
+        sequence=0, requester="runner",
+        capability=Capability.WRITE, target=target,
+        purpose="content=" + content,
+    ), mission)
+    decision = rt.broker_result.decision
+    summary = (
+        f"decision={decision.decision.value} reason={decision.reason} "
+        f"request_seq={rt.request_seq}"
+    )
+    if decision.decision.value != "allow":
+        raise RuntimeError(
+            f"hero remediation WRITE denied for {target}: {summary} "
+            f"({purpose_detail})"
+        )
+    return summary
 
 
 def _run_probe_subprocess() -> Tuple[bool, str]:
@@ -149,18 +192,22 @@ def _install_buggy_session(session_path: Path) -> None:
         session_path.write_text(BUGGY_SESSION_TEXT, encoding="utf-8")
 
 
-def _install_v1_fix(login_path: Path) -> None:
-    text = login_path.read_text(encoding="utf-8")
-    if "V1_FIX" in text:
-        return
-    patched = text.replace(
+def _v1_fix_text(current_text: str) -> str:
+    """Compute the v1 (plausible-but-wrong) login.py text without writing."""
+    if "V1_FIX" in current_text:
+        return current_text
+    return current_text.replace(
         "def check_password(user_id: str, password: str) -> bool:",
         "def check_password(user_id: str, password: str) -> bool:  # V1_FIX",
     ).replace(
         "USERS.get(user_id) == password",
         'USERS.get(user_id, "").lower() == (password or "").lower()',
     )
-    login_path.write_text(patched, encoding="utf-8")
+
+
+def _install_v1_fix(login_path: Path) -> None:
+    text = login_path.read_text(encoding="utf-8")
+    login_path.write_text(_v1_fix_text(text), encoding="utf-8")
 
 
 def _install_v2_fix(session_path: Path) -> None:
@@ -277,11 +324,16 @@ def run_hero(keep: bool = False) -> int:
             evidence_ids=found.evidence_ids,
         )
 
-    # ---- Step 6: v1 false success. ----
-    _install_v1_fix(login_path)
-    test_login_ok, _ = _run_subprocess_test("fixtures.authkit.test_login")
-    _step(6, "v1 fix installed on login.py; test_login.py PASSES",
-          f"test_login returncode={'0' if test_login_ok else 'nonzero'}")
+    # ---- Step 6: v1 false success (broker-mediated WRITE). ----
+    v1_text = _v1_fix_text(login_path.read_text(encoding="utf-8"))
+    write_v1 = _write_via_broker(
+        runtime, mission, "fixtures/authkit/login.py", v1_text,
+        purpose_detail="v1 false-success fix",
+    )
+    test_login_ok, test_login_detail = _run_broker_test(
+        runtime, mission, "fixtures/authkit/test_login.py")
+    _step(6, "v1 fix installed on login.py via broker WRITE; test_login.py PASSES",
+          f"write: {write_v1} test_login: {test_login_detail}")
 
     # ---- Step 7: Independent behavior probe FAILS under v1. ----
     probe_ok_v1, _ = _run_probe_subprocess()
@@ -327,34 +379,40 @@ def run_hero(keep: bool = False) -> int:
         mission_scope=mission.scope,
     )
     plan_b = replanner.replan(ctx, plan_a)
+    # Plan B is executed through the boundary like every other action:
+    # Runtime -> Broker -> Policy -> capability, with evidence persisted.
+    rt_b = runtime.submit(plan_b.steps[0], mission)
     _step(9, "Replanner -> Plan B",
           f"plan_b_id={plan_b.plan_id} parent={plan_b.parent_plan_id} "
           f"target={plan_b.steps[0].target} "
-          f"requester={plan_b.steps[0].requester}")
+          f"requester={plan_b.steps[0].requester} "
+          f"executed={rt_b.broker_result.decision.decision.value} "
+          f"request_seq={rt_b.request_seq}")
 
-    # ---- Step 10: v2 fix. ----
-    _install_v2_fix(session_path)
-    _step(10, "v2 fix installed on session.py (real defect corrected)")
+    # ---- Step 10: v2 fix (broker-mediated WRITE). ----
+    write_v2 = _write_via_broker(
+        runtime, mission, "fixtures/authkit/session.py",
+        V2_FIXED_SESSION_TEXT,
+        purpose_detail="v2 real-defect fix",
+    )
+    _step(10, "v2 fix installed on session.py via broker WRITE (real defect corrected)",
+          f"write: {write_v2}")
 
-    # ---- Step 11: Final verification. ----
-    test_login_ok2, _ = _run_subprocess_test("fixtures.authkit.test_login")
-    test_auth_ok, _ = _run_subprocess_test("fixtures.authkit.test_auth")
+    # ---- Step 11: Final verification (broker-mediated RUN_TEST). ----
+    # Slash-path test targets ALLOW under Policy; the pass/fail comes
+    # from the persisted execution evidence (returncode), not console.
+    test_login_ok2, test_login_detail2 = _run_broker_test(
+        runtime, mission, "fixtures/authkit/test_login.py")
+    test_auth_ok, test_auth_detail = _run_broker_test(
+        runtime, mission, "fixtures/authkit/test_auth.py")
     probe_ok_v2, _ = _run_probe_subprocess()
     _persist_probe_proof(ledger, ok=probe_ok_v2)
     _persist_regression_proof(ledger, ok=True)
-    runtime.submit(ActionRequest(
-        sequence=0, requester="runner",
-        capability=Capability.RUN_TEST, target="fixtures.authkit.test_login",
-        purpose="required-test",
-    ), mission)
-    runtime.submit(ActionRequest(
-        sequence=0, requester="runner",
-        capability=Capability.RUN_TEST, target="fixtures.authkit.test_auth",
-        purpose="invariant-test",
-    ), mission)
     _step(11, "Final verification",
           f"test_login={'PASS' if test_login_ok2 else 'FAIL'} "
+          f"({test_login_detail2}) "
           f"test_auth={'PASS' if test_auth_ok else 'FAIL'} "
+          f"({test_auth_detail}) "
           f"probe={'PASS' if probe_ok_v2 else 'FAIL'}")
 
     # ---- Step 12: QualityGate. ----

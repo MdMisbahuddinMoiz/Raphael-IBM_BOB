@@ -54,6 +54,7 @@ from raphael_bob import (
 )
 from raphael_bob.evidence_ledger import (
     EvidenceLedger,
+    append_run_provenance,
     create_run_dir,
     digest_id,
 )
@@ -221,6 +222,30 @@ def _install_v2_fix(session_path: Path) -> None:
     session_path.write_text(V2_FIXED_SESSION_TEXT, encoding="utf-8")
 
 
+def _authkit_mission() -> Mission:
+    """The single canonical benchmark mission shared by both modes.
+
+    Same fixture, same task, same initial state: the mode path is the
+    only experimental difference between baseline and raphael runs.
+    """
+    return Mission(
+        mission_id="M-authkit",
+        description="Authkit fix: validate_session must reject expired and cross-user tokens",
+        scope="fixtures",
+        criteria=[
+            "named tests pass (fixtures.authkit.test_login)",
+            "invariant tests pass (fixtures.authkit.test_auth)",
+            "independent behavior probe passes",
+        ],
+        problem={
+            "symptom_target": "fixtures/authkit/login.py",
+            "actual_defect_target": "fixtures/authkit/session.py",
+            "capability": "read",
+            "purpose": "plan-a:probe-symptom:fixtures/authkit/login.py",
+        },
+    )
+
+
 def run_hero(keep: bool = False,
              runs_root: Optional[Path] = None) -> int:
     authkit_dir = ROOT / "fixtures" / "authkit"
@@ -244,6 +269,8 @@ def run_hero(keep: bool = False,
 
     workspace = Workspace(ROOT)
     ledger = EvidenceLedger(tmp)
+    append_run_provenance(ledger, mode="raphael",
+                          mission_id="M-authkit", scenario="authkit")
     policy = BOBPolicy(workspace)
     broker = BOBBroker(policy, workspace, ledger=ledger)
     runtime = BOBRuntime(broker)
@@ -255,22 +282,7 @@ def run_hero(keep: bool = False,
     ))
     gate = BOBQualityGate(ledger)
 
-    mission = Mission(
-        mission_id="M-authkit",
-        description="Authkit fix: validate_session must reject expired and cross-user tokens",
-        scope="fixtures",
-        criteria=[
-            "named tests pass (fixtures.authkit.test_login)",
-            "invariant tests pass (fixtures.authkit.test_auth)",
-            "independent behavior probe passes",
-        ],
-        problem={
-            "symptom_target": "fixtures/authkit/login.py",
-            "actual_defect_target": "fixtures/authkit/session.py",
-            "capability": "read",
-            "purpose": "plan-a:probe-symptom:fixtures/authkit/login.py",
-        },
-    )
+    mission = _authkit_mission()
 
     # ---- Step 1: Planner -> Plan A (decoy target). ----
     planner = Planner()
@@ -450,14 +462,126 @@ def run_hero(keep: bool = False,
     return 0 if evaluation.verdict.value == "complete" else 1
 
 
+def run_baseline(runs_root: Optional[Path] = None) -> int:
+    """Benchmark BASELINE path for the canonical authkit scenario.
+
+    The intentionally weaker comparison path: plan, apply the
+    plausible v1 fix through the boundary, verify with the NAMED test
+    only (which passes on v1), and stop. No falsifier challenge, no
+    replan, no v2 fix. The independent probe still runs as the oracle
+    and is recorded red, so the shared honest QualityGate REFUSEs on
+    the probe condition alone. Same mission, fixture, workspace, and
+    initial state as the raphael path; the absent challenge/replan is
+    the experimental difference. Always restores the fixture files.
+    """
+    authkit_dir = ROOT / "fixtures" / "authkit"
+    login_path = authkit_dir / "login.py"
+    session_path = authkit_dir / "session.py"
+
+    _install_buggy_session(session_path)
+    saved_login = login_path.read_bytes()
+    saved_session = session_path.read_bytes()
+
+    run_id, tmp = create_run_dir(ROOT / "runs" if runs_root is None
+                                 else runs_root)
+    print(f"Run ID: {run_id}")
+    print(f"Run dir: {tmp}")
+    try:
+        evidence_rel = (tmp.relative_to(ROOT) / "evidence.jsonl").as_posix()
+    except ValueError:
+        evidence_rel = (tmp / "evidence.jsonl").as_posix()
+    print(f"Evidence: {evidence_rel}")
+
+    workspace = Workspace(ROOT)
+    ledger = EvidenceLedger(tmp)
+    append_run_provenance(ledger, mode="baseline",
+                          mission_id="M-authkit", scenario="authkit")
+    policy = BOBPolicy(workspace)
+    broker = BOBBroker(policy, workspace, ledger=ledger)
+    runtime = BOBRuntime(broker)
+    store = FindingStore(ledger)
+    verifier = Verifier(runtime, ledger, store)
+    gate = BOBQualityGate(ledger)
+
+    mission = _authkit_mission()
+
+    print("[B01] Planner -> Plan A")
+    plan_a = Planner().plan_a(mission)
+    rt_a = runtime.submit(plan_a.steps[0], mission)
+    print(f"     plan_id={plan_a.plan_id} "
+          f"decision={rt_a.broker_result.decision.decision.value}")
+
+    print("[B02] Candidate finding registered")
+    finding = Finding(
+        finding_id="F-authkit",
+        state=FindingState.UNVERIFIED,
+        summary="login.py plausibly wrong-password handling",
+        target="fixtures/authkit/login.py",
+    )
+    store.register(finding)
+
+    print("[B03] v1 fix applied via broker WRITE")
+    v1_text = _v1_fix_text(login_path.read_text(encoding="utf-8"))
+    write_v1 = _write_via_broker(
+        runtime, mission, "fixtures/authkit/login.py", v1_text,
+        purpose_detail="baseline v1 fix",
+    )
+    print(f"     write: {write_v1}")
+
+    print("[B04] Named-test-only verification (no falsifier challenge)")
+    test_ok, test_detail = _run_broker_test(
+        runtime, mission, "fixtures/authkit/test_login.py")
+    print(f"     test_login={'PASS' if test_ok else 'FAIL'} "
+          f"({test_detail})")
+    verify_outcome = verifier.verify(
+        finding,
+        RetestSpec(
+            capability=Capability.READ,
+            target="fixtures/authkit/login.py",
+            expected_substring="V1_FIX",
+        ),
+        mission,
+        requester="baseline",
+    )
+    print(f"     retest transitioned={verify_outcome.transition_applied}")
+
+    print("[B05] Independent probe runs as oracle (expected red on v1)")
+    probe_ok, _ = _run_probe_subprocess()
+    _persist_probe_proof(ledger, ok=probe_ok)
+    _persist_regression_proof(ledger, ok=True)
+    print(f"     probe={'PASS' if probe_ok else 'FAIL'}")
+
+    print("[B06] QualityGate")
+    evaluation = gate.evaluate(GateInputs(
+        mission=mission, findings=list(store.all()),
+        regression_ok=True, behavior_probe_ok=probe_ok,
+    ))
+    print(f"     verdict={evaluation.verdict.value.upper()} "
+          f"failed={list(evaluation.failed)}")
+    print(f"Gate: {evaluation.verdict.value.upper()}")
+    ledger.close()
+
+    login_path.write_bytes(saved_login)
+    session_path.write_bytes(saved_session)
+
+    return 0 if evaluation.verdict.value == "complete" else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--keep", action="store_true",
                         help="Do NOT restore the buggy session.py after the run.")
+    parser.add_argument("--mode", choices=("raphael", "baseline"),
+                        default="raphael",
+                        help="Benchmark path: full control loop (raphael) "
+                             "or named-test-only comparison (baseline).")
     args = parser.parse_args()
     print("# authkit hero demo")
     print(f"# python = {sys.version.split()[0]}")
+    print(f"# mode = {args.mode}")
     try:
+        if args.mode == "baseline":
+            return run_baseline()
         return run_hero(keep=args.keep)
     except SystemExit:
         raise

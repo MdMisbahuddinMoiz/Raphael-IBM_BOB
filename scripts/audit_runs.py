@@ -29,6 +29,12 @@ Material assumptions (see also docs/metrics.md):
   ``complete_with_replan_runs`` definition below.
 - No mode/baseline provenance exists in current evidence, so mode
   aggregation is reported UNKNOWN with an empty breakdown.
+- M10.3: runs carrying a `producer="benchmark"` evidence record with
+  a string ``payload.mode`` aggregate under `by_mode` per mode value
+  (e.g. baseline/raphael). Runs without one stay `mode="unknown"`
+  and are excluded from `by_mode` (never relabeled). The top-level
+  `mode` field remains `"unknown"`: the whole population has no
+  single mode.
 - Timestamps are never metric inputs.
 
 CLI::
@@ -134,6 +140,27 @@ def _by_kind(records: List[Dict[str, Any]],
     return [r for r in records if r.get("kind") == kind]
 
 
+def run_mode(records: List[Dict[str, Any]]) -> Optional[str]:
+    """Extract benchmark-mode provenance from a run's records.
+
+    M10.3: the harness records one `producer="benchmark"` evidence
+    record carrying a string ``payload.mode``. The FIRST such record
+    by sequence wins. Runs without one keep ``None`` (reported as
+    ``"unknown"``): mode is never inferred from directory names,
+    timestamps, or narrative text.
+    """
+    for rec in sorted(records, key=lambda r: r.get("seq", 0)):
+        if rec.get("kind") != "evidence":
+            continue
+        if rec.get("producer") != "benchmark":
+            continue
+        payload = rec.get("payload", {})
+        if isinstance(payload, dict) and isinstance(
+                payload.get("mode"), str):
+            return payload["mode"]
+    return None
+
+
 def per_run_metrics(run_id: str,
                     records: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Derive one run's metrics from its validated records."""
@@ -159,6 +186,16 @@ def per_run_metrics(run_id: str,
         cap = cap_by_request.get(r.get("request_seq"), "unknown")
         executed_by_cap[cap] = executed_by_cap.get(cap, 0) + 1
 
+    allowed_request_seqs = {d.get("request_seq") for d in decisions
+                            if d.get("decision") == "allow"}
+    success_by_request = {r.get("request_seq"): r.get("success") is True
+                          for r in results}
+    successful_run_tests = sum(
+        1 for r in requests
+        if r.get("capability") == "run_test"
+        and r.get("seq") in allowed_request_seqs
+        and success_by_request.get(r.get("seq"), False))
+
     replans = sum(1 for e in evidences
                   if e.get("producer") == "replanner")
 
@@ -179,6 +216,7 @@ def per_run_metrics(run_id: str,
     return {
         "run_id": run_id,
         "mission_id": str(last_gate.get("mission_id", "unknown")),
+        "mode": run_mode(records) or "unknown",
         "verdict": verdict,
         "record_count": len(records),
         "counts_by_kind": {
@@ -191,6 +229,7 @@ def per_run_metrics(run_id: str,
         "denies": denies,
         "executed": len(results),
         "executed_by_capability": dict(sorted(executed_by_cap.items())),
+        "successful_run_test_executions": successful_run_tests,
         "replans": replans,
         "plan_depth": 1 + replans,
         "findings": len(terminal),
@@ -206,7 +245,8 @@ def per_run_metrics(run_id: str,
 # Aggregation (deterministic: sorted inputs, sorted keys at dump time)
 # -----------------------------------------------------------------------------
 
-def aggregate(valid: List[Tuple[str, Dict[str, Any]]]) -> Dict[str, Any]:
+def aggregate(valid: List[Tuple[str, Dict[str, Any]]],
+                _nested: bool = False) -> Dict[str, Any]:
     """Aggregate per-run metric dicts (already sorted by run_id)."""
     complete = sum(1 for _, m in valid if m["verdict"] == "complete")
     refuse = sum(1 for _, m in valid if m["verdict"] == "refuse")
@@ -253,8 +293,15 @@ def aggregate(valid: List[Tuple[str, Dict[str, Any]]]) -> Dict[str, Any]:
         "artifact_refs": sum(m["artifact_refs"] for _, m in valid),
         "artifact_refs_resolved": sum(
             m["artifact_refs_resolved"] for _, m in valid),
+        "successful_run_test_executions": sum(
+            m["successful_run_test_executions"] for _, m in valid),
         "mode": "unknown",
-        "by_mode": {},
+        "by_mode": {} if _nested else {
+            mode: aggregate([(rid, m) for rid, m in valid
+                             if m["mode"] == mode], _nested=True)
+            for mode in sorted({m["mode"] for _, m in valid
+                               if m["mode"] != "unknown"})
+        },
     }
 
 

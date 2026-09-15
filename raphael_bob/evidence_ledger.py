@@ -151,6 +151,32 @@ def create_run_dir(base_dir: Union[str, Path]) -> Tuple[str, Path]:
             continue
 
 
+def append_run_provenance(ledger: "EvidenceLedger", *, mode: str,
+                          mission_id: str, scenario: str) -> int:
+    """Record benchmark-mode provenance as ordinary ledger evidence.
+
+    M10.3: harness-owned metadata (`producer="benchmark"`), so the
+    core control loop stays untouched. The audit layer reads the
+    FIRST such record in a run; runs without one keep `mode=unknown`
+    and are excluded from by-mode statistics (never relabeled).
+    """
+    payload = {
+        "kind": "benchmark",
+        "mode": mode,
+        "mission_id": mission_id,
+        "scenario": scenario,
+    }
+    evidence_id = digest_id(payload, prefix="M")
+    return ledger.append_evidence(
+        evidence_id=evidence_id,
+        producer="benchmark",
+        request_seq=0,
+        decision_seq=0,
+        result_seq=None,
+        payload=payload,
+    )
+
+
 @dataclass(frozen=True)
 class RequestRecord:
     """A durable ActionRequest record."""
@@ -822,6 +848,7 @@ __all__ = [
     "digest_id",
     "generate_run_id",
     "create_run_dir",
+    "append_run_provenance",
     "LedgerWriter",
     "LedgerReader",
     "EvidenceLedger",

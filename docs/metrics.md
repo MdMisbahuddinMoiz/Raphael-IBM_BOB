@@ -21,6 +21,23 @@ exact definitions):
 - mode: reported `unknown` with an empty breakdown — current
   evidence carries no mode provenance, and none is fabricated
 
+## M10.3 benchmark modes
+
+Runs executed through the benchmark interface record one
+`producer="benchmark"` evidence record with a string
+`payload.mode` (`baseline` or `raphael`; see
+`append_run_provenance`). The auditor reports these under
+`metrics.by_mode` with the same aggregate shape per mode
+(completion/refusal, replans, policy, findings, successful test
+executions). Runs without mode provenance stay `mode="unknown"`
+and are excluded from `by_mode` — pre-mode hero observations are
+never relabeled. Interface:
+
+```bash
+python3 demos/authkit_hero.py --mode baseline   # named-test-only path
+python3 demos/authkit_hero.py --mode raphael    # full control loop
+```
+
 ## What evidence feeds them
 
 Only parsed `evidence.jsonl` records of known kinds (request,

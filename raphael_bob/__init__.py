@@ -70,6 +70,7 @@ from raphael_bob.evidence_ledger import (
     ResultRecord,
     create_run_dir,
     generate_run_id,
+    append_run_provenance,
 )
 from raphael_bob.finding import (
     FindingStore,

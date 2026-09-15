@@ -7,9 +7,8 @@ proceed). Submission readiness is asserted only where every
 submission-critical box below is VERIFIED.
 
 Verified 2026-09-15 on branch `feature/raphael-harness-live-model`,
-Python 3.14.4. Code HEAD at verification time: `5dad890b0` (this file
-and `docs/live-model.md` are added in the following commit; the final
-submission SHA is that commit — see the M12 report).
+Python 3.14.4. The final submission SHA is the commit that contains
+this file (see the M12 report for the exact hash).
 
 ## Repository
 
@@ -94,6 +93,17 @@ submission SHA is that commit — see the M12 report).
 
 - [x] **VERIFIED** — no live API key in tracked files, `runs/`
   evidence, `/tmp` helpers, or recent commit diffs.
+- [x] **VERIFIED** — pre-existing legacy-substrate files
+  (`evaluations/campaign/*`, `forge/*`, `scripts/rbs_v2r_*`,
+  `src/arena/manifests/*`, `src/orchestrator/nvidia_provider.py`) had
+  committed NVIDIA API-key values; these were **redacted to
+  `nvapi-REDACTED` at HEAD** (structure and narrative preserved).
+  Test placeholders (`nvapi-test`, `nvapi-live`, `nvapi-stale`,
+  `nvapi-your-key-here`) are intentionally left as-is.
+- [ ] **DISCLOSED LIMITATION** — the redacted key values remain
+  present in **git history** (not the working tree). Removing them
+  from history requires a history rewrite, which is out of scope for
+  M12; disclose or rotate the affected keys before public release.
 
 ## Documentation
 

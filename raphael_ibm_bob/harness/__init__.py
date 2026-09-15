@@ -33,6 +33,7 @@ from raphael_ibm_bob.harness.loop import (
     LoopOutcome,
     TurnRecord,
     drive_turns,
+    excerpt_output,
 )
 from raphael_ibm_bob.harness.model import (
     ModelAdapter,
@@ -54,6 +55,7 @@ __all__ = [
     "LoopOutcome",
     "TurnRecord",
     "drive_turns",
+    "excerpt_output",
     "ModelAdapter",
     "ModelContext",
     "ScriptedModelAdapter",

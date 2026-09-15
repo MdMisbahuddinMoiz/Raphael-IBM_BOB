@@ -31,13 +31,20 @@ TERMINAL_STATES = ("done", "max-turns", "model-error", "runtime-error")
 
 @dataclass
 class TurnRecord:
-    """One observed turn: proposal, governed outcome, evidence refs."""
+    """One observed turn: proposal, governed outcome, evidence refs.
+
+    `output` carries a bounded excerpt of WHAT the action observed
+    (file content, test returncode, match counts) — without it the
+    model sees only booleans and cannot genuinely adapt (Phase 9:
+    the model observes results). Caps keep prompts bounded.
+    """
     index: int
     request: Dict[str, Any]
     decision: Optional[str] = None
     deny_reason: Optional[str] = None
     executed: bool = False
     success: Optional[bool] = None
+    output: Optional[str] = None
     evidence_ids: List[str] = field(default_factory=list)
     error: Optional[str] = None
 
@@ -68,8 +75,39 @@ def _turn_summary(record: "TurnRecord") -> Dict[str, Any]:
         "decision": record.decision,
         "executed": record.executed,
         "success": record.success,
+        "output": (record.output or "")[:800],
         "error": (record.error or "")[:300],
     }
+
+
+def excerpt_output(request, execution) -> Optional[str]:
+    """Bounded observation excerpt from an execution result.
+
+    Per-capability shaping keeps model context informative without
+    dumping unbounded payloads. Returns None when nothing executed.
+    """
+    if execution is None:
+        return None
+    evidence = execution.evidence or {}
+    capability = request.capability.value
+    if capability == "read":
+        content = evidence.get("content", "")
+        return str(content)[:1500] or None
+    if capability == "run_test":
+        tail = str(evidence.get("stdout", ""))[-500:]
+        return (f"returncode={evidence.get('returncode')} {tail}"
+                ).strip() or None
+    if capability == "write":
+        return (f"bytes={evidence.get('bytes')} "
+                f"path={evidence.get('path')}")
+    if capability == "list":
+        entries = evidence.get("entries", [])
+        return f"entries={len(entries)} {list(entries)[:10]}"
+    if capability == "search":
+        matches = evidence.get("matches", [])
+        head = [f"{m.get('file')}:{m.get('line')}" for m in matches[:5]]
+        return f"matches={len(matches)} {head}"
+    return str(evidence)[:500] or None
 
 
 def drive_turns(*, model: ModelAdapter, runtime: BOBRuntime,
@@ -122,6 +160,7 @@ def drive_turns(*, model: ModelAdapter, runtime: BOBRuntime,
         record.executed = result.broker_result.capability_invoked
         if result.execution is not None:
             record.success = result.execution.success
+            record.output = excerpt_output(request, result.execution)
         record.evidence_ids = list(result.evidence_ids)
         turns.append(record)
     return LoopOutcome(turns=turns, terminal="max-turns",
@@ -143,4 +182,5 @@ __all__ = [
     "TurnRecord",
     "LoopOutcome",
     "drive_turns",
+    "excerpt_output",
 ]

@@ -419,5 +419,175 @@ class ExtraBodyConfig(unittest.TestCase):
                 config_from_env()
 
 
+class MaxTokensConfig(unittest.TestCase):
+    def test_default_512(self):
+        from unittest.mock import patch
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            config_from_env,
+        )
+        env = {"RAPHAEL_MODEL_ENDPOINT": "http://x/v1",
+               "RAPHAEL_MODEL_NAME": "m"}
+        with patch.dict("os.environ", env, clear=True):
+            self.assertEqual(config_from_env().max_tokens, 512)
+
+    def test_env_override(self):
+        from unittest.mock import patch
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            config_from_env,
+        )
+        env = {"RAPHAEL_MODEL_ENDPOINT": "http://x/v1",
+               "RAPHAEL_MODEL_NAME": "m",
+               "RAPHAEL_MODEL_MAX_TOKENS": "2048"}
+        with patch.dict("os.environ", env, clear=True):
+            self.assertEqual(config_from_env().max_tokens, 2048)
+
+    def test_bad_values_rejected(self):
+        from unittest.mock import patch
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            config_from_env,
+        )
+        for bad in ("many", "0", "-5"):
+            env = {"RAPHAEL_MODEL_ENDPOINT": "http://x/v1",
+                   "RAPHAEL_MODEL_NAME": "m",
+                   "RAPHAEL_MODEL_MAX_TOKENS": bad}
+            with patch.dict("os.environ", env, clear=True):
+                with self.assertRaises(ProviderConfigError, msg=bad):
+                    config_from_env()
+
+    def test_body_carries_max_tokens(self):
+        from raphael_ibm_bob.harness.model import ModelContext
+        from raphael_ibm_bob import Mission
+        config = OpenAICompatConfig(
+            endpoint="http://x", model="m", max_tokens=2048)
+        ctx = ModelContext(
+            mission=Mission(mission_id="M", description="x",
+                            scope="src/", criteria=["x"]))
+        body = build_request_body(config, ctx, [])
+        self.assertEqual(body["max_tokens"], 2048)
+
+
+class LenientIntentGrammar(unittest.TestCase):
+    def test_bare_skill_id_accepted(self):
+        req = validate_proposal(
+            {"intent": "read-file", "skill": "read-file",
+             "target": "src/a.txt", "purpose": "look"},
+            _registry())
+        self.assertEqual(req.capability, Capability.READ)
+        self.assertEqual(req.target, "src/a.txt")
+
+    def test_bare_skill_id_without_skill_field(self):
+        req = validate_proposal(
+            {"intent": "read-file",
+             "target": "src/a.txt", "purpose": "look"},
+            _registry())
+        self.assertEqual(req.requester, "skill:read-file")
+
+    def test_conflicting_skill_rejected(self):
+        with self.assertRaises(StructuredProposalError):
+            validate_proposal(
+                {"intent": "read-file", "skill": "run-test",
+                 "target": "src/a.txt", "purpose": "look"},
+                _registry())
+
+    def test_unknown_intent_string_rejected(self):
+        with self.assertRaises(StructuredProposalError):
+            validate_proposal(
+                {"intent": "launch-missiles", "skill": "read-file",
+                 "target": "src/a.txt", "purpose": "look"},
+                _registry())
+
+    def test_non_string_intent_rejected(self):
+        with self.assertRaises(StructuredProposalError):
+            validate_proposal(
+                {"intent": 42, "skill": "read-file",
+                 "target": "src/a.txt", "purpose": "look"},
+                _registry())
+
+
+class CapabilityIntentGrammar(unittest.TestCase):
+    def test_capability_intent_with_agreeing_skill(self):
+        req = validate_proposal(
+            {"intent": "read", "skill": "read-file",
+             "target": "src/a.txt", "purpose": "look"},
+            _registry())
+        self.assertEqual(req.capability, Capability.READ)
+        self.assertEqual(req.target, "src/a.txt")
+
+    def test_capability_intent_without_skill_rejected(self):
+        with self.assertRaises(StructuredProposalError):
+            validate_proposal(
+                {"intent": "read",
+                 "target": "src/a.txt", "purpose": "look"},
+                _registry())
+
+    def test_capability_intent_disagreeing_skill_rejected(self):
+        with self.assertRaises(StructuredProposalError):
+            validate_proposal(
+                {"intent": "write", "skill": "read-file",
+                 "target": "src/a.txt", "purpose": "look"},
+                _registry())
+
+    def test_unknown_word_rejected(self):
+        with self.assertRaises(StructuredProposalError):
+            validate_proposal(
+                {"intent": "examine", "skill": "read-file",
+                 "target": "src/a.txt", "purpose": "look"},
+                _registry())
+
+
+class SystemPromptContract(unittest.TestCase):
+    def test_prompt_bans_repeats(self):
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            _SYSTEM_PROMPT,
+        )
+        self.assertIn("Do not repeat", _SYSTEM_PROMPT)
+        self.assertIn("recent turns", _SYSTEM_PROMPT)
+
+
+class TemperatureConfig(unittest.TestCase):
+    def _env(self, **over):
+        env = {"RAPHAEL_MODEL_ENDPOINT": "http://x/v1",
+               "RAPHAEL_MODEL_NAME": "m"}
+        env.update(over)
+        return env
+
+    def test_default_zero(self):
+        from unittest.mock import patch
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            config_from_env,
+        )
+        with patch.dict("os.environ", self._env(), clear=True):
+            self.assertEqual(config_from_env().temperature, 0.0)
+
+    def test_env_override_and_body(self):
+        from unittest.mock import patch
+        from raphael_ibm_bob.harness.model import ModelContext
+        from raphael_ibm_bob import Mission
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            build_request_body,
+            config_from_env,
+        )
+        env = self._env(RAPHAEL_MODEL_TEMPERATURE="0.4")
+        with patch.dict("os.environ", env, clear=True):
+            config = config_from_env()
+        self.assertEqual(config.temperature, 0.4)
+        ctx = ModelContext(
+            mission=Mission(mission_id="M", description="x",
+                            scope="src/", criteria=["x"]))
+        body = build_request_body(config, ctx, [])
+        self.assertEqual(body["temperature"], 0.4)
+
+    def test_bad_values_rejected(self):
+        from unittest.mock import patch
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            config_from_env,
+        )
+        for bad in ("warm", "-0.5", "2.5"):
+            env = self._env(RAPHAEL_MODEL_TEMPERATURE=bad)
+            with patch.dict("os.environ", env, clear=True):
+                with self.assertRaises(ProviderConfigError, msg=bad):
+                    config_from_env()
+
+
 if __name__ == "__main__":
     unittest.main()

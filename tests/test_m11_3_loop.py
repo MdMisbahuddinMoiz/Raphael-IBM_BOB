@@ -173,5 +173,57 @@ class Determinism(unittest.TestCase):
                          second["turns"][0]["decision"])
 
 
+class OutputExcerpts(unittest.TestCase):
+    def _exec(self, evidence):
+        from raphael_ibm_bob.contracts import ExecutionResult
+        return ExecutionResult(sequence=1, success=True, output="ok",
+                               error=None, evidence=evidence)
+
+    def _req(self, capability, target="src/a.txt"):
+        from raphael_ibm_bob import ActionRequest
+        return ActionRequest(
+            sequence=0, requester="t", capability=capability,
+            target=target, purpose="p")
+
+    def test_read_excerpt(self):
+        from raphael_ibm_bob import Capability
+        from raphael_ibm_bob.harness.loop import excerpt_output
+        out = excerpt_output(
+            self._req(Capability.READ),
+            self._exec({"path": "p", "content": "hello-marker"}))
+        self.assertIn("hello-marker", out)
+
+    def test_run_test_excerpt(self):
+        from raphael_ibm_bob import Capability
+        from raphael_ibm_bob.harness.loop import excerpt_output
+        out = excerpt_output(
+            self._req(Capability.RUN_TEST, target="src/test_x.py"),
+            self._exec({"module": "m", "returncode": 0,
+                        "stdout": "ok", "stderr": ""}))
+        self.assertIn("returncode=0", out)
+
+    def test_none_execution(self):
+        from raphael_ibm_bob import Capability
+        from raphael_ibm_bob.harness.loop import excerpt_output
+        self.assertIsNone(
+            excerpt_output(self._req(Capability.READ), None))
+
+    def test_caps_respected(self):
+        from raphael_ibm_bob import Capability
+        from raphael_ibm_bob.harness.loop import excerpt_output
+        out = excerpt_output(
+            self._req(Capability.READ),
+            self._exec({"content": "z" * 5000}))
+        self.assertLessEqual(len(out), 1500)
+
+    def test_summary_carries_output(self):
+        from raphael_ibm_bob.harness.loop import drive_turns
+        runtime, store, mission, _ = _stack(self)
+        outcome = drive_turns(
+            model=Scripted([_read(), DoneSignal("x")]),
+            runtime=runtime, mission=mission, store=store)
+        self.assertEqual(outcome.terminal, "done")
+
+
 if __name__ == "__main__":
     unittest.main()

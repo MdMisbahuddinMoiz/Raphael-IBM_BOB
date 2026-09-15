@@ -33,7 +33,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from raphael_ibm_bob.contracts import ActionRequest
+from raphael_ibm_bob.contracts import ActionRequest, Capability
 from raphael_ibm_bob.harness.model import ModelContext
 from raphael_ibm_bob.skills import CapabilityRegistry
 
@@ -78,6 +78,7 @@ class OpenAICompatConfig:
     api_key: str = ""
     timeout_seconds: float = 30.0
     max_tokens: int = 512
+    temperature: float = 0.0
     extra_body: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -88,6 +89,9 @@ class OpenAICompatConfig:
             raise ProviderConfigError("model name is required")
         if self.timeout_seconds <= 0:
             raise ProviderConfigError("timeout_seconds must be positive")
+        if not 0.0 <= self.temperature <= 2.0:
+            raise ProviderConfigError(
+                "temperature must be within 0.0..2.0")
 
     def redacted(self) -> Dict[str, Any]:
         return {
@@ -115,6 +119,21 @@ def config_from_env() -> OpenAICompatConfig:
     except ValueError:
         raise ProviderConfigError(
             "RAPHAEL_MODEL_TIMEOUT must be numeric") from None
+    tokens_raw = os.environ.get("RAPHAEL_MODEL_MAX_TOKENS", "512")
+    try:
+        max_tokens = int(tokens_raw)
+    except ValueError:
+        raise ProviderConfigError(
+            "RAPHAEL_MODEL_MAX_TOKENS must be an integer") from None
+    if max_tokens < 1:
+        raise ProviderConfigError(
+            "RAPHAEL_MODEL_MAX_TOKENS must be positive")
+    temp_raw = os.environ.get("RAPHAEL_MODEL_TEMPERATURE", "0")
+    try:
+        temperature = float(temp_raw)
+    except ValueError:
+        raise ProviderConfigError(
+            "RAPHAEL_MODEL_TEMPERATURE must be numeric") from None
     extra_raw = os.environ.get("RAPHAEL_MODEL_EXTRA_BODY", "")
     extra_body: Dict[str, Any] = {}
     if extra_raw:
@@ -132,6 +151,8 @@ def config_from_env() -> OpenAICompatConfig:
         model=model,
         api_key=os.environ.get(API_KEY_ENV, ""),
         timeout_seconds=timeout,
+        max_tokens=max_tokens,
+        temperature=temperature,
         extra_body=extra_body,
     )
 
@@ -167,14 +188,20 @@ def skill_catalog(registry: CapabilityRegistry) -> List[Dict[str, str]]:
 
 _SYSTEM_PROMPT = (
     "You propose exactly ONE next action for a governed coding agent. "
-    "Reply with a single JSON object and nothing else. Schema: "
+    "Reply with a single COMPACT JSON object and nothing else: no "
+    "explanations, no commentary, no whitespace padding. Schema: "
     '{"intent": "act", "skill": "<skill-id from the catalog>", '
     '"target": "<concrete target>", "purpose": "<why>"} '
     'or {"intent": "done"} when the mission needs no further action. '
     "For the write-file skill ONLY, add "
     '"content": "<complete intended file text, max 8000 chars>; '
     "content is forbidden for every other skill. "
-    "Never invent skills, capabilities, or targets outside the catalog."
+    "Never invent skills, capabilities, or targets outside the catalog. "
+    "Do not repeat a capability and target combination already present "
+    "in recent turns: build on observed outcomes instead. "
+    "Work toward the mission each turn: inspect unknown files, run "
+    "relevant tests, propose fixes for observed defects, verify fixes, "
+    "then declare done. Act; do not stall re-reading known content."
 )
 
 #: Maximum model-supplied file content accepted for WRITE proposals.
@@ -196,7 +223,7 @@ def build_request_body(config: OpenAICompatConfig, context: ModelContext,
         ],
         "response_format": {"type": "json_object"},
         "max_tokens": config.max_tokens,
-        "temperature": 0,
+        "temperature": config.temperature,
     }
     for key, value in config.extra_body.items():
         # Provider-specific knobs (e.g. reasoning controls) ride along
@@ -231,13 +258,49 @@ def validate_proposal(data: Any,
     """
     if not isinstance(data, dict):
         raise StructuredProposalError("proposal must be a JSON object")
-    intent = data.get("intent")
-    if intent not in _VALID_INTENTS:
-        raise StructuredProposalError(
-            f"intent must be one of {_VALID_INTENTS}")
-    if intent == "done":
-        raise DoneSignal("model declared done")
+    raw_intent = data.get("intent")
     skill_id = data.get("skill")
+    # Lenient intent grammar (documented, deterministic): besides
+    # "act"/"done", `intent` accepts a registered skill id, or a
+    # capability value that the named skill must agree with. The
+    # `skill` field is required except for the bare-skill-id form;
+    # disagreement is ambiguous and rejected. Permission still comes
+    # exclusively from Policy at submit time.
+    if raw_intent == "done":
+        raise DoneSignal("model declared done")
+    elif raw_intent == "act":
+        pass
+    elif isinstance(raw_intent, str):
+        try:
+            registry.lookup_skill(raw_intent)
+            if skill_id not in (None, "", raw_intent):
+                raise StructuredProposalError(
+                    "ambiguous proposal: intent names a different "
+                    "skill than the skill field")
+            skill_id = raw_intent
+        except KeyError:
+            if raw_intent not in {c.value for c in Capability}:
+                raise StructuredProposalError(
+                    f"intent must be one of {_VALID_INTENTS}, a "
+                    f"registered skill id, or a capability value; "
+                    f"got {str(raw_intent)[:80]}") from None
+            if not isinstance(skill_id, str) or not skill_id:
+                raise StructuredProposalError(
+                    "capability intent requires the skill field")
+            try:
+                skill = registry.lookup_skill(skill_id)
+            except KeyError:
+                raise StructuredProposalError(
+                    f"invalid skill: {skill_id!r}") from None
+            if skill.capability.value != raw_intent:
+                raise StructuredProposalError(
+                    "ambiguous proposal: intent capability disagrees "
+                    "with the skill's capability")
+    else:
+        raise StructuredProposalError(
+            f"intent must be one of {_VALID_INTENTS}; "
+            f"got {type(raw_intent).__name__}:"
+            f"{str(raw_intent)[:80]}")
     target = data.get("target")
     purpose = data.get("purpose")
     content = data.get("content")

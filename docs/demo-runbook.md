@@ -66,14 +66,14 @@ The explicit module list is authoritative (`unittest discover`
 finds 0 tests in this layout — verified — so it must not be used):
 
 ```bash
-PYTHONPATH=. python3 -m unittest tests.test_seam_contracts tests.test_m2_boundary tests.test_m3_evidence tests.test_m4_verifier_falsifier tests.test_m5_replanner_runner tests.test_m6_quality_gate tests.test_m7_hero tests.test_m8_planner tests.test_m9_multi_replan tests.test_m10_1_runs tests.test_m10_2_metrics tests.test_m10_3_benchmark
+PYTHONPATH=. python3 -m unittest tests.test_seam_contracts tests.test_m2_boundary tests.test_m3_evidence tests.test_m4_verifier_falsifier tests.test_m5_replanner_runner tests.test_m6_quality_gate tests.test_m7_hero tests.test_m8_planner tests.test_m9_multi_replan tests.test_m10_1_runs tests.test_m10_2_metrics tests.test_m10_3_benchmark tests.test_t1_1_registry tests.test_t1_4_timeouts tests.test_t1_2_remediation tests.test_t1_3_seal tests.test_harness tests.test_harness_e2e tests.test_m11_1_provider tests.test_m11_3_loop tests.test_m11_4_integration
 ```
 
-Verified result: **Ran 209 tests — OK (0 failed)**. Expected stderr:
-one line `error: runs root not found: /tmp/m10_2_runs_…/nope` from
-the fatal-invocation test (`Determinism.test_missing_root_is_fatal`),
-which asserts exit code 2 for a missing runs root. Harmless and
-asserted, not a failure.
+Verified result: **Ran 357 tests — OK (0 failed)** (M12). Expected
+stderr: one line `error: runs root not found: /tmp/m10_2_runs_…/nope`
+from the fatal-invocation test
+(`Determinism.test_missing_root_is_fatal`), which asserts exit code 2
+for a missing runs root. Harmless and asserted, not a failure.
 
 ## 5. Hero demo
 
@@ -183,13 +183,30 @@ Verified: exit 0, `Gate: COMPLETE`, durable `runs/<run_id>/`.
 Identical to the default hero command. Exercises the full governed
 loop of §5 including falsification, replanning, and final gating.
 
+### 8b. Live model hero (optional, requires a model)
+
+```bash
+RAPHAEL_MODEL_ENDPOINT=https://opencode.ai/zen/go/v1 \
+RAPHAEL_MODEL_NAME=deepseek-v4.1-flash \
+RAPHAEL_MODEL_API_KEY=<key> \
+PYTHONPATH=. python3 demos/live_authkit_hero.py
+```
+
+A real model proposes actions that RAPHAEL governs end-to-end. The
+credential is read from the environment only. Without model
+configuration the script exits 2 with a clear message; it never
+fabricates a run — the deterministic commands above remain the
+fallback. See `docs/live-model.md` for the observed live results and
+the live-vs-deterministic distinction. Verified live run:
+`20260915T161002_2ad7e0` (`Gate: COMPLETE`).
+
 ## 9. Metrics reproduction
 
 ```bash
 python3 scripts/audit_runs.py --runs-root runs --output metrics.json
 ```
 
-Verified: exit 0 (example: `runs=103 valid=103 invalid=0`).
+Verified: exit 0 (example: `runs=327 valid=327 invalid=0`).
 The tool reads `runs/*/evidence.jsonl`, validates each run (parse,
 dense sequences from 1, known kinds, gate present, gate `run_id`
 matches directory, artifact refs resolve), and writes deterministic

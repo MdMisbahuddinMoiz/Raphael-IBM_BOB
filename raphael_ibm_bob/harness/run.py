@@ -150,7 +150,8 @@ def start_run(session: RaphaelSession, mission: Mission,
             context = ModelContext(
                 mission=mission, findings=[],
                 workspace_root=str(workspace_root),
-                evidence_count=0)
+                evidence_count=0,
+                session_id=session.session_id)
             proposal = model.propose(context)
             runtime.submit(proposal, mission)
         outcome: RunnerOutcome = runner.run(mission, **runner_kwargs)

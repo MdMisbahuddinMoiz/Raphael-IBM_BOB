@@ -31,6 +31,7 @@ class ModelContext:
     evidence_count: int = 0
     workspace_files: Tuple[str, ...] = ()
     recent_turns: Tuple[Dict[str, Any], ...] = ()
+    session_id: str = ""
 
     def summary(self) -> Dict[str, Any]:
         return {
@@ -46,6 +47,7 @@ class ModelContext:
             "evidence_count": self.evidence_count,
             "workspace_files": list(self.workspace_files),
             "recent_turns": list(self.recent_turns),
+            "session_id": self.session_id,
         }
 
 

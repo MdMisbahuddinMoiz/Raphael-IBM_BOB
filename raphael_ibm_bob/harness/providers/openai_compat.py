@@ -30,6 +30,7 @@ import os
 import threading
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -40,6 +41,12 @@ from raphael_ibm_bob.skills import CapabilityRegistry
 ENDPOINT_ENV = "RAPHAEL_MODEL_ENDPOINT"
 API_KEY_ENV = "RAPHAEL_MODEL_API_KEY"
 MODEL_ENV = "RAPHAEL_MODEL_NAME"
+
+# Honest client identification. Some edges (Cloudflare bot
+# management: error 1010) reject the default python-urllib signature
+# outright; identifying as our own client is required for the call to
+# be evaluated at all. This is not auth and not spoofing.
+USER_AGENT = "RaphaelHarness/1.0"
 
 _VALID_INTENTS = ("act", "done")
 
@@ -344,11 +351,17 @@ def validate_proposal(data: Any,
 class OpenAICompatAdapter:
     """Live OpenAI-compatible provider behind the ModelAdapter seam."""
 
+    # OpenCode Go routes on a stable per-conversation session id
+    # (https://opencode.ai/docs/go/#where-can-i-use-it). Other
+    # OpenAI-compatible endpoints ignore the extra header.
+    SESSION_HEADER = "x-opencode-session"
+
     def __init__(self, config: OpenAICompatConfig,
                  registry: CapabilityRegistry):
         self._config = config
         self._registry = registry
         self._cancelled = threading.Event()
+        self._session_key = uuid.uuid4().hex
 
     @property
     def config(self) -> OpenAICompatConfig:
@@ -364,7 +377,8 @@ class OpenAICompatAdapter:
             raise ProviderCancelled("cancelled before dispatch")
         body = build_request_body(
             self._config, context, skill_catalog(self._registry))
-        raw = self._post(body)
+        session_id = context.session_id or self._session_key
+        raw = self._post(body, session_id=session_id)
         try:
             data = json.loads(parse_response_body(raw))
         except ValueError as exc:
@@ -372,12 +386,16 @@ class OpenAICompatAdapter:
                 f"model did not return JSON: {exc}") from None
         return validate_proposal(data, self._registry)
 
-    def _post(self, body: Dict[str, Any]) -> Dict[str, Any]:
+    def _post(self, body: Dict[str, Any],
+              session_id: str = "") -> Dict[str, Any]:
         payload = json.dumps(body).encode("utf-8")
         request = urllib.request.Request(
             self._config.endpoint + "/chat/completions",
             data=payload,
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json",
+                     "User-Agent": USER_AGENT,
+                     self.SESSION_HEADER: session_id
+                     or self._session_key},
             method="POST",
         )
         if self._config.api_key:

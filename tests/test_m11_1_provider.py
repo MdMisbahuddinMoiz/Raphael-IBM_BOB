@@ -589,5 +589,80 @@ class TemperatureConfig(unittest.TestCase):
                     config_from_env()
 
 
+class SessionHeader(unittest.TestCase):
+    def _capturing(self, testcase):
+        import json as _json
+        import threading as _threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        seen = {}
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", 0))
+                self.rfile.read(length)
+                seen["session"] = self.headers.get("x-opencode-session")
+                seen["agent"] = self.headers.get("User-Agent")
+                body = {"choices": [{"message": {"content": _json.dumps(
+                    {"intent": "done"})}}]}
+                raw = _json.dumps(body).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+            def log_message(self, *args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        testcase.addCleanup(server.server_close)
+        thread = _threading.Thread(
+            target=server.serve_forever, daemon=True)
+        thread.start()
+        testcase.addCleanup(server.shutdown)
+        host, port = server.server_address
+        return seen, f"http://{host}:{port}"
+
+    def _adapter(self, testcase, url):
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            OpenAICompatAdapter,
+            OpenAICompatConfig,
+        )
+        return OpenAICompatAdapter(
+            OpenAICompatConfig(endpoint=url, model="m"), _registry())
+
+    def test_session_header_sent_and_stable(self):
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            DoneSignal,
+        )
+        seen, url = self._capturing(self)
+        adapter = self._adapter(self, url)
+        with self.assertRaises(DoneSignal):
+            adapter.propose(_context())
+        first = seen["session"]
+        self.assertTrue(first)
+        with self.assertRaises(DoneSignal):
+            adapter.propose(_context())
+        self.assertEqual(seen["session"], first)
+        self.assertTrue(seen["agent"].startswith("RaphaelHarness"))
+
+    def test_context_session_id_preferred(self):
+        from raphael_ibm_bob.harness.model import ModelContext
+        from raphael_ibm_bob import Mission
+        from raphael_ibm_bob.harness.providers.openai_compat import (
+            DoneSignal,
+        )
+        seen, url = self._capturing(self)
+        adapter = self._adapter(self, url)
+        ctx = ModelContext(
+            mission=Mission(mission_id="M", description="x",
+                            scope="src/", criteria=["x"]),
+            session_id="harness-session-9")
+        with self.assertRaises(DoneSignal):
+            adapter.propose(ctx)
+        self.assertEqual(seen["session"], "harness-session-9")
+
+
 if __name__ == "__main__":
     unittest.main()

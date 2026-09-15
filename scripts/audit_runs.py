@@ -352,6 +352,11 @@ def _verify_seal_cli(run_dir: Path) -> int:
         print(f"error: run directory not found: {run_dir}",
               file=sys.stderr)
         return 2
+    # Sealing lives in the package; bootstrap the repo root so this
+    # command works without PYTHONPATH (same as the default path).
+    repo_root = str(Path(__file__).resolve().parent.parent)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
     try:
         from raphael_ibm_bob.seal import verify_seal
     except ImportError as exc:

@@ -59,6 +59,11 @@ from raphael_ibm_bob.workspace import Workspace
 
 ProbeCallable = Callable[[], bool]
 
+#: Single source of truth for the model-loop turn bound. Referenced by
+#: `harness.api.start_model_run` and the HTTP layer so an omitted
+#: `max_turns` means the SAME thing on every entry point (M15.2 parity).
+DEFAULT_MAX_TURNS = 14
+
 #: Which pipeline step each capability advances (M14 orchestration).
 _CAPABILITY_STEP = {
     Capability.READ: "investigate",
@@ -114,6 +119,15 @@ def _advance_task(plan, mission_id: str, capability: Capability,
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _terminal_reason(exc: BaseException) -> str:
+    """Redacted, bounded reason string for a non-`done` terminal.
+
+    Provider errors are already redacted by the adapter; this only
+    bounds length so a malformed model response cannot bloat records.
+    """
+    return f"{type(exc).__name__}:{exc}"[:500]
 
 
 def _workspace_files(workspace_root: Path, mission: Mission,
@@ -195,13 +209,14 @@ class ModelRunResult:
     turns: int
     gate_verdict: Optional[str]
     task_plan: Optional[dict] = None
+    terminal_reason: str = ""
 
 
 def run_model_mission(session: RaphaelSession, mission: Mission,
                       workspace_root: Path, *, runs_root: Path,
                       model: ModelAdapter,
                       sessions_root: Optional[Path] = None,
-                      max_turns: int = 14,
+                      max_turns: int = DEFAULT_MAX_TURNS,
                       probe: Optional[ProbeCallable] = None,
                       history_window: int = 5) -> ModelRunResult:
     """Drive one governed, model-led mission to a terminal state.
@@ -225,6 +240,7 @@ def run_model_mission(session: RaphaelSession, mission: Mission,
     workspace = Workspace(workspace_root)
     ledger = EvidenceLedger(run_dir)
     terminal = "max-turns"
+    terminal_reason = ""
     turn_log: List[dict] = []
     current_finding_id: Optional[str] = None
     plan = None
@@ -257,15 +273,18 @@ def run_model_mission(session: RaphaelSession, mission: Mission,
                 request = model.propose(context)
             except DoneSignal:
                 terminal = "done"
+                terminal_reason = "model declared done"
                 break
-            except (StructuredProposalError, ProviderError, KeyError):
+            except (StructuredProposalError, ProviderError, KeyError) as exc:
                 terminal = "model-error"
+                terminal_reason = _terminal_reason(exc)
                 break
 
             try:
                 result = runtime.submit(request, mission)
-            except Exception:
+            except Exception as exc:
                 terminal = "runtime-error"
+                terminal_reason = _terminal_reason(exc)
                 break
 
             decision = result.broker_result.decision
@@ -337,6 +356,9 @@ def run_model_mission(session: RaphaelSession, mission: Mission,
         tests_ok = passing_run_tests(ledger)
         _persist_proof(ledger, "regression", tests_ok)
 
+        if terminal == "max-turns":
+            terminal_reason = f"reached max_turns={max_turns}"
+
         evaluation = gate.evaluate(GateInputs(
             mission=mission,
             findings=list(store.all()),
@@ -370,10 +392,12 @@ def run_model_mission(session: RaphaelSession, mission: Mission,
     return ModelRunResult(run=run, terminal=terminal,
                           turns=len(turn_log),
                           gate_verdict=run.gate_verdict,
-                          task_plan=task_plan)
+                          task_plan=task_plan,
+                          terminal_reason=terminal_reason)
 
 
 __all__ = [
+    "DEFAULT_MAX_TURNS",
     "ModelRunResult",
     "ProbeCallable",
     "passing_run_tests",

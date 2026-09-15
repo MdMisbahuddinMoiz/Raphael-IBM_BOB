@@ -239,6 +239,17 @@ control it does not have:
   over HTTP — honest, and a deliberate boundary.
 - **Synchronous model runs.** `POST /runs/model` blocks until the run
   terminates; the request timeout bounds it. No background queue.
+- **Live model output is sampled.** The provider occasionally returns
+  empty or malformed JSON (despite `response_format: json_object`),
+  which the Harness surfaces as `terminal: "model-error"` with a
+  redacted `terminal_reason` (`StructuredProposalError` / `ProviderError`).
+  This affects the direct API and HTTP paths identically — see §13.
+- **Provider session routing.** OpenCode Go routes on the
+  `x-opencode-session` header (the Harness `session_id`). Reusing one
+  session id across independent runs shares the provider's server-side
+  conversation state; use a fresh session per run for clean
+  comparisons. Generic OpenAI-compatible endpoints do not receive this
+  header.
 
 ## 11. Local demo usage
 
@@ -281,3 +292,52 @@ Real HTTP smoke against the running server (stdlib client):
   skills observed: `read-file` (investigator), `run-test`
   (test_analyst), `write-file` (remediation_planner) — all mediated by
   Runtime -> Broker -> Policy.
+
+The `model-error` above was investigated in M15.2 (§13); it is a live
+model-output failure, not an HTTP-layer defect.
+
+## 13. Direct / HTTP parity (M15.2)
+
+**`POST /runs/model` is the same governed operation as
+`harness.api.start_model_run()`.** The route builds the provider with
+`api.make_model_adapter(provider)` (the same env factory the direct
+caller uses) and calls `api.start_model_run(...)` — no second model
+loop, no second provider, no bypass of Runtime/Broker/Policy.
+
+Proven deterministically (`tests/test_m15_2_parity.py`, stub provider,
+real adapter + real loop + real core): direct and HTTP runs produce
+**byte-identical provider request bodies** (mission summary, skills
+catalog, roles, active task, workspace files, recent turns), identical
+config fields (`model`, `max_tokens`, `temperature`,
+`response_format`), identical terminal states and terminal reasons, and
+governed evidence (`request`/`decision`/`result`).
+
+**Single shared default.** The turn bound now has one source of truth,
+`harness.model_run.DEFAULT_MAX_TURNS = 14`, referenced by
+`api.start_model_run`, `run_model_mission`, and
+`RaphaelHTTPConfig.default_max_turns`. Before M15.2 the HTTP layer
+defaulted to 8 while the Harness defaulted to 14 — a configuration
+inconsistency for an omitted `max_turns` (fixed; not the cause of the
+observed `model-error`).
+
+**Error parity.** Provider/structured failures surface identically:
+both paths end `terminal: "model-error"` with a redacted
+`terminal_reason` (e.g. `ProviderError:provider HTTP 500`,
+`StructuredProposalError:empty model response`). The HTTP response
+includes `terminal_reason`.
+
+**Live paired evidence (DeepSeek V4.1 Flash, fresh session per path,
+identical mission/config, no probe):** across several pairs both paths
+produced a mix of `done`, `max-turns`, and `StructuredProposalError`;
+in one instrumented pair the HTTP path ran 6 clean turns
+(`max-turns`, no model error) while the direct path hit
+`StructuredProposalError:missing purpose` (10 provider calls, **zero**
+empty responses). The initial HTTP `model-error` was a provider/model
+output failure, present on the direct path too — **not** an
+HTTP-specific bug.
+
+Parity is about *semantics and configuration*, not about both runs
+happening to complete. Over HTTP there is no caller probe, so even a
+clean `done` yields `Gate: REFUSE`; that is a deliberate boundary, not
+a parity gap.
+

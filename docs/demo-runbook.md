@@ -66,10 +66,10 @@ The explicit module list is authoritative (`unittest discover`
 finds 0 tests in this layout — verified — so it must not be used):
 
 ```bash
-PYTHONPATH=. python3 -m unittest tests.test_seam_contracts tests.test_m2_boundary tests.test_m3_evidence tests.test_m4_verifier_falsifier tests.test_m5_replanner_runner tests.test_m6_quality_gate tests.test_m7_hero tests.test_m8_planner tests.test_m9_multi_replan tests.test_m10_1_runs tests.test_m10_2_metrics tests.test_m10_3_benchmark tests.test_t1_1_registry tests.test_t1_4_timeouts tests.test_t1_2_remediation tests.test_t1_3_seal tests.test_harness tests.test_harness_e2e tests.test_m11_1_provider tests.test_m11_3_loop tests.test_m11_4_integration tests.test_m13_harness tests.test_m14_specialization tests.test_m15_1_http_api
+PYTHONPATH=. python3 -m unittest tests.test_seam_contracts tests.test_m2_boundary tests.test_m3_evidence tests.test_m4_verifier_falsifier tests.test_m5_replanner_runner tests.test_m6_quality_gate tests.test_m7_hero tests.test_m8_planner tests.test_m9_multi_replan tests.test_m10_1_runs tests.test_m10_2_metrics tests.test_m10_3_benchmark tests.test_t1_1_registry tests.test_t1_4_timeouts tests.test_t1_2_remediation tests.test_t1_3_seal tests.test_harness tests.test_harness_e2e tests.test_m11_1_provider tests.test_m11_3_loop tests.test_m11_4_integration tests.test_m13_harness tests.test_m14_specialization tests.test_m15_1_http_api tests.test_m15_2_parity
 ```
 
-Verified result: **Ran 422 tests — OK (0 failed)** (M15.1). Expected
+Verified result: **Ran 437 tests — OK (0 failed)** (M15.2). Expected
 stderr: one line `error: runs root not found: /tmp/m10_2_runs_…/nope`
 from the fatal-invocation test
 (`Determinism.test_missing_root_is_fatal`), which asserts exit code 2

@@ -26,6 +26,7 @@ from raphael_ibm_bob.evidence_ledger import LedgerReader
 from raphael_ibm_bob.harness.events import collect_events
 from raphael_ibm_bob.harness.model import ModelAdapter
 from raphael_ibm_bob.harness.model_run import (
+    DEFAULT_MAX_TURNS,
     ModelRunResult,
     run_model_mission,
 )
@@ -149,7 +150,7 @@ def start_run(session: RaphaelSession, mission: Optional[Mission] = None,
 def start_model_run(session: RaphaelSession,
                     mission: Optional[Mission] = None,
                     *, model: ModelAdapter,
-                    probe=None, max_turns: int = 14,
+                    probe=None, max_turns: int = DEFAULT_MAX_TURNS,
                     sessions_root: Optional[Path] = None,
                     runs_root: Path = DEFAULT_RUNS_ROOT,
                     ) -> ModelRunResult:
@@ -332,6 +333,7 @@ def describe_workspace(workspace_root: Path,
 
 
 __all__ = [
+    "DEFAULT_MAX_TURNS",
     "DEFAULT_RUNS_ROOT",
     "DEFAULT_SESSIONS_ROOT",
     "RUN_STATES",

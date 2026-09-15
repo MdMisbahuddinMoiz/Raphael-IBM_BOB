@@ -27,6 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from raphael_ibm_bob.harness.api import DEFAULT_MAX_TURNS
 from raphael_ibm_bob.http import errors
 from raphael_ibm_bob.http.errors import ApiError
 
@@ -51,7 +52,7 @@ class RaphaelHTTPConfig:
     host: str = "127.0.0.1"
     port: int = DEFAULT_PORT
     api_key: Optional[str] = None
-    default_max_turns: int = 8
+    default_max_turns: int = DEFAULT_MAX_TURNS
     verbose: bool = False
 
     def is_loopback(self) -> bool:
@@ -82,7 +83,7 @@ def config_from_env(environ: Optional[Dict[str, str]] = None
         port=port,
         api_key=api_key,
         default_max_turns=int(_get("RAPHAEL_HTTP_MAX_TURNS",
-                                   str(RaphaelHTTPConfig.default_max_turns))),
+                                   str(DEFAULT_MAX_TURNS))),
     )
 
 

@@ -75,6 +75,7 @@ def start_model_run(request, params, config):
     return 201, {
         "run": schemas.run_json(result.run),
         "terminal": result.terminal,
+        "terminal_reason": result.terminal_reason,
         "turns": result.turns,
         "gate_verdict": result.gate_verdict,
         "tasks": result.task_plan,

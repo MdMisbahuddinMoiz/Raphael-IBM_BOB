@@ -341,6 +341,30 @@ def audit_runs(runs_root: Path) -> Dict[str, Any]:
     }
 
 
+# -----------------------------------------------------------------------------
+# Seal verification (T1-3; single shared implementation lives in
+# raphael_ibm_bob.seal and is imported lazily so the default
+# aggregation path stays stdlib-only)
+# -----------------------------------------------------------------------------
+
+def _verify_seal_cli(run_dir: Path) -> int:
+    if not run_dir.is_dir():
+        print(f"error: run directory not found: {run_dir}",
+              file=sys.stderr)
+        return 2
+    try:
+        from raphael_ibm_bob.seal import verify_seal
+    except ImportError as exc:
+        print(f"error: cannot load seal module: {exc}", file=sys.stderr)
+        return 2
+    ok, reason = verify_seal(run_dir)
+    if ok:
+        print(f"seal-ok {run_dir.name}")
+        return 0
+    print(f"seal-invalid {run_dir.name} {reason}")
+    return 1
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="Aggregate RAPHAEL durable run evidence "
@@ -349,7 +373,13 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="directory containing <run_id>/ run dirs")
     parser.add_argument("--output", default="metrics.json",
                         help="where to write the metrics document")
+    parser.add_argument("--verify-seal", default=None, metavar="RUN_DIR",
+                        help="verify the T1-3 evidence seal of one run "
+                             "directory instead of aggregating")
     args = parser.parse_args(argv)
+
+    if args.verify_seal is not None:
+        return _verify_seal_cli(Path(args.verify_seal))
 
     runs_root = Path(args.runs_root)
     if not runs_root.is_dir():

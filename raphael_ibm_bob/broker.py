@@ -40,6 +40,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from raphael_ibm_bob.contracts import (
     ActionRequest,
+    Capability,
     Decision,
     EvidenceReceipt,
     ExecutionResult,
@@ -70,6 +71,12 @@ class BOBBroker:
     If `ledger` is provided, every action persists a canonical record chain
     to the ledger. If `ledger` is None, the broker behaves as it did at M2
     (in-memory audit only).
+
+    T1-4: `default_timeouts` maps capabilities to execution bounds in
+    seconds (RUN_TEST defaults to 30.0 when absent). A per-request
+    `ActionRequest.timeout_seconds` overrides the default. Timeouts are
+    enforced at invocation; a timeout is recorded as an unsuccessful
+    execution — never as success, never rewritten as DENY.
     """
 
     def __init__(
@@ -77,10 +84,18 @@ class BOBBroker:
         policy: BOBPolicy,
         workspace: Workspace,
         ledger: Optional[EvidenceLedger] = None,
+        default_timeouts: Optional[Dict[Capability, float]] = None,
     ):
         self._policy = policy
         self._workspace = workspace
         self._ledger = ledger
+        for cap, seconds in (default_timeouts or {}).items():
+            if seconds is None or seconds <= 0:
+                raise ValueError(
+                    f"default timeout for {cap!r} must be positive, "
+                    f"got {seconds!r}")
+        self._default_timeouts: Dict[Capability, float] = dict(
+            default_timeouts or {})
         self._lock = threading.Lock()
         self._sequence = 0
         # Diagnostic counters for tests/audit. Retained from M2.
@@ -104,6 +119,21 @@ class BOBBroker:
     # Broker.seam interface ----------------------------------------------------
 
     def submit(self, request: ActionRequest, mission: Mission) -> BrokerResult:
+        if (request.timeout_seconds is not None
+                and request.timeout_seconds <= 0):
+            raise ValueError(
+                "ActionRequest.timeout_seconds must be positive, got "
+                f"{request.timeout_seconds!r}")
+        # T1-4: resolve the execution bound before anything else so the
+        # stamped request, the decision evidence, and the capability
+        # invocation all observe the same value.
+        effective_timeout = request.timeout_seconds
+        if effective_timeout is None:
+            effective_timeout = self._default_timeouts.get(
+                request.capability)
+        if (effective_timeout is None
+                and request.capability == Capability.RUN_TEST):
+            effective_timeout = 30.0
         with self._lock:
             self.submissions += 1
             self._sequence += 1
@@ -116,6 +146,7 @@ class BOBBroker:
                 purpose=request.purpose,
                 plan_id=request.plan_id,
                 finding_id=request.finding_id,
+                timeout_seconds=effective_timeout,
             )
         # Persist the RequestRecord first so subsequent records can link.
         # The ledger's sequence number is the canonical request_seq; the
@@ -158,6 +189,7 @@ class BOBBroker:
                 "target": decision.target,
                 "request_seq": request_seq,
                 "decision_seq": decision_seq,
+                "timeout_seconds": effective_timeout,
             }
             self._ledger.append_evidence(
                 evidence_id=ev_id,
@@ -183,16 +215,28 @@ class BOBBroker:
 
         # On ALLOW: invoke the capability. We stamp the ExecutionResult
         # with the same sequence number so the linkage is unambiguous.
+        # A timeout payload is an unsuccessful execution: the decision
+        # stays ALLOW (it was authorized and attempted).
         result_seq: Optional[int] = None
         try:
             payload = execute_capability(self._workspace, stamped)
-            execution = ExecutionResult(
-                sequence=stamped.sequence,
-                success=True,
-                output="ok",
-                error=None,
-                evidence=payload,
-            )
+            if isinstance(payload, dict) and payload.get("timeout") is True:
+                execution = ExecutionResult(
+                    sequence=stamped.sequence,
+                    success=False,
+                    output="timeout",
+                    error=f"TimeoutExpired after "
+                          f"{payload.get('timeout_seconds')}s",
+                    evidence=payload,
+                )
+            else:
+                execution = ExecutionResult(
+                    sequence=stamped.sequence,
+                    success=True,
+                    output="ok",
+                    error=None,
+                    evidence=payload,
+                )
         except Exception as exc:
             execution = ExecutionResult(
                 sequence=stamped.sequence,

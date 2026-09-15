@@ -81,20 +81,46 @@ def _run_test(workspace: Workspace, request: ActionRequest) -> Dict[str, Any]:
     PYTHONPATH to the workspace root and run `python3 -m unittest
     <dotted.module>`. The test file is required to live inside the
     workspace and match the test_*.py / *_test.py pattern.
+
+    T1-4: the execution bound is `request.timeout_seconds` when set,
+    else the 30s broker default. A timeout is reported as an explicit
+    `{"timeout": True, ...}` payload with partial output preserved —
+    never as success, never as a DENY (the decision was ALLOW).
     """
     p = workspace.resolve(request.target)
     rel = p.relative_to(workspace.root).with_suffix("")
     module = ".".join(rel.parts)
+    timeout = (request.timeout_seconds
+               if request.timeout_seconds is not None else 30.0)
     env = dict(os.environ)
     env["PYTHONPATH"] = str(workspace.root) + os.pathsep + env.get("PYTHONPATH", "")
-    proc = subprocess.run(
-        [sys.executable, "-m", "unittest", module, "-v"],
-        cwd=str(workspace.root),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "unittest", module, "-v"],
+            cwd=str(workspace.root),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        # Partial output may arrive as bytes or str depending on how
+        # the interpreter was killed; normalize defensively so the
+        # evidence payload stays JSON-serializable for the ledger.
+        def _text(value: object) -> str:
+            if value is None:
+                return ""
+            if isinstance(value, bytes):
+                return value.decode("utf-8", errors="replace")
+            return str(value)
+        return {
+            "timeout": True,
+            "timeout_seconds": timeout,
+            "module": module,
+            "returncode": None,
+            "partial_stdout": _text(exc.stdout)[-2000:],
+            "partial_stderr": _text(exc.stderr)[-2000:],
+        }
     return {
         "module": module,
         "returncode": proc.returncode,

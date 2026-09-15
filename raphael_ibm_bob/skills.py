@@ -208,16 +208,24 @@ class CapabilityRegistry:
                 requester: Optional[str] = None,
                 plan_id: Optional[str] = None,
                 finding_id: Optional[str] = None,
+                timeout_seconds: Optional[float] = None,
                 version: Optional[str] = None) -> SkillProposal:
         """Build an ordinary ActionRequest from a registered skill.
 
-        The request carries no authority: submit it through
-        Runtime/Broker/Policy. (Execution bounds such as timeouts are
-        resolved by the T1-4 timeout path, not here.)
+        The execution bound defaults to the skill capability's declared
+        `timeout_seconds`; an explicit positive override wins. The
+        request carries no authority: submit it through
+        Runtime/Broker/Policy, which enforces the bound.
         """
         skill = self.lookup_skill(skill_id, version=version)
         if not target:
             raise ValueError("proposal target is required")
+        cap_def = self._capabilities.get(skill.capability.value)
+        timeout = timeout_seconds
+        if timeout is None and cap_def is not None:
+            timeout = cap_def.timeout_seconds
+        if timeout is not None and timeout <= 0:
+            raise ValueError("timeout_seconds must be positive")
         request = ActionRequest(
             sequence=0,
             requester=requester or f"skill:{skill.id}",
@@ -226,6 +234,7 @@ class CapabilityRegistry:
             purpose=skill.purpose_template.format(target=target),
             plan_id=plan_id,
             finding_id=finding_id,
+            timeout_seconds=timeout,
         )
         return SkillProposal(
             request=request,

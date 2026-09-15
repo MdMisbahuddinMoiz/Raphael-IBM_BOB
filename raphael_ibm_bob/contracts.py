@@ -113,6 +113,10 @@ class ActionRequest:
         purpose      - free-text or causal reference (e.g. "verify finding F-12")
         plan_id      - optional plan this action belongs to
         finding_id   - optional finding this action causally references
+        timeout_seconds - optional execution bound (T1-4). None means the
+                       broker default for the capability. Must be
+                       positive when set; validated by constructors
+                       below, not by this frozen record itself.
     """
     sequence: int
     requester: str
@@ -121,6 +125,7 @@ class ActionRequest:
     purpose: str
     plan_id: Optional[str] = None
     finding_id: Optional[str] = None
+    timeout_seconds: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -131,6 +136,7 @@ class ActionRequest:
             "purpose": self.purpose,
             "plan_id": self.plan_id,
             "finding_id": self.finding_id,
+            "timeout_seconds": self.timeout_seconds,
         }
 
 

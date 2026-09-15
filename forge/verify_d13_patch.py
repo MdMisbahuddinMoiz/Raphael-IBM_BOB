@@ -24,6 +24,6 @@ print("[fix1b apache mapping]", "or 'apache' in claim_lower" in ca)
 print("[fallback single def]", ca.count("def _parse_fallback_heuristic") == 1)
 
 ar = open(files[2]).read()
-print("[hardcoded key gone]", "nvapi-g7GpRKY9alHnrwGLUAHClkPzD0pP" not in ar)
+print("[hardcoded key gone]", "nvapi-REDACTED" not in ar)
 print("[eol model 3 sites]", ar.count("deepseek-ai/deepseek-v4-flash-0731") == 3)
 print("[resolver def+3 calls]", ar.count("_resolve_nvidia_api_key") == 4)

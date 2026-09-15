@@ -11,11 +11,11 @@ text = AR.read_text(encoding="utf-8")
 BLOCK_16 = '''                model_id="deepseek-ai/deepseek-v4-flash",
                 provider="nvidia",
                 api_base="https://integrate.api.nvidia.com/v1",
-                api_key="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",'''
+                api_key="nvapi-REDACTED",'''
 BLOCK_20 = '''                    model_id="deepseek-ai/deepseek-v4-flash",
                     provider="nvidia",
                     api_base="https://integrate.api.nvidia.com/v1",
-                    api_key="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",'''
+                    api_key="nvapi-REDACTED",'''
 NEW_BLOCK_16 = '''                model_id="deepseek-ai/deepseek-v4-flash-0731",
                 provider="nvidia",
                 api_base="https://integrate.api.nvidia.com/v1",
@@ -42,7 +42,7 @@ print("phase2: all 3 blocks replaced.")
 
 # verify
 text = AR.read_text(encoding="utf-8")
-assert "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" not in text
+assert "nvapi-REDACTED" not in text
 assert text.count("deepseek-ai/deepseek-v4-flash-0731") == 3
 assert text.count("_resolve_nvidia_api_key()") == 3
 print("verify: hardcoded key gone; 3x -0731; 3x resolver. OK")

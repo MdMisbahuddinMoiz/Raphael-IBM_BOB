@@ -32,7 +32,7 @@ life on 2026-08-07T09:00:00Z and is no longer available.
 - Frozen default `deepseek-ai/deepseek-v4-flash` **returns 410 since 2026-08-07**.
   Today is 2026-08-09. **Every run against the frozen default is guaranteed to
   fail** (this includes the 08-08 re-audit v1/v2 runs).
-- Frozen hardcoded API key (`nvapi-g7Gp...`) **cannot access catalog models**
+- Frozen hardcoded API key (`nvapi-REDACTED...`) **cannot access catalog models**
   ("Function not found for account ...") — the account is unsubscribed.
 - **LIVE verified:** `deepseek-ai/deepseek-v4-flash-0731` (same family, newer
   snapshot) + `.env` keys `NVIDIA_API_KEY_A`/`B` (both respond OK).

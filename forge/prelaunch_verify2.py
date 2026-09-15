@@ -23,8 +23,8 @@ for line in (ROOT / ".env").read_text().splitlines():
         k, _, v = line.partition("=")
         env[k.strip()] = v.strip()
 sentinel_keys = [
-    "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",
-    "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",
+    "nvapi-REDACTED",
+    "nvapi-REDACTED",
 ]
 print("  env NVIDIA_API_KEY_A present:", bool(env.get("NVIDIA_API_KEY_A")),
       "len:", len(env.get("NVIDIA_API_KEY_A", "")))

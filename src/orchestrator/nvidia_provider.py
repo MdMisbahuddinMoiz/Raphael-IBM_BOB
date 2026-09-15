@@ -39,7 +39,7 @@ logger = logging.getLogger("nvidia_provider")
 
 NVIDIA_API_KEY = os.getenv(
     "NVIDIA_API_KEY",
-    "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",
+    "nvapi-REDACTED",
 )
 NVIDIA_BASE = os.getenv("NVIDIA_API_BASE", "https://integrate.api.nvidia.com/v1")
 

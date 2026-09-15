@@ -66,7 +66,7 @@ import re
 sites = [l.strip() for l in src.splitlines() if "model_id" in l and "def " not in l]
 for s in sites:
     print("  ", s[:110])
-print("hardcoded nvapi occurrences:", src.count("nvapi-g7Gp"))
+print("hardcoded nvapi occurrences:", src.count("nvapi-REDACTED"))
 
 print("\n=== 5. SEED SCHEME (resolve_seed) ===")
 import sys

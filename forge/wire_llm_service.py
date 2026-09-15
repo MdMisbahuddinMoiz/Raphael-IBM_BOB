@@ -37,7 +37,7 @@ insert_a = """        self._llm = TracedLLM(self.tracer, self.config)
                     model_id="deepseek-ai/deepseek-v4-flash",
                     provider="nvidia",
                     api_base="https://integrate.api.nvidia.com/v1",
-                    api_key="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",
+                    api_key="nvapi-REDACTED",
                     timeout_seconds=15,
                     temperature=0.0,
                     max_tokens=512,

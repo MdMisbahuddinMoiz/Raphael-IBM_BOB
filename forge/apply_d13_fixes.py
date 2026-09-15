@@ -119,7 +119,7 @@ NEW_TYPE = """                if ('http' in claim_lower or 'web' in claim_lower
 OLD_BLOCK = '''                model_id="deepseek-ai/deepseek-v4-flash",
                 provider="nvidia",
                 api_base="https://integrate.api.nvidia.com/v1",
-                api_key="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",'''
+                api_key="nvapi-REDACTED",'''
 NEW_BLOCK = '''                model_id="deepseek-ai/deepseek-v4-flash-0731",
                 provider="nvidia",
                 api_base="https://integrate.api.nvidia.com/v1",

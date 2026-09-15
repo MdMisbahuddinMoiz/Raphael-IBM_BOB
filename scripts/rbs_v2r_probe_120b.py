@@ -11,7 +11,7 @@ import time
 import urllib.request
 
 API_BASE = "https://integrate.api.nvidia.com/v1"
-API_KEY = "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"
+API_KEY = "nvapi-REDACTED"
 MODEL = "openai/gpt-oss-120b"
 MAX_TOKENS = 16384
 TIMEOUT = 180

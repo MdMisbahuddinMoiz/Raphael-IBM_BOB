@@ -29,6 +29,11 @@ from raphael_ibm_bob.harness.session import (
     save_session,
 )
 from raphael_ibm_bob.harness.run import RaphaelRun, start_run
+from raphael_ibm_bob.harness.loop import (
+    LoopOutcome,
+    TurnRecord,
+    drive_turns,
+)
 from raphael_ibm_bob.harness.model import (
     ModelAdapter,
     ModelContext,
@@ -46,6 +51,9 @@ __all__ = [
     "save_session",
     "RaphaelRun",
     "start_run",
+    "LoopOutcome",
+    "TurnRecord",
+    "drive_turns",
     "ModelAdapter",
     "ModelContext",
     "ScriptedModelAdapter",

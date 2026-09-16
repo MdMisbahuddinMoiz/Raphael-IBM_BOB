@@ -400,9 +400,9 @@ def _navigation() -> str:
     links = [
         ("OPERATIONS INDEX", "/operations", True),
         ("FINDINGS", "/operations/findings", True),
+        ("EVIDENCE", "/operations/evidence", True),
         ("DECISION TRACE (per op)", None, True),
         ("EVENT STREAM (per op)", None, True),
-        ("EVIDENCE PAGE", None, False),
         ("CAPABILITY ARSENAL", None, False),
         ("ROLES API", "/roles", True),
         ("SKILLS API", "/skills", True),

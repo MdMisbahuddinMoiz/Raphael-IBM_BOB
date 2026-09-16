@@ -376,6 +376,8 @@ def _navigation() -> str:
             '<div class="navgrid">'
             '<a class="navlink" href="/command">COMMAND CENTER</a>'
             '<a class="navlink" href="/operations">OPERATIONS</a>'
+            '<a class="navlink" href="/operations/evidence">'
+            'EVIDENCE INTELLIGENCE</a>'
             '</div></section>')
 
 

@@ -320,6 +320,7 @@ def build_router() -> Router:
     from raphael_ibm_bob.http.routes import (
         command,
         discovery,
+        evidence,
         findings,
         health,
         operations,
@@ -370,6 +371,8 @@ def build_router() -> Router:
     # M15.6 — literal route MUST precede the "/operations/{run_id}"
     # pattern so "findings" is not parsed as a run id.
     router.add("GET", "/operations/findings", findings.findings)
+    # M15.7 — literal route MUST precede "/operations/{run_id}" too.
+    router.add("GET", "/operations/evidence", evidence.evidence)
     router.add("GET", "/operations/{run_id}", operations.console)
     router.add("GET", "/operations/{run_id}/events",
                operations.event_stream_page)

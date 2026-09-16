@@ -644,3 +644,133 @@ ID is the architecture authority's decision.
 
 **Read-only correction. Nothing modified in the providers, nothing executed, no
 implementation.**
+
+---
+
+# G0–G3 PRE-2C CLOSURE (C1A static_file_inspect)
+
+Additive. Prior sections and corrections preserved. Static/read-only; no provider
+executed. `binary_sink_scan` = **PROVISIONAL CLASS-A** per GLM's second review.
+
+## G0 — Pin integrity (statically verified)
+
+| item | expected | verified value | status |
+|---|---|---|---|
+| RAPHAEL (pre-audit) | `98c9a078f5a3635a986882d061d78f97b35f310c` | documented | OK |
+| RAPHAEL (current HEAD) | advanced by additive audit commits | `3497bf746b479d7f04ae54ea8bb88a986a3c8aab` (`49b8482d` → `3497bf746` on top of `98c9a078f`) | OK |
+| Decepticon | `31e1c8e786c83bb20f5c3d9ebc482cf9fb8ffa06` | identical; `git status` clean | OK |
+| T3MP3ST | `29824d5625ede419ac8cdae418c8f4c72c6270f7` | identical; `git status` clean | OK |
+| deepagents | `0.6.8` | `uv.lock:668-681`, sdist sha256 `70cdd4da…` | OK |
+
+Working tree: only untracked `docs/integration/phase-2b-delta-hardening.md`.
+
+## G1 — Complete end-to-end static trace for `binary_sink_scan`
+
+Two distinct provider-facing surfaces exist; **`binary_sink_scan` is not on the
+`mcp-server.ts` surface.** `src/mcp-server.ts` is a separate MCP server exposing
+its *own* tools (`security_recon`, …) through `runTool` → `execFileAsync`
+(`mcp-server.ts:84-105`, allowlist `SAFE_COMMANDS` `:74`). The Arsenal /
+`binary_sink_scan` path is reached via the **agent tool loop**:
+`src/agent/index.ts:457 this.arsenal.execute(toolCall.name, …)`, driven by the
+HTTP/UI server (`src/server.ts`); `server.ts` contains **no** `arsenal.execute`
+call. Stage table (for the `binary_sink_scan` invocation):
+
+| stage | symbol / file | shell | subprocess | execFile | spawn | eval / dyn import | generic dispatch | network | fs | external proc |
+|---|---|---|---|---|---|---|---|---|---|---|
+| HTTP/MCP entry | `src/server.ts` (HTTP/UI); separate `mcp-server.ts` does **not** expose it | no | no | no | no | no | route dispatch | yes (server) | no | no |
+| tool loop | `src/agent/index.ts:457` `this.arsenal.execute(toolCall.name, …)` | no | no | no | no | no | named lookup | no | no | no |
+| lookup | `Arsenal.execute` `index.ts:381` `this.tools.get(toolName)`; unknown → `ToolError` (`:382-390`) | no | no | no | no | no | fixed registry | no | no | no |
+| scope gate | `scopeViolation(this.scope, context)` (`:394`) | no | no | no | no | no | no | no | no | no |
+| approval gate | `isGatedRisk(tool.riskTier)` (`:408`); `binary_sink_scan` has **no** `riskTier` → gate not engaged | no | no | no | no | no | no | no | no | no |
+| arg validation | `validateToolArgs` (`:425-437`) | no | no | no | no | no | no | no | no | no |
+| handler | `tool.handler(context)` (`:449`) → `binary_sink_scan` | no | no | no | no | no | no | no | yes | no |
+| scope/read | `approvedLocalPath` (`:75`) → `readFileSync`/`statSync`/`readdirSync` | no | no | no | no | no | no | no | yes | no |
+| post-processing | `redactConfiguredSecrets(…)` (`:449`, def `:134-150`) — pure string/object redaction | no | no | no | no | no | no | no | no | no |
+| record/emit | `this.executions.push`, `emit('tool:executed')` (`:439-457`) | no | no | no | no | no | no | no | no | no |
+| transport serialization | agent returns `ToolResult` to caller/server | no | no | no | no | no | no | no | no | no |
+
+`execFileAsync` **is** imported into `arsenal/index.ts` (`:27`) but is used only by
+`isToolAvailable` (`:3361`) and `runSubprocess` (`:3380`) for `EXTERNAL_TOOLS` —
+**not** on the `binary_sink_scan` path. `randomUUID` (`:440`) is `crypto` (pure).
+
+**Result:** the `binary_sink_scan` invocation path is **execution-free** (no
+shell/subprocess/execFile/spawn/eval/dynamic-import/generic-command-dispatch).
+Residual: `src/server.ts` transport tail and `src/agent/index.ts` surrounding loop
+were spot-verified (line 457) but not read line-by-line → **UNKNOWN (low)**.
+
+## G2 — Scope closure (`T3MP3ST_SOURCE_ROOT`)
+
+- **Where it comes from:** `process.env.T3MP3ST_SOURCE_ROOT?.trim()`, read **only**
+  in `local-file-scope.ts:5` (repo-wide grep: 6 hits total; 4 in this file, 2 in a
+  test).
+- **Default value:** none.
+- **Unset/empty behavior:** **fail-closed** error `T3MP3ST_SOURCE_ROOT must name
+  the approved analysis root` (`:6`).
+- **Who can set it / inheritance:** the process environment (operator/integration);
+  inheritable by child processes; no provider-local config file path overrides it
+  (no other reader found).
+- **Provider-local override:** not found (UNKNOWN only insofar as environment
+  hygiene is an integration concern).
+- **RAPHAEL-supplied externally:** yes — RAPHAEL may set the env var for the
+  provider process.
+- **Canonicalization:** `realpathSync(resolve(configuredRoot))` and
+  `realpathSync(resolve/isAbsolute(requested))` (`:8-9`).
+- **Fail-closed validation:** any error → `ok:false` (`:19-21`); `..`/absolute-rel
+  traversal rejected (`:11-13`); `statSync` must be a regular file (or directory
+  when `allowDirectory`).
+- **Symlinks/traversal:** entry-path symlinks resolved and bound to root; `..`
+  rejected.
+- **`binary_sink_scan` read path:** reads only `approved.path` from
+  `approvedLocalPath('binary_sink_scan', requestedPath, true)` (`binary.ts:75-77`);
+  no direct `T3MP3ST_SOURCE_ROOT` access in `binary.ts`.
+
+**FIRST-PROOF POLICY RECORDED: `binary_sink_scan` MUST be used in SINGLE-FILE
+mode only.** Directory mode (`allowDirectory=true`, `binary.ts:84-121`) is
+**EXCLUDED FROM FIRST PROOF** because children are not re-validated through
+`approvedLocalPath` → a symlink inside the root can be followed out of it.
+**Residual/hardening item: directory-mode child-path symlink escape.**
+
+## G3 — Capability identifier / dispatch decision
+
+- **`C1 static_file_manifest` = NOT MET** by current external providers (listing/
+  metadata semantics; both providers' manifest-class ops are execution-derived).
+- **`C1A static_file_inspect` = proposed new closed capability ID.** Semantics:
+  **bounded static content inspection**, not manifest/listing. `binary_sink_scan`
+  (read-only content scan) maps to `C1A`. Final ID = architecture authority.
+- **Fixed-registry named dispatch interpretation — conditionally confirmed:**
+
+| condition (source-confirmed) | evidence |
+|---|---|
+| capability identity already selected/authorized | `Arsenal.execute(toolName, …)` (`index.ts:377`) with registry lookup (`:381`) |
+| implementation from a fixed registry | `this.tools: Map<string,CustomTool>` populated by `registerMany` (`src/index.ts:397-443`) |
+| caller cannot provide an arbitrary executable/tool name | unknown name → `ToolError` (`:382-390`); only registered names resolve |
+| arguments cannot substitute another tool | args validated against the tool's own schema (`:425-437`); no tool-name arg |
+| no dynamic tool resolution inside handler | `binary.ts` contains no `import()`/`eval`/registry lookup |
+| (additional) RAPHAEL-side narrowing possible | `getToolDefinitions(names)` allowlist filter (`:502-523`) |
+
+→ `Arsenal.execute("binary_sink_scan", …)` is **NOT** "arbitrary tool dispatch":
+the dispatched-to entity is a fixed, bounded handler, not an execution primitive.
+**UNKNOWN (low):** the agent supplies `toolCall.name`; for the first proof RAPHAEL
+must pin the name via the capability allowlist.
+
+## G4 / G5 / G6 — Pending requirements (documentation only)
+
+**G4 (adapter contract, pending):** out-of-process HTTP/MCP only; **exactly one
+allowed capability** (`binary_sink_scan`, single-file mode); adapter wall-clock
+timeout; response-size cap; **M4** provider-authority inerting/rejection (note:
+`binary_sink_scan` returns provider-asserted `severity`/`cwe` → must be
+rejected/inert, §A.4).
+
+**G5 (prerequisites, NOT implemented):** M1–M7 enforcement and tests remain
+prerequisites. **No control is claimed implemented or deployed.**
+
+**G6 (first-proof fixture, pending):** RAPHAEL-controlled fixture; single-file
+deterministic fixture; golden expected result; bounded result; residuals
+documented (directory-mode symlink escape; provider-asserted severity/cwe;
+`T3MP3ST_SOURCE_ROOT` env hygiene).
+
+**Boundary:** this closure does **not** authorize Phase 2C. It documents evidence
+and pending requirements; implementation requires an explicit later authorization.
+
+**Read-only closure audit. No provider executed, no implementation, no RAPHAEL core
+change.**

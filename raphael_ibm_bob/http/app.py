@@ -363,6 +363,8 @@ def build_router() -> Router:
     # M15.4 — live operator console + controls (orchestration only).
     router.add("GET", "/operations", operations.list_operations)
     router.add("GET", "/operations/{run_id}", operations.console)
+    router.add("GET", "/operations/{run_id}/events",
+               operations.event_stream_page)
     router.add("POST", "/operations/start", operations.start_operation)
     router.add("POST", "/operations/{run_id}/cancel",
                operations.cancel_operation)

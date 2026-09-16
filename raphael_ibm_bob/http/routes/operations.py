@@ -14,6 +14,7 @@ from raphael_ibm_bob.http.app import Response, StreamResponse
 from raphael_ibm_bob.http.errors import ApiError
 from raphael_ibm_bob.http.views import decision_trace as _view
 from raphael_ibm_bob.http.views import event_stream as _stream
+from raphael_ibm_bob.http.views import event_stream_page as _events_page
 from raphael_ibm_bob.http.views import operations_console as _console
 
 HTML = "text/html; charset=utf-8"
@@ -39,6 +40,18 @@ def list_operations(request, params, config):
 def console(request, params, config):
     """GET /operations/{run_id} — live operator console."""
     html_doc = _console.render_console(
+        params["run_id"], runs_root=config.runs_root,
+        sessions_root=config.sessions_root)
+    return Response(200, html_doc, content_type=HTML)
+
+
+def event_stream_page(request, params, config):
+    """GET /operations/{run_id}/events — chronological audit view.
+
+    Read-only: renders the existing event projection and subscribes to
+    the existing SSE endpoint. No second event store or stream.
+    """
+    html_doc = _events_page.render_event_stream(
         params["run_id"], runs_root=config.runs_root,
         sessions_root=config.sessions_root)
     return Response(200, html_doc, content_type=HTML)
@@ -142,6 +155,7 @@ __all__ = [
     "cancel_operation",
     "console",
     "decision_trace",
+    "event_stream_page",
     "events_stream",
     "list_operations",
     "start_operation",

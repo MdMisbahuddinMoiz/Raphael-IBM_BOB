@@ -401,6 +401,7 @@ def _navigation() -> str:
         ("OPERATIONS INDEX", "/operations", True),
         ("FINDINGS", "/operations/findings", True),
         ("EVIDENCE", "/operations/evidence", True),
+        ("POLICY & QUALITY GATE", "/operations/gate", True),
         ("DECISION TRACE (per op)", None, True),
         ("EVENT STREAM (per op)", None, True),
         ("CAPABILITY ARSENAL", None, False),

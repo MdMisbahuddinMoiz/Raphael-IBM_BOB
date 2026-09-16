@@ -460,3 +460,187 @@ artifact is deleted; these are additive corrections.
 ---
 
 **Read-only audit. Nothing modified, committed, executed, or implemented.**
+
+---
+
+# ADDENDUM A — Phase 2B-δ.1 CORRECTION (additive; prior findings preserved)
+
+This addendum amends the enumeration above **additively**. No prior finding is
+deleted. Where an earlier statement is superseded, the original is quoted and the
+correction is stated. All corrections are static, read-only, hash-bound (hashes
+in §3 above; any new file is hashed inline).
+
+## A.1 Corrections (as mandated)
+
+**A1 — `EXTERNAL_TOOLS` enumerated (was F1).**
+`src/arsenal/index.ts:3426` declares exactly **4** tools; all invoke
+`runSubprocess` → `execFile` (**Class B**):
+
+| tool | binary | argv source | timeout | risk |
+|---|---|---|---|---|
+| `nmap_scan` | `nmap` | `sanitizeExternalFlags` + `-p`/target (`index.ts:3441-3446`) | 120000 (`:3448`) | *(adapter nmap: active)* |
+| `nuclei_scan` | `nuclei` | args (`:3486`) | 300000 | active |
+| `ffuf_fuzz` | `ffuf` | args (`:3530`) | 120000 | active |
+| `curl_request` | `curl` | forced `--data-raw`, `@`/`<` reject (`:3611`) | 30000 | active |
+
+**A2 — `buildPostExTools` enumerated (was F2).**
+Exactly **2** tools (`post-ex.ts`), both `runSubprocess` (**Class B**):
+
+| tool | binary | argv | timeout | risk tier | notes |
+|---|---|---|---|---|---|
+| `metasploit_module` (`:135`) | `msfconsole` | `['-q','-x',<joined msf commands>]` (`:123`), metachar sanitizer `:108-112`, target-override refused `:100` | 600000 | dangerous (approval-gated) | DANGEROUS; no in-process tool |
+| `hydra_bruteforce` (`:207`) | `hydra` | argv (`:194`) | 600000 | credential (approval-gated) | credential attack |
+
+No in-process tool in `buildPostExTools` → no new Class-A candidate there.
+
+**A3 — `BUILTIN_TOOLS` fully enumerated (was F3); 40 Class-A / 2 Class-B.**
+`BUILTIN_TOOLS` (`index.ts:597`) = 10 referenced tool objects + 32 inline = **42**.
+Prior §16 wording "near-complete" is **corrected to "complete"** for the builtin
+registry; the residual gap is UNKNOWNs U3/U4 only.
+
+- **Class B (2):** `r2_analyze` (`execFile('r2', …)`), `browser_probe`
+  (`browser.ts:54` dynamic `import('playwright')` → launches a headless-Chromium
+  **browser subprocess**).
+- **Class A (40):** the remaining entries — in-process (fetch / dns / net /
+  crypto / pure transforms), no shell/subprocess/generic dispatch. Mechanism
+  verified per handler: `fetch`/`targetFetch` (network), `dns`/`net` (network),
+  `crypto.createHash` (`hash_crack`, `:1596`), pure string/number transforms.
+- **5 genuinely pure computational tools** (no network, no fs, no subprocess):
+  `base64_decode`, `jwt_decode`, `url_encode`, `cidr_expand` (`:3272`),
+  `email_format` (`social-osint.ts:155`).
+- **Networked Class-A vs suitable non-networked Class-A:**
+  - *networked* Class-A (recorded network attribute, **excluded from first-proof
+    promotion** for RAPHAEL scope policy): `dns_lookup`, `port_scan`,
+    `subdomain_enum`, `whois_lookup`, `http_request`, `header_analysis`,
+    `dir_bruteforce`, `technology_detect`, `xss_scan`, `sqli_scan`, `ssl_scan`,
+    `password_spray`, `robots_txt_fetch`, `reverse_dns`,
+    `subdomain_takeover_check`, `version_detect`, `network_trace`, `csp_analysis`,
+    `api_endpoint_discovery`, `http_methods_test`, `cors_check`,
+    `cookie_analysis`, `open_redirect_test`, `lfi_test`, `ssti_test`,
+    `clickjacking_test`, `cve_lookup`, `username_search`, `telegram_lookup`,
+    `ip_info`, `idor_probe`, `js_analyze`, `kev_check`.
+  - *non-networked* Class-A (candidates for first-proof): `binary_sink_scan`
+    (local fs, §A.4), `hash_crack` (local crypto), and the 5 pure tools.
+  - Correction to prior §13: `js_analyze` is **Class A under the locked
+    definition** (network is a recorded attribute, not a disqualifier — this
+    fixes errata E6/F20); it is *excluded from promotion* for network policy, not
+    reclassified as non-A.
+
+**A4 — `local-agents` reachability (was F4).**
+`spawnAgent` (`local-agents.ts:321-324`) uses `shell:true` **only** when
+`needsShell(resolvedBin)` = `isWin32() && /\.(cmd|bat)$/i.test(resolvedBin)`
+(`:326-328`). This code path serves **local agent-CLI launching**, not Arsenal
+tool execution; **no Arsenal tool dispatches into `local-agents`** (registration
+in `src/index.ts:397-443` covers `BUILTIN_TOOLS`, `EXTERNAL_TOOLS`,
+`buildAdapterTools`, `buildPostExTools` — none calls `local-agents`). Therefore
+the `shell:true` surface is **not reachable from the Arsenal tool surface**.
+**UNKNOWN preserved:** Win32 `.cmd`/`.bat` runtime robustness is unverified.
+
+**A5 — Decepticon external-surface wording (was F5).**
+Prior §4.1 header "S1/S2 — *the only externally-invocable operations*" is
+**corrected**: it should read "the only **inbound generic-execution /
+orchestration** daemons." The following additional surfaces are documented and
+classified relative to the provider boundary:
+
+| surface | nature | in/out of the Phase 2B out-of-process boundary |
+|---|---|---|
+| `sandbox_server` (`/execute`, `/execute_tmux`, files) | inbound HTTP generic execution | **in** (Class B primitive) |
+| `mcp_server` (`tools_lifecycle`/`tools_interactive`) | inbound MCP orchestration/control-plane | **in** |
+| `tools/ops/client.py` | outbound HTTP-over-Unix-socket client to `opscontrol` daemon (owns docker socket, ADR-0006) | **out** (tool surface, not an inbound provider capability) |
+| `skillogy/server` (Neo4j-backed skill graph) | standalone server subsystem | **out** (separate service; not a RAPHAEL provider capability) |
+| `telemetry-gateway` / `telemetry/*` | telemetry export | **out** (observability, not capability) |
+| `cli/*` (`cli/scan.py` etc.) | operator CLI entry points | **out** (human CLI, not a provider RPC) |
+| `sandbox_web/*` (`executor.py`, `transport.py`, playwright templates) | web-recon subsystem (scripts/browser) | **out** for the inbound boundary; **UNKNOWN** internally (U1 remains) |
+
+No evidence of an inbound Decepticon capability that is execution-free.
+
+**A6 — F6 resolved (integration mode).**
+RAPHAEL's external integration mode is **LOCKED in Phase 2B to out-of-process
+adapter only (HTTP/MCP); in-process provider embedding is prohibited.** Under this
+premise, "provider-facing" = an inbound HTTP/MCP operation. No architecture change
+is required for F6; the premise is recorded here as the basis for the Decepticon
+and T3MP3ST "provider-facing" classifications.
+
+**A7 — New critical entry (proposed first-proof candidate).**
+
+```
+capability:      binary_sink_scan
+provider:        T3MP3ST
+class:           CLASS-A CANDIDATE / PROPOSED FIRST-PROOF CAPABILITY
+                 (NOT APPROVED — architecture authority has not approved it)
+purpose:         bounded static binary/source sink + hardcoded-secret scan
+                 (= filesystem content inspection)
+implementation:  in-process
+subprocess:      NO
+shell:           NO
+generic dispatch: NO
+arbitrary tool dispatch: NO
+filesystem:      YES (read-only)
+network:         NO (verified: no fetch/http/import of net in binary.ts)
+scope:           approvedLocalPath (T3MP3ST_SOURCE_ROOT)
+output:          bounded text + ToolFinding[]; see §A.4
+```
+
+## A.2 `binary_sink_scan` — deep static audit
+
+Source `src/arsenal/binary.ts` (sha256 `b48a94f8…`), `local-file-scope.ts`
+(sha256 `4ad421fe…`), `index.ts` (`30f95e7a…`). **Not executed.**
+
+| question | answer | evidence |
+|---|---|---|
+| exact entry symbol | `binarySinkScanTool` (name `binary_sink_scan`) | `binary.ts:65-66` |
+| all callers | registered in `BUILTIN_TOOLS` (`arsenal/index.ts:606`); invoked only via `Arsenal.execute('binary_sink_scan', ctx)` → `tool.handler` | `index.ts:377-438` |
+| actual Arsenal registration | `src/index.ts:397` `registerMany(BUILTIN_TOOLS)` | `src/index.ts:397` |
+| exact argument schema | single param `path`: string, required | `binary.ts:69-71` |
+| exact target path handling | `requestedPath = String(params.path).trim()`; `approvedLocalPath('binary_sink_scan', requestedPath, true)`; `filePath = approved.path` | `binary.ts:73-77` |
+| `approvedLocalPath` usage | yes, `allowDirectory=true` | `binary.ts:75` |
+| symlink behavior | entry path resolved via `realpathSync` (parent symlinks resolved, must stay in root). **Directory-mode children are NOT re-validated** → a symlink placed inside the approved root can point outside it and be read. | `local-file-scope.ts:8-11`; `binary.ts:86,94` |
+| traversal behavior | `..` rejected by `relative()` guard on the entry path; **children not re-checked** | `local-file-scope.ts:10-13` |
+| parent/root behavior | root = `realpathSync(resolve(T3MP3ST_SOURCE_ROOT))`; candidate must be inside | `local-file-scope.ts:5-13` |
+| maximum file size | 10 MB per file (`MAX_BYTES`); directory mode ≤ 40 files, each ≤ 10 MB | `binary.ts:47,87,93,123` |
+| maximum result size | bounded by ruleset × caps: 13 sink + 5 secret rules, ≤ 4 examples × 80 chars each | `binary.ts:22-45,137,144` |
+| regex/pattern complexity | fixed literal/anchored patterns over extracted printable runs; linear-ish; no nested quantifiers observed | `binary.ts:22-45` |
+| recursion behavior | **none** (top-level directory entries only) | `binary.ts:86` |
+| directory handling | top-level `readdirSync`, file-filter, ≤ 40, aggregate per-file tallies | `binary.ts:84-121` |
+| special files | directory entries filtered by `isFile()`; single-path read is `readFileSync` on the resolved path | `binary.ts:86,127` |
+| device paths | only reachable if inside the approved root after realpath; would be read if so — **UNKNOWN** (no explicit device guard) | `binary.ts:127` |
+| `/proc` `/sys` behavior | entry path: realpath outside root → rejected. Child-symlink escape: **UNKNOWN** (see symlink row) | `local-file-scope.ts:8-13` |
+| path opened before validation? | **no** — validation precedes every read | `binary.ts:75→79,94,127` |
+| helper invoking subprocess indirectly? | **no** — `binary.ts`/`local-file-scope.ts` import only `fs`/`path` | `binary.ts:15-18` |
+| dynamic dispatch? | **no** — no `import()`/`eval`/`new Function` in `binary.ts` | (absence) |
+| network call? | **no** | (absence) |
+| embeds provider verification/authority metadata? | **YES (material)** — returns `ToolFinding` objects with provider-computed `severity` (high/medium) and `cwe[]`, plus a hardcoded "verify in a disassembler before reporting" note (`binary.ts:111-121,161-171,157`). Under M4 these provider-asserted authority fields must be **REJECTED/inert**, not consumed. | `binary.ts:111-121,157,161-171` |
+
+**Residual UNKNOWNs:** directory-mode child re-validation; device-path guard;
+`T3MP3ST_SOURCE_ROOT` provenance/default/fail-closed behavior; hardlink/TOCTOU
+residuals. None of these change the Class-A execution classification; they affect
+whether the scope bound is "root-bounded" in all modes.
+
+## A.3 C1 mapping (identifier NOT chosen silently)
+
+`binary_sink_scan` **reads file contents** and returns content-derived findings.
+It is therefore semantically an **inspection** capability, not a
+listing/metadata **manifest**. Proposed mapping (for the architecture authority
+to ratify):
+
+- `C1 static_file_manifest` (listing/metadata) — **NOT** what this tool does.
+- Candidate new ID **`C1A static_file_inspect`** (read-only content inspection,
+  bounded) — matches the tool's real behavior.
+
+Property check against the required constraints: **read-only ✓, non-networked ✓,
+bounded ✓ (10 MB/file, ≤40 files), deterministic enough ✓ (fixed ruleset),
+not generic execution ✓** (in-process; no shell/subprocess/dispatch). The final
+ID is the architecture authority's decision.
+
+## A.4 What this addendum does NOT do
+
+- Does not approve `binary_sink_scan` (it remains a CANDIDATE).
+- Does not weaken Class A.
+- Does not execute any provider/tool.
+- Does not delete or rewrite any prior finding (E1–E13 remain recorded; A1–A7
+  are corrections, and the E-items that this addendum resolves are noted inline:
+  E5/F1→A1, F2→A2, F3/E10→A3, F4→A4, F5/E8→A5, F6→A6, E6/F20→A3).
+- Does not authorize Phase 2C.
+
+**Read-only correction. Nothing modified in the providers, nothing executed, no
+implementation.**

@@ -509,3 +509,341 @@ finding/evidence lifecycle, verification/falsification, Quality Gate.
 | Recommended shape? | Containerized provider behind an HTTP/MCP boundary; Fabric stays resolution-only. **INFERRED** |
 
 **STOP.** No adapters implemented. Next phase requires separate authorization.
+
+---
+
+# Phase 2A — Pinned Repository / Deep Contract Audit
+
+Labels as Phase 1: **VERIFIED FROM SOURCE** (local clone/pinned),
+**VERIFIED FROM SOURCE (remote)**, **INFERRED**, **UNKNOWN / NOT VERIFIED**,
+**BLOCKED**, **REQUIRES LEGAL REVIEW**.
+
+## Pinned revisions and clone paths
+
+| System | Source | Branch | HEAD SHA (pinned) | Local path | Working tree |
+|---|---|---|---|---|---|
+| RAPHAEL | `/home/moiz/raphael-2.0-rbsv2r` | `feature/raphael-harness-live-model` | `cc1524c3e2da4f2c0c6ad33c8e16329167d03b10` | local | CLEAN |
+| Decepticon | `https://github.com/PurpleAILAB/Decepticon` | `main` | `31e1c8e786c83bb20f5c3d9ebc482cf9fb8ffa06` | `/home/moiz/audit-repos/Decepticon` | CLEAN |
+| T3MP3ST | `https://github.com/elder-plinius/T3MP3ST` | `main` | `29824d5625ede419ac8cdae418c8f4c72c6270f7` | `/home/moiz/audit-repos/T3MP3ST` | CLEAN |
+
+Both providers were cloned read-only (shallow, `--single-branch`). **No provider
+file was modified.** **VERIFIED FROM SOURCE.**
+
+### Corrected Decepticon repository identity
+
+`git ls-remote https://github.com/BitterSecurity/Decepticon` and
+`git ls-remote https://github.com/PurpleAILAB/Decepticon` return **identical
+refs** (identical `HEAD` = `31e1c8e…` and identical branch list). **VERIFIED
+FROM SOURCE.** Conclusion: `BitterSecurity/Decepticon` and
+`PurpleAILAB/Decepticon` are the same repository (rename/redirect). The
+authoritative clone target is `PurpleAILAB/Decepticon`. **INFERRED.**
+
+### RAPHAEL invariant check (M16.3/M16.4 still true)
+
+- `capability_fabric.py`: `CapabilityProvider` protocol (`provider_id`,
+  `list_capabilities`, `declaration`, `build_action_request`); `CapabilityFabric`
+  (`register`, `list_providers`, `get_provider`, `providers_for`, `resolve`);
+  `default_fabric()` → single `raphael-native` provider; capabilities
+  `read, list, search, write, run_test`. **VERIFIED FROM SOURCE (local).**
+- Adoption holds: `planner.Planner.plan_a`, `replanner.Replanner.replan`,
+  `harness/providers/openai_compat.validate_proposal` all call
+  `.resolve(capability)` / `build_action_request`; none construct `ActionRequest`
+  directly. **VERIFIED FROM SOURCE (local).**
+- M16.4 provider observability present in `capability_arsenal.py`
+  (`default_fabric().list_providers()/providers_for`). **VERIFIED FROM SOURCE (local).**
+
+## Exact files and symbols inspected
+
+### Decepticon (`/home/moiz/audit-repos/Decepticon`, SHA `31e1c8e`)
+
+| File | Symbols |
+|---|---|
+| `packages/decepticon/decepticon/backends/http_sandbox.py` | `SandboxError(RuntimeError)`, `HTTPSandbox(BaseSandbox)`, `HTTPSandbox.execute_tmux(command, session, timeout, is_input, workspace_path) -> str`, `execute_tmux_async(...)`, endpoint `/read_session_log_diff` |
+| `packages/decepticon/decepticon/backends/factory.py` | `build_sandbox_backend(config=None) -> HTTPSandbox`; `SANDBOX_URL`/`SANDBOX_TOKEN`; resolution order run-config → LangGraph `get_config()` → env |
+| `packages/decepticon/decepticon/sandbox_server/app.py` | FastAPI routes: `GET /healthz`, `POST /execute`, `/upload_files`, `/download_files`, `/execute_tmux`, `/start_background`, `/poll_completion`, `/kill_session`, `/read_session_log_diff`, `/reset_session_log_offset`; `_verify_token(authorization)` bearer auth |
+| `packages/decepticon/decepticon/sandbox_kernel/{base.py,daemon.py,tmux.py,jobs.py,egress.py}` | `SandboxBase(BaseSandbox)`, `DaemonSandbox(SandboxBase)`, `execute_tmux`, tmux/PS1 protocol |
+| `packages/decepticon/decepticon/tools/bash/bash.py` | bash tool wrapping `HTTPSandbox.execute_tmux`; INLINE ≤15K, OFFLOAD 15K–100K to `.scratch/`, HARD_LIMIT >5M; ANSI strip + line compression |
+| `packages/decepticon/decepticon/agents/build.py` | `build_middleware`, `build_tools`, `SafetyOverrideViolation`, `DECEPTICON_ALLOW_SAFETY_OVERRIDES` |
+| `packages/decepticon/decepticon/agents/standard/*.py` | `create_decepticon_agent`, `create_soundwave_agent`, `create_exploit_agent`, … (16 factories) |
+| `packages/decepticon/decepticon/capabilities/evidence.py` | `EvidenceValidation`, `validate_evidence(success_output, negative_output, success_patterns, negative_patterns)` — promotion via positive vs negative control, not exit status/confidence |
+| `packages/decepticon-core/decepticon_core/types/engagement.py` | `RoE`, `CONOPS`, `DeconflictionPlan`, `OPPLAN`, `ThreatProfile`, `CleanupPlan`, `AbortPlan`, `ContactPlan`, `DataHandlingPlan`, `Objective`, `ObjectiveStatus`, `ObjectivePhase` (Pydantic) |
+| `packages/decepticon-core/decepticon_core/types/kg.py` | `Node`, `Edge`, `KnowledgeGraph` (Pydantic) |
+
+### T3MP3ST (`/home/moiz/audit-repos/T3MP3ST`, SHA `29824d5`)
+
+| File | Symbols |
+|---|---|
+| `src/index.ts` | `interface Tempest`, `createTempest(config: TempestConfig): Tempest`, `class TempestCommand extends EventEmitter<CommandEvents>` |
+| `src/types/index.ts` | `interface Finding` (severity, targetId, operatorId, phase, cvss/cve/cwe, `evidence: Evidence[]`, `verifyGate{passed,provenance:'none'|'context'|'tool',reasons}`, `assertedSeverity`), `interface Evidence {type:'screenshot'|'log'|'request'|'response'|'file'|'command'|'output', content, timestamp, metadata}`, `TargetStatus`, `Mission.status: 'planning'|'active'|'paused'|'completed'|'aborted'`, `Task.status: 'pending'|'assigned'|'in_progress'|'completed'|'failed'|'skipped'`, `TempestConfig` |
+| `src/arsenal/index.ts` | `interface ToolExecution {id,toolName,startedAt,completedAt?,result?,error?}`, `class Arsenal.extend(EventEmitter)` with `register`, `execute(toolName, context): Promise<ToolResult>`, `setScope(ArsenalScope)`, `setApprovalController(ApprovalController)`; `ArsenalScope`, `scopeViolation` (egress gate before handler), `ToolErrorCategory` |
+| `src/arsenal/catalog.ts` | `type ToolExecutionMode = 'safe_command'|'receipt_required'|'import_only'|'catalog_only'`; per-tool `execution` modes |
+| `src/evidence/index.ts` | `class EvidenceVault.extend(EventEmitter)`; `redactCredential`, `RedactedCredential`; dedup by normalized title+target; `hasPassedVerificationGate` (`verifiedAt` + `verifyGate.passed`); events `finding:added/updated/verified/gate-blocked` |
+| `src/mission/index.ts` | `class TaskQueue`, `class MissionControl` (`createMission`, `startMission`, `generateTasksForTarget`) |
+| `src/operators/index.ts` | `class OperatorAgent`, `class OperatorCell` |
+| `src/agent/index.ts` | `class AgentLoop` |
+| `src/agent/local-agents.ts` | `T3MP3ST_LOCAL_AGENT_TIMEOUT_MS` (default 600000), ping timeout |
+| `src/index.ts` / `src/server.ts` | `T3MP3ST_TASK_TIMEOUT_MS`, `T3MP3ST_GENERAL_TIMEOUT_MS`; Express API incl. `/api/missions`, `/api/approvals/*` (request/approve/reject/authorize-target), `/api/arsenal/*`, `/api/events`, `/health` |
+| `src/mcp-server.ts` | MCP server entry (`security_recon`) |
+| `src/target/index.ts` | `class TargetEnvironment.addTarget(...)` / update / setStatus |
+
+## Deep contract analysis — Decepticon
+
+- **Public/library seam is HTTP to a sandbox daemon** (`HTTPSandbox(base_url,
+  token, timeout)` → `decepticon.sandbox_server` FastAPI), plus agent factories
+  and Pydantic engagement contracts. **VERIFIED FROM SOURCE.**
+- **Execution primitive:** `execute_tmux(command, session, timeout, is_input,
+  workspace_path) -> str` (output text). Timeouts per call; output truncation;
+  auto-background after 60 s; size watchdog. **VERIFIED FROM SOURCE.**
+- **No RAPHAEL-shaped action/result types.** Provider work is expressed as
+  agent prompt→bash session commands; results are strings/large outputs and
+  offloaded scratch files. **VERIFIED FROM SOURCE.**
+- **Its own evidence semantics exist** (`validate_evidence` positive vs
+  negative control) and its own KG/OPPLAN objective lifecycle. These must map to
+  RAPHAEL Verifier/Falsifier, never replace them. **VERIFIED FROM SOURCE + INFERRED.**
+- **Scope model:** `RoE`/`OPPLAN`/`Objective` (Pydantic) — richer than RAPHAEL's
+  mission/problem; no RAPHAEL→Decepticon scope hand-off exists. **VERIFIED FROM SOURCE.**
+
+**Cleanest adapter boundary:** the **sandbox daemon HTTP surface**
+(`/execute`, `/execute_tmux`, `/upload_files`, `/download_files`,
+`/start_background`, `/poll_completion`, `/kill_session`,
+`/read_session_log_diff`) — but invoking it directly would be a *generic command
+execution* surface, which RAPHAEL policy explicitly excludes. A safe adapter can
+only expose a **closed, named, non-arbitrary operation** (e.g. a read-only file
+inspection) — not raw bash. **INFERRED.**
+
+## Deep contract analysis — T3MP3ST
+
+- **`Tempest` is a monolithic module bundle** (command, cell, mission, targetEnv,
+  vault, arsenal, approval, opsec, comms, analysis, llm, general, exploit,
+  scanner, browser, benchmark, reasoning, cognition, swarm, cloud, persistence,
+  learning, knowledge, protocols, evasion, reporting, workflow). It is an
+  **orchestrator + agent runtime + mission controller**, not a tool library.
+  **VERIFIED FROM SOURCE.**
+- **`Arsenal.execute(toolName, context): Promise<ToolResult>`** is the closest
+  action primitive; it enforces a **hard egress-scope gate before any handler**
+  and an **approval gate** for intrusive tools. `ToolExecution` records
+  `{id, toolName, startedAt, completedAt?, result?, error?}`. **VERIFIED FROM SOURCE.**
+- **Its own finding/evidence lifecycle:** `Finding` carries severity/CVSS/CVE/CWE,
+  `evidence[]`, and a `verifyGate{passed, provenance}` that *downgrades unverified
+  severity*. `EvidenceVault.hasPassedVerificationGate` requires `verifiedAt` +
+  `verifyGate.passed`. **This is T3MP3ST verification authority and must not
+  become RAPHAEL verification authority.** **VERIFIED FROM SOURCE.**
+- **Mission/task model:** `MissionControl` (planning/active/paused/completed/aborted),
+  `TaskQueue` (pending/assigned/in_progress/completed/failed/skipped),
+  `TargetEnvironment`. **VERIFIED FROM SOURCE.**
+
+**Cleanest adapter boundary:** the **MCP `security_recon`** surface or a bounded
+subset of `Arsenal.execute` for read-only/non-networked tools. Full `Tempest`
+must remain external. **INFERRED.**
+
+## Single-bounded-action feasibility
+
+| Provider | Can it run ONE RAPHAEL ActionRequest without owning the mission? | Classification |
+|---|---|---|
+| Decepticon | Only via the sandbox daemon, which is **arbitrary command execution**; a bounded *read-only* op is feasible but must be a closed command, not model-chosen. Agent factories assume an engagement/OPPLAN. | **ADAPTER REQUIRES INTERNAL ORCHESTRATION** for agent-level ops; bounded sandbox op feasible **with a closed allow-list** |
+| T3MP3ST | `Arsenal.execute(toolName, context)` is a single bounded tool call with scope+approval gates. But `Tempest`/MissionControl assume mission/operator context; findings promote through its own gate. | **ADAPTER REQUIRES INTERNAL ORCHESTRATION** unless restricted to a single gated Arsenal tool |
+
+Neither can be safely invoked as "just a tool" without a **closed capability
+allow-list** and an explicit "external result is an observation" rule.
+**INFERRED.**
+
+## Scope / authorization hand-off
+
+| Dimension | RAPHAEL input | Decepticon input | T3MP3ST input | Status |
+|---|---|---|---|---|
+| target | `ActionRequest.target` (string) | engagement target / sandbox workspace | `TargetEnvironment` target address/type/zone | **TRANSLATION REQUIRED** |
+| authorized scope | `Mission.scope` (string substring rule in Policy) | `RoE` + `DeconflictionPlan` (Pydantic) | `ArsenalScope{allowedHosts,allowLoopback,allowPrivate}` + scope receipts | **MISSING** (RAPHAEL scope ≠ provider scope) |
+| exclusions | not modelled | DeconflictionPlan | scope receipts/approvals | **MISSING** |
+| operation window | `ActionRequest.timeout_seconds` | per-call timeout | `*_TIMEOUT_MS` | **TRANSLATION REQUIRED** |
+| allowed capability | `Capability` enum | tool set per agent | Arsenal tool + `ToolExecutionMode` | **TRANSLATION REQUIRED** |
+| allowed network | none (Fabric opens no network) | sandbox-net (internal) | egress-scope gate | **CONFLICT** (RAPHAEL cannot express this) |
+| allowed filesystem | workspace scope rule | `/workspace` bind | host/repo/evidence paths | **CONFLICT** |
+| data handling | not modelled | `DataHandlingPlan` | redaction posture | **MISSING** |
+| provider RoE | n/a | full RoE/OPPLAN | rules + approvals | **provider-internal** |
+
+No unified schema is proposed here. **VERIFIED FROM SOURCE + INFERRED.**
+
+## Timeout / cancellation mapping
+
+| RAPHAEL | Decepticon | T3MP3ST |
+|---|---|---|
+| `ActionRequest.timeout_seconds` → provider budget | per-call `timeout` on `/execute_tmux`; auto-background after 60 s; watchdog >5M chars; connection retry budget ~150 s | `T3MP3ST_TASK_TIMEOUT_MS`, `T3MP3ST_GENERAL_TIMEOUT_MS`, `T3MP3ST_LOCAL_AGENT_TIMEOUT_MS` (600000 default) |
+| hard vs soft | soft/stepwise (tmux session can persist) | per-task/agent timers |
+| cancellation | `/kill_session` | task status control (mechanism code-level **UNKNOWN / NOT VERIFIED**) |
+| partial result | session log diff | task result/error |
+| orphan risk | **HIGH** — persistent tmux sessions + background jobs | **MEDIUM** — local agent sessions |
+
+**VERIFIED FROM SOURCE (timeout surfaces/symbols).** Code-level cancellation
+guarantees: **UNKNOWN / NOT VERIFIED.**
+
+## Result / error normalization (minimum fields derived from source)
+
+From `ToolExecution`/`ToolResult` (T3MP3ST) and `execute_tmux`→str + artifact
+offload (Decepticon), the minimum RAPHAEL-normalizable fields are:
+
+```
+provider_id        # adapter-assigned ("decepticon" | "t3mp3st")
+operation_id       # T3MP3ST ToolExecution.id ; Decepticon session/command id
+status             # success | failure | timeout | denied | unavailable | partial | cancelled
+output             # bounded text (already truncated by provider where applicable)
+artifacts          # references only (Decepticon .scratch/ ; T3MP3ST evidence files)
+error              # provider error string (ToolError category / SandboxError)
+metadata           # provider-specific, non-secret
+started_at/completed_at
+```
+
+This is a **derived minimum**, not an assumed type. It maps to RAPHAEL's
+`ExecutionResult` + `ledger.append_evidence(producer="provider:<id>")`.
+**INFERRED from source.**
+
+## Evidence normalization
+
+| External output | RAPHAEL mapping |
+|---|---|
+| execution output / stderr | `ExecutionResult` + observation `evidence` |
+| logs, screenshots, files | artifact references (no new artifact store) |
+| tool receipts (T3MP3ST `ToolExecution`) | observation `evidence` with `operation_id` |
+| findings (Decepticon KG/`Finding`; T3MP3ST `Finding`+`verifyGate`) | **observation only**; never RAPHAEL VERIFIED |
+| target metadata | `evidence` metadata |
+| provider state | `evidence` metadata |
+
+**PROHIBITED direct mappings:** provider `VERIFIED`, provider `COMPLETE`,
+provider `REFUTED`, T3MP3ST `verifyGate.passed`, Decepticon
+`EvidenceValidation.validated` → RAPHAEL authority. **VERIFIED FROM SOURCE +
+policy.**
+
+## Provenance contract
+
+| Provider identifier | Exists? | RAPHAEL mapping |
+|---|---|---|
+| operation id | T3MP3ST `ToolExecution.id`; Decepticon session/command | → evidence `operation_id` |
+| task id | T3MP3ST `TaskQueue` task | → evidence metadata |
+| session id | Decepticon tmux session | → evidence metadata |
+| artifact id | both (file refs) | → `artifact_ref` |
+| finding id | T3MP3ST `Finding.id`; Decepticon KG node | → evidence metadata only |
+| agent id | Decepticon factory role; T3MP3ST `operatorId` | → evidence metadata |
+| run_id / ActionRequest id | **RAPHAEL-assigned** | adapter must stamp these on every record |
+
+**Provenance gap:** providers have no notion of RAPHAEL `run_id` or
+`ActionRequest` identity; the adapter must inject/stamp them. **VERIFIED FROM
+SOURCE + INFERRED.**
+
+## Sandbox / security boundary (source-grounded)
+
+| Concern | Decepticon | T3MP3ST |
+|---|---|---|
+| where Docker socket is used | **NOT in the SDK path**; SDK talks HTTP to `sandbox_server`; Docker socket lives with the daemon/sandbox (architecture doc) | Docker optional (`docker compose`), binds `127.0.0.1:3333` |
+| where commands execute | inside the sandbox container via daemon (`/execute_tmux`) | host or container; Playwright; child processes |
+| network | sandbox-net vs management-net (isolated) | egress-scope gate (`ArsenalScope`) before handler |
+| credential visibility | provider keys/BHCE token on management net; sandbox isolated | redaction (`redactCredential`); keys in env/conf store |
+| filesystem | `/workspace` bind; `.scratch` offload | repo/evidence/reports paths |
+| what RAPHAEL would invoke | HTTP commands to daemon (**arbitrary exec**) | a single gated `Arsenal.execute` tool |
+
+**Critical:** because the Decepticon daemon is a **generic command surface**,
+exposing it to RAPHAEL would create the very "unrestricted host/network access"
+the brief forbids. Any Decepticon adapter must therefore expose **only a closed,
+named, non-arbitrary operation**. **VERIFIED FROM SOURCE + policy.**
+
+## License / packaging
+
+- Decepticon: **Apache-2.0** (stated in README + `LICENSE`). **VERIFIED FROM SOURCE (remote).**
+- T3MP3ST: **AGPL-3.0** (`package.json` `license: AGPL-3.0-or-later`, `LICENSE`). **VERIFIED FROM SOURCE.**
+- Technical note: RAPHAEL would **not** link either in-process (out-of-process
+  HTTP/MCP/container boundary), which reduces but does not eliminate obligations.
+- **REQUIRES LEGAL REVIEW.** This audit makes **no** legal conclusion.
+
+## Integration shape re-evaluation (source-level)
+
+| Option | Isolation | Reproducibility | Dependency coupling | Timeout | Cancellation | Provenance | Security | Failure containment | Observability | Complexity |
+|---|---|---|---|---|---|---|---|---|---|---|
+| A in-process | very low | low | very high | weak | weak | weak | poor | poor | weak | low |
+| B sidecar | medium | medium | low | medium | medium | medium | medium | good | medium | medium |
+| C containerized | high | high | low | medium | medium | strong | high | excellent | medium | high |
+| D CLI/subprocess | medium | medium | low | medium | weak | medium | medium | good | easy | medium |
+| E HTTP/MCP | high | high | low | good | medium | strong | high | good | strong | medium |
+
+**Source-level finding reinforces Phase 1:** Decepticon's **SDK already speaks
+HTTP to a sandbox daemon**, and T3MP3ST exposes **MCP + HTTP + a gated
+`Arsenal.execute`**. Therefore **C (containerized provider) reached via E
+(HTTP/MCP)** remains the recommendation: it bounds both providers out-of-process,
+gives explicit contracts, and preserves RAPHAEL's authority. **INFERRED.**
+
+## Candidate capability matrix (smallest possible)
+
+| Provider | Candidate | Classification |
+|---|---|---|
+| Decepticon | closed read-only sandbox file inspection (NOT raw bash) | **REQUIRES NEW RAPHAEL CONTRACT** (and a closed command allow-list) |
+| Decepticon | raw `/execute_tmux` / bash | **NOT SUITABLE** (generic exec) |
+| T3MP3ST | MCP `security_recon` (scope-gated) | **REQUIRES NEW RAPHAEL CONTRACT** |
+| T3MP3ST | single gated `Arsenal.execute` read-only tool | **ADAPTER REQUIRED** |
+| T3MP3ST | source analysis (tree-sitter ingest) | **ADAPTER REQUIRED** |
+| both | exploitation / C2 / credential / persistence / exfiltration | **NOT SUITABLE** |
+
+**DIRECTLY MAPPABLE: none.** **VERIFIED FROM SOURCE + policy.**
+
+## Proposed adapter boundary (Phase 2A, design-level)
+
+Keep RAPHAEL's Fabric unchanged:
+`provider_id` / `list_capabilities()` / `declaration()` / `build_action_request()`.
+
+Add, **outside the Fabric**, a provider-runtime boundary:
+
+```
+RAPHAEL ActionRequest
+   ↓ (adapter, out-of-process)
+ProviderRuntime.invoke(action_request) -> ProviderResult
+   ↓
+ProviderResult -> RAPHAEL ExecutionResult + observation evidence
+   ↓
+RAPHAEL Runtime → Broker → Policy (unchanged authority)
+```
+
+- `ProviderRuntime` lives in the **provider boundary** (container/sidecar),
+  reached over HTTP/MCP; it **must not** be callable from `capability_fabric.py`.
+- `invoke` accepts **only closed capability ids**, never free-form commands or prompts.
+- `normalize_result` emits `ProviderResult` (fields per §Result normalization);
+  the adapter converts it to RAPHAEL `ExecutionResult` + observation evidence.
+- **Must remain outside the adapter:** orchestration, execution authority,
+  finding/evidence lifecycle, verification/falsification, Quality Gate.
+- **Required new RAPHAEL seams:** out-of-process invocation boundary,
+  observation/result normalization, timeout/cancellation translation,
+  scope/target authorization hand-off, honest provider health.
+
+## Blockers
+
+- **BLOCKED:** no approved RAPHAEL scope/target hand-off for external targets.
+- **BLOCKED:** both providers' natural surface (agent factories / `Tempest` /
+  command execution) is broader than a bounded action; a closed allow-list must
+  be designed and approved before any adapter.
+- **BLOCKED:** cancellation guarantees unverified at code level.
+
+## Remaining unknowns
+
+- Decepticon: exact `/execute_tmux` timeout/auto-background code semantics;
+  `DaemonSandbox` cancellation; KG write path.
+- T3MP3ST: `AgentLoop`/`MissionControl` cancellation internals; MCP tool schema
+  for `security_recon`; `ApprovalController` contract.
+- Whether either can be restricted to a **single bounded action** in practice.
+- Legal: **REQUIRES LEGAL REVIEW** (Apache-2.0 vs AGPL-3.0).
+
+## Exact future implementation sequence (for separate authorization)
+
+1. Approve the closed capability allow-list + scope hand-off contract.
+2. Design-only `ProviderRuntime` contract doc (no code).
+3. Build the lowest-risk **read-only, non-networked** provider in a container behind HTTP/MCP.
+4. Prove isolation + no authority leakage (tests + governance audit).
+5. Only then consider any networked/action capability, each separately authorized.
+
+## Code changes
+
+**NONE** to RAPHAEL's governed core, the Capability Fabric, ActionRequest,
+Broker, Policy, Runtime, or Quality Gate, and **NONE** to either provider.
+Artifact changed: this document only.
+
+## Audit artifact revision
+
+- `docs/integration/decepticon-t3mp3st-compatibility-audit.md` — **UPDATED** (this
+  Phase 2A section). Commit SHA recorded in the Phase 2A report.
+
+**STOP.** Phase 2A is audit/design only. No adapters implemented. Phase 2B/3
+requires separate authorization.

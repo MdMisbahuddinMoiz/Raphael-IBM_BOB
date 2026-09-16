@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
+from raphael_ibm_bob.capability_fabric import default_fabric
 from raphael_ibm_bob.harness import api
 from raphael_ibm_bob.http.views import decision_trace as dt
 
@@ -55,6 +56,24 @@ def collect() -> Dict[str, Any]:
     skills_by_id = {s.id: s for s in skills}
     cap_value = {c.capability.value: c for c in capabilities}
 
+    # M16.4: provider identity comes from the authoritative Capability
+    # Fabric (side-effect-free resolution), never hardcoded in the view.
+    fabric = default_fabric()
+    providers = list(fabric.list_providers())
+
+    def _resolution(capability):
+        """(resolved_provider_id_or_None, all_claimants) from the Fabric."""
+        claimants = tuple(fabric.providers_for(capability))
+        resolved = claimants[0] if len(claimants) == 1 else None
+        return resolved, claimants
+
+    provider_by_capability = {}
+    for c in capabilities:
+        resolved, claimants = _resolution(c.capability)
+        provider_by_capability[c.capability.value] = {
+            "resolved": resolved, "claimants": claimants}
+
+
     role_rows = []
     for role in roles:
         role_skills = sorted(s.id for s in skills if s.role == role.id)
@@ -68,6 +87,7 @@ def collect() -> Dict[str, Any]:
 
     skill_rows = []
     for skill in skills:
+        res = provider_by_capability.get(skill.capability.value, {})
         skill_rows.append({
             "id": skill.id,
             "name": skill.name,
@@ -81,6 +101,8 @@ def collect() -> Dict[str, Any]:
             "prerequisites": list(skill.prerequisites),
             "evidence_produced": list(skill.evidence_produced),
             "evidence_consumed": list(skill.evidence_consumed),
+            "provider": res.get("resolved"),
+            "provider_claimants": list(res.get("claimants", ())),
         })
 
     cap_rows = []
@@ -90,6 +112,7 @@ def collect() -> Dict[str, Any]:
                                    if s.capability.value == cid)
         associated_roles = sorted(r["id"] for r in role_rows
                                   if cid in r["capabilities"])
+        res = provider_by_capability.get(cid, {})
         cap_rows.append({
             "id": cid,
             "description": cap.description,
@@ -102,6 +125,8 @@ def collect() -> Dict[str, Any]:
             "evidence_consumed": list(cap.evidence_consumed),
             "skills": associated_skills,
             "roles": associated_roles,
+            "provider": res.get("resolved"),
+            "provider_claimants": list(res.get("claimants", ())),
         })
 
     caps_with_evidence = sum(
@@ -125,6 +150,7 @@ def collect() -> Dict[str, Any]:
         },
         "caps_by_role": caps_by_role,
         "skills_by_role": skills_by_role,
+        "providers": providers,
         "unresolved_skills": sorted(
             s["id"] for s in skill_rows if s["capability"] not in cap_value),
     }
@@ -146,8 +172,16 @@ def _authority_banner() -> str:
             '<div class="authority-flags">'
             '<span class="flag">EXECUTION AUTHORITY: GOVERNED ELSEWHERE</span>'
             '<span class="flag">DECLARATION GRANTS NO EXECUTION AUTHORITY</span>'
+            '<span class="flag">PROVIDER RESOLUTION ≠ AUTHORIZATION</span>'
+            '<span class="flag">PROVIDER RESOLUTION ≠ EXECUTION</span>'
             '<span class="flag">CATALOG / OBSERVABILITY ONLY</span>'
-            '</div></section>')
+            '</div>'
+            '<p class="note">Provider identity describes which provider the '
+            'Capability Fabric resolves for a capability. It is NOT '
+            'permission, approval, readiness, active execution, or trusted '
+            'completion — every action is still governed by '
+            '<span class="mono">Runtime → Broker → Policy</span>.</p>'
+            '</section>')
 
 
 def _summary(data: Dict[str, Any]) -> str:
@@ -172,6 +206,8 @@ def _summary(data: Dict[str, Any]) -> str:
         for r in data["caps_by_role"])
     return ('<section class="panel"><h2>ARSENAL SUMMARY</h2>'
             f'{metrics}'
+            '<div class="sublabel">CURRENT DECLARED PROVIDER(S)</div>'
+            f'<div class="row-inline mono">{dt._e(", ".join(data["providers"]) or "NONE")}</div>'
             '<div class="sublabel">DECLARATIONS BY ROLE</div>'
             f'<div class="kvlist lifecycle">{role_cells}</div>'
             '<p class="note">Counts are derived from the authoritative '
@@ -237,6 +273,8 @@ def _skills(data: Dict[str, Any]) -> str:
             f'<span class="v">{dt._e(skill["description"])}</span></div>'
             f'<div class="kv"><span class="k">CAPABILITY</span>'
             f'<span class="v mono">{dt._e(skill["capability"])}</span></div>'
+            f'<div class="kv"><span class="k">RESOLVED PROVIDER</span>'
+            f'<span class="v mono">{dt._e(skill["provider"] or "UNKNOWN / NOT VERIFIED")}</span></div>'
             f'<div class="kv"><span class="k">ROLE</span>'
             f'<span class="v mono">{dt._e(skill["role"])}</span></div>'
             f'<div class="kv"><span class="k">TARGET SCHEMA</span>'
@@ -267,13 +305,18 @@ def _capabilities(data: Dict[str, Any]) -> str:
             evidence.append("consumed: " + ", ".join(cap["evidence_consumed"]))
         rows.append(
             f'<div class="arow" data-kind="capabilities" '
-            f'data-search="{dt._e((cap["id"] + " " + cap["description"]).lower())}">'
+            f'data-search="{dt._e((cap["id"] + " " + cap["description"] + " " + (cap["provider"] or "")).lower())}">'
             f'<button type="button" class="ahead" aria-expanded="false">'
             f'<span class="aid mono">{dt._e(cap["id"])}</span>'
             f'<span class="aname">{dt._e(cap["description"])}</span>'
+            f'<span class="aprov mono">{dt._e(cap["provider"] or "UNRESOLVED")}</span>'
             f'<span class="acount mono">v{dt._e(cap["version"])} · '
             f'{len(cap["skills"])} skills</span></button>'
             '<div class="adet"><div class="kvlist">'
+            f'<div class="kv"><span class="k">RESOLVED PROVIDER</span>'
+            f'<span class="v mono">{dt._e(cap["provider"] or "UNKNOWN / NOT VERIFIED (no single claimant)")}</span></div>'
+            f'<div class="kv"><span class="k">PROVIDER CAPABILITY CLAIM</span>'
+            f'<span class="v mono">{dt._e(", ".join(cap["provider_claimants"]) or "NONE")}</span></div>'
             f'<div class="kv"><span class="k">VERSION</span>'
             f'<span class="v mono">{dt._e(cap["version"])}</span></div>'
             f'<div class="kv"><span class="k">TARGET SCHEMA</span>'
@@ -389,6 +432,7 @@ white-space:nowrap}
 .aname{color:var(--text);font-size:11.5px}
 .apurpose{color:var(--sec);font-size:11px}
 .acap{color:var(--ok);font-size:11px}
+.aprov{color:var(--primary);font-size:11px}
 .arole{color:var(--sec);font-size:11px}
 .acount{color:var(--muted);font-size:10.5px;text-align:right}
 .adet{display:none;padding:8px 14px 12px 14px;background:var(--panel2)}

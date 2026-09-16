@@ -143,6 +143,34 @@ is a deterministic **TEST DOUBLE** that returns ActionRequests directly.
 It is not a live provider and is not a production capability-resolution
 path.
 
+## Provider observability (M16.4) — IMPLEMENTED
+
+The Capability Arsenal (`GET /operations/capabilities`) shows, for each
+declared capability, the provider resolved by the Capability Fabric:
+
+```text
+CAPABILITY   PROVIDER (resolved via the Fabric)
+read         raphael-native
+list         raphael-native
+...
+```
+
+The provider id is read from `default_fabric()` (`list_providers()` /
+`providers_for(capability)`), never hardcoded in the template, and
+resolution is side-effect-free. Provider identity means **capability
+resolution only**:
+
+```text
+PROVIDER RESOLUTION != AUTHORIZATION
+PROVIDER RESOLUTION != EXECUTION
+```
+
+It is not permission, approval, readiness, active execution, or trusted
+completion. Where a capability has no single claimant, the UI shows
+`UNRESOLVED` / `UNKNOWN / NOT VERIFIED` rather than inventing a provider.
+Provider availability is not modelled, so no AVAILABLE/READY/CONNECTED
+state is shown. Decepticon/T3MP3ST are not displayed.
+
 ## Future providers — DESIGN ONLY
 
 The seam makes future providers *structurally possible*; it does **not**

@@ -405,7 +405,7 @@ def _navigation() -> str:
         ("DECISION TRACE (per op)", None, True),
         ("EVENT STREAM (per op)", None, True),
         ("CAPABILITY ARSENAL", "/operations/capabilities", True),
-        ("OPERATION GRAPH", None, False),
+        ("OPERATION GRAPH", "/operations/graph", True),
         ("ROLES API", "/roles", True),
         ("SKILLS API", "/skills", True),
         ("CAPABILITIES API", "/capabilities", True),

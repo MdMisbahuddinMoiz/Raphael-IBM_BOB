@@ -179,7 +179,12 @@ class RouteAndData(_CommandCase):
         self.assertIn('href="/skills"', html)
         self.assertIn('href="/capabilities"', html)
         self.assertIn("/operations/", html)  # per-operation links
-        self.assertIn("UNAVAILABLE", html)   # unimplemented pages marked
+        # Every operator screen is now implemented and linked (M15.6-M15.10);
+        # only genuinely-unimplemented pages carry the UNAVAILABLE marker.
+        for link in ("/operations/findings", "/operations/evidence",
+                     "/operations/gate", "/operations/capabilities",
+                     "/operations/graph"):
+            self.assertIn(f'href="{link}"', html)
 
 
 class SafetyAndGovernance(_CommandCase):

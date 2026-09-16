@@ -399,9 +399,9 @@ def _models(data: Dict[str, Any]) -> str:
 def _navigation() -> str:
     links = [
         ("OPERATIONS INDEX", "/operations", True),
+        ("FINDINGS", "/operations/findings", True),
         ("DECISION TRACE (per op)", None, True),
         ("EVENT STREAM (per op)", None, True),
-        ("FINDINGS PAGE", None, False),
         ("EVIDENCE PAGE", None, False),
         ("CAPABILITY ARSENAL", None, False),
         ("ROLES API", "/roles", True),

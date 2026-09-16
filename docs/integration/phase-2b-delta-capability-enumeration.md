@@ -904,3 +904,187 @@ architecture-authority ratification after a taxonomy collision check.
 
 **Static-only. No provider executed, no implementation, no Phase 2C
 authorization.**
+
+---
+
+# FINAL PRE-2C AUTHORIZATION PACKAGE — C1–C7
+
+Additive; prior history preserved. Static/read-only. **PHASE 2C NOT AUTHORIZED.**
+Evidence method recorded per item (FULL SOURCE READ / TARGETED SEARCH / GREP).
+
+## C1 — Artifact integrity
+
+This document now contains the complete final audit: Enumeration §1–18 + Addendum A
++ G0–G3 + Final B1–B4 + this C1–C7 package; the previously truncated tail is
+present and no sentence is left mid-clause. Content byte count and SHA256 are
+recorded in the commit report (computed post-commit on the committed blob; see the
+"artifact hash" line in the handoff). Large submissions to reviewers must be split
+into numbered chunks, each with a SHA256/byte count, with explicit "ALL N CHUNKS
+RECEIVED" confirmation before review.
+
+## C2 — B1 current pin verification (full source read / git metadata)
+
+| item | expected | actual | status |
+|---|---|---|---|
+| RAPHAEL HEAD | — | **`b5ebddb1ad0f87bc9f6a949dff63b80589e45c5f`** | OK |
+| `git status --short` | — | `?? docs/integration/phase-2b-delta-hardening.md` (untracked doc only) | OK |
+| delta `98c9a078f..HEAD` | — | exactly one path: `docs/integration/phase-2b-delta-capability-enumeration.md` (docs/audit only) | OK |
+| Decepticon | `31e1c8e786c83bb20f5c3d9ebc482cf9fb8ffa06` | identical; `git status` clean | OK |
+| T3MP3ST | `29824d5625ede419ac8cdae418c8f4c72c6270f7` | identical; `git status` clean | OK |
+| deepagents | `0.6.8` | `uv.lock:668-681`, sdist sha256 `70cdd4da920cc420a8a0f729792ec559688bbbff39f7ab1508110cce9f901c06` | OK |
+
+Exact commands: `git rev-parse HEAD`; `git status --short`;
+`git diff --name-only 98c9a078f..HEAD`; provider `rev-parse HEAD` + `status --porcelain`.
+No runtime/core implementation change in the delta; no provider execution.
+
+## C3 — B2 complete invocation-path closure (line-by-line)
+
+Trace (all FULL SOURCE READ unless noted):
+HTTP/UI (`src/server.ts`) → agent (`src/agent/index.ts:447-494`
+`executeTool` → `:457 this.arsenal.execute(toolCall.name, {target, parameters})`)
+→ `Arsenal.execute` (`arsenal/index.ts:377-479`) → `this.tools.get(toolName)`
+(`:381`) → scope gate `:394` → approval gate `:408` (not engaged: no riskTier) →
+arg validation `:425-437` → `tool.handler` `:449` → `binary_sink_scan`
+(`binary.ts`, full read) → `redactConfiguredSecrets` `:449` (def `:134-150`, pure) →
+`executions.push`/`emit` `:439-457` → return → `agent:tool_result` `:453/:494`.
+
+Process-execution sites and disposition:
+
+| # | site | disposition | evidence |
+|---|---|---|---|
+| 1 | `server.ts:14` (`import execFile, spawn`); `:7091` `spawn` | **Codex exec readiness probe** (local-agent readiness), not on the Arsenal/`binary_sink_scan` path | FULL READ `server.ts:7078-7107` |
+| 1b | `server.ts:562` `execFileAsync`; `:4534`; `:7145`; `:7167` | unrelated server tool/version-probe sites; none on the C1A path | TARGETED SEARCH (located) |
+| 2 | `agent/index.ts` | **no** `child_process` import or process-execution site in the tool loop (FULL READ `:440-494`); process work lives in `local-agents.ts`/`llm/index.ts`, not the Arsenal dispatch | FULL READ + GREP |
+| 3 | registry mutation | `new Arsenal()` once (`src/index.ts:387`); `registerMany` only at construction (`:397,398,442,443`); custom `register` only from `config.tools` in constructor (`:490-494`); `unregister` (`arsenal/index.ts:528`) no non-test caller | FULL READ `src/index.ts:387-495` + GREP |
+| 4 | module-init subprocess | none in the traced modules | FULL READ imports |
+| 5 | per-request subprocess on C1A path | none | stage trace |
+| 6 | retry/error/timeout process activity | none on the C1A path (`executeTool` catch builds a JSON error; `Arsenal.execute` catch wraps `ToolError`) | FULL READ |
+| 7 | post-processing | `redactConfiguredSecrets` (pure) | FULL READ |
+| 8 | result serialization | `ToolResult` → `agent:tool_result` | FULL READ |
+| 9 | callbacks/hooks | `setupEventForwarding` (`src/index.ts:500+`) forwards events; no subprocess | TARGETED SEARCH |
+
+`binary.ts` contains no `child_process`/`spawn`/`exec`/dynamic-import (FULL READ).
+Residual: `src/server.ts` (8300+ lines) was read at the agent seam and its
+process-execution sites were located and dispositioned, but the entire file was not
+read end-to-end → **UNKNOWN (low)** for any unrelated server process path; none is
+on the C1A path.
+
+## C4 — B3 `isToolAvailable` closure
+
+Definition `arsenal/index.ts:3356` → `execFileAsync(probe, [command])` where
+`probe = platform==='win32' ? 'where' : 'which'` (`:3360`).
+
+| caller | source:line | phase | execFile? | binary | args | in first-proof session? | before/after `Arsenal.execute`? |
+|---|---|---|---|---|---|---|---|
+| catalog adapter handler | `adapter-tools.ts:593` | per-invocation of a **catalog adapter** | yes | `adapter.binary` | `[binary]` via `which/where` | **no** (not a catalog adapter) | n/a |
+| post-ex metasploit | `post-ex.ts:62` | per-invocation post-ex | yes | `'msfconsole'` | `['msfconsole']` | **no** | n/a |
+| post-ex hydra | `post-ex.ts:158` | per-invocation post-ex | yes | `'hydra'` | `['hydra']` | **no** | n/a |
+| EXTERNAL nmap/nuclei/ffuf/curl | `arsenal/index.ts:3437/3476/3522/3563` | per-invocation EXTERNAL_TOOLS | yes | literal | `[literal]` | **no** | n/a |
+| DI (not a call) | `src/index.ts:240,434` | injection into `buildAdapterTools`/`buildPostExTools` | no | — | — | no | n/a |
+| comment only | `server.ts:4532` | — | no | — | — | no | n/a |
+
+`getToolDefinitions` body (`arsenal/index.ts:502-523`) — **FULL READ**: it filters
+by `names`/`categories` and calls `buildJsonSchema` only; **it does not call
+`isToolAvailable`** and starts no process. `binary_sink_scan`'s handler
+(`binary.ts`) does not call `isToolAvailable`.
+
+**Result:** no `isToolAvailable` call can occur in the `binary_sink_scan`
+first-proof session (it is a builtin; registration, `getToolDefinitions`, and
+pre-dispatch start no process). **UNSUPPORTED CLAIM REMOVED:** we do **not** assert
+"the execution log proves no other execution occurred" — `isToolAvailable` (and
+bootstrap/readiness probes) do not transit `Arsenal.execute` and would not appear in
+`getExecutions`; the C5 attestation scope is worded accordingly.
+
+## C5 — B4 Option-B attestation specification (accepted; NOT implemented)
+
+**Accepted no-fork design — Option B: post-hoc execution attestation.**
+
+- **Exact attestation scope (verbatim):** *"Every RAPHAEL-observed tool_call and
+  every provider-recorded execution was `binary_sink_scan`, and `params.path`
+  exactly equals the fixture literal."*
+- **FORBIDDEN stronger claim:** "no subprocess ran in the provider process."
+  (Executions do not see `isToolAvailable`, bootstrap, readiness probes, LLM spawn,
+  etc.)
+- **Topology:** dedicated **single-session provider instance**; no shared Arsenal
+  across unrelated operations.
+- **Cross-check direction:** boundary event stream (`agent:tool_call`/
+  `agent:tool_result`, RAPHAEL-observed) = **PRIMARY**; provider `getExecutions()`
+  (`Arsenal` internal, provider-trusted) = **SECONDARY**.
+- **Verify:** tool-name equality; exact args/`path` equality; invocation/session
+  correlation; execution↔result correlation; result hash where applicable.
+- **Divergence → ABORT PROOF + QUARANTINE RESULT** (never warn-and-continue).
+- **Unknown-name attempts:** die at registry lookup (`index.ts:382-390`) and may
+  never reach `executions.push`, but **are visible in the boundary event stream**;
+  both records are required.
+- **Accepted property (recorded):** post-hoc attestation **detects** a violation but
+  **does not prevent** an out-of-contract attempt. Accepted for the first
+  evidence-producing proof.
+- **Explicit:** `getToolDefinitions` filtering alone is **NOT** authorization.
+
+## C6 — Architecture ratification package (PROPOSED; requires authority sign-off)
+
+```
+Capability:  C1A static_file_inspect
+Provider:    T3MP3ST
+Implementation: binary_sink_scan
+C1 static_file_manifest: NOT MET
+
+FIRST-PROOF SCOPE (all mandatory):
+  - exactly one capability
+  - exactly one dedicated provider instance/session
+  - single-file mode ONLY (directory mode EXCLUDED)
+  - exact literal RAPHAEL-controlled fixture path; canonicalized (realpath) absolute path
+  - T3MP3ST_SOURCE_ROOT set by RAPHAEL to the fixture root
+  - read-only
+  - network egress denied environmentally (not merely absent in binary.ts)
+  - POSIX/Linux only
+  - no Class-B path touched
+  - deterministic RAPHAEL-authored fixture
+  - pre/post fixture hash+stat
+  - golden expected result
+  - adapter wall-clock timeout
+  - adapter response byte cap
+  - M4 provider-metadata inerting/rejection
+  - M1-M7 enforcement/tests for this narrow scope
+  - Option-B attestation (C5)
+```
+**Provider metadata that must NEVER become RAPHAEL authority** — `severity`, `cwe`,
+verify notes, verification claims, confidence, approval, gate state, authorization.
+The adapter derives any RAPHAEL-native labels independently (note: `binary_sink_scan`
+emits provider `severity`/`cwe`, `binary.ts:111-121,157,161-171` → M4 inerting).
+**Directory mode EXCLUDED. Directory-mode child symlink escape = documented hardening
+prerequisite before any future directory-mode authorization.**
+
+## C7 — Taxonomy collision check
+
+RAPHAEL capability taxonomy (`raphael_ibm_bob/contracts.py:27-38`) —
+`Capability`: `READ="read"`, `LIST="list"`, `SEARCH="search"`, `WRITE="write"`,
+`RUN_TEST="run_test"`; dispatch `capabilities.py:132-138`. **No `static_file_inspect`
+or `static_file_manifest` ID exists** in the taxonomy.
+
+**C7 = CLEAR** (no identifier collision). **Semantic overlap (flagged, not a
+collision):** `C1A static_file_inspect` overlaps `Capability.READ`/`LIST`
+(file-reading class). The architecture authority must decide the relationship
+(new ID vs. mapping onto `READ`) before ratification. Evidence: FULL READ of
+`capabilities.py`/`contracts.py` + GREP of the taxonomy.
+
+## Residual register
+
+| residual | disposition |
+|---|---|
+| Directory-mode child symlink escape | EXCLUDED by single-file contract; hardening prerequisite before any directory-mode authorization |
+| Provider `severity`/`cwe`/verify-notes | M4 inert/reject — mandatory 2C item |
+| `T3MP3ST_SOURCE_ROOT` overbreadth/hygiene | RAPHAEL-owned fixture root + positive/negative probes |
+| Entry-path TOCTOU / hardlink / device nodes | bounded/moot under owned fixture |
+| Bounded-regex DoS | fixed patterns + 10 MB cap + adapter wall-clock timeout |
+| `server.ts` full-body process paths | UNKNOWN-low; none on the C1A path |
+| U1/U2 (Decepticon internals); U3/U4 | affect provider-wide negatives / future candidates only |
+| Win32 `.cmd`/`.bat` `shell:true` | out of scope; platform pinned POSIX |
+| attestation is post-hoc (detects, not prevents) | accepted for first proof |
+
+## STATUS
+
+**PHASE 2C NOT AUTHORIZED.** This package documents evidence, the accepted Option-B
+design, and the proposed ratification; it authorizes no execution and no
+implementation. No provider executed; no runtime/core change. Awaiting architecture
+authorization.

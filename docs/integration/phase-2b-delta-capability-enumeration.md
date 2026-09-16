@@ -774,3 +774,133 @@ and pending requirements; implementation requires an explicit later authorizatio
 
 **Read-only closure audit. No provider executed, no implementation, no RAPHAEL core
 change.**
+
+---
+
+# Final B1–B4 Pre-2C Closure Audit
+
+Additive; prior history preserved. Static/read-only; no provider executed. Evidence
+method is stated per item (full read / static trace / grep).
+
+## B1 — Pin integrity re-verified at current HEAD
+
+| item | documented | actual | status |
+|---|---|---|---|
+| RAPHAEL HEAD | `98c9a078f` → `3497bf746` | **`a68e214fef3736857c4fd792d831a05f428a89dd`** | OK |
+| RAPHAEL delta `98c9a078f..HEAD` | — | **`docs/integration/phase-2b-delta-capability-enumeration.md` only** (docs/audit only) | OK |
+| Decepticon | `31e1c8e786c83bb20f5c3d9ebc482cf9fb8ffa06` | identical; `git status` clean | OK |
+| T3MP3ST | `29824d5625ede419ac8cdae418c8f4c72c6270f7` | identical; `git status` clean | OK |
+| deepagents | `0.6.8` | `uv.lock:668-681`, sha256 `70cdd4da…` | OK |
+| working tree | — | only untracked `docs/integration/phase-2b-delta-hardening.md` | OK |
+
+**B1 = CLOSED.** Evidence: `git rev-parse HEAD`, `git log --oneline`,
+`git diff --name-only 98c9a078f..HEAD`, provider `rev-parse`/`status` (full source
+read of git metadata).
+
+## B2 — Complete invocation path (line-by-line)
+
+Path: HTTP/UI (`src/server.ts`) → agent (`src/agent/index.ts`) →
+`this.arsenal.execute(toolCall.name, …)` (`agent/index.ts:457`, full read
+`:440-494`) → `Arsenal.execute` (`arsenal/index.ts:377-479`, full read) →
+`this.tools.get(toolName)` (`:381`) → scope gate (`:394`) → approval gate
+(`:408`) → arg validation (`:425`) → `tool.handler` (`:449`) → `binary_sink_scan`
+(`binary.ts`, full read) → `redactConfiguredSecrets` (`:449`, def `:134-150`) →
+`executions.push`/`emit('tool:executed')` (`:439-457`) → return to agent loop →
+`agent:tool_result` (`agent/index.ts:494`).
+
+| # | item | result | evidence |
+|---|---|---|---|
+| 1 | direct `Arsenal.execute` exposure | only `agent/index.ts:457` and `evidence/retest.ts:74` (non-test) | full grep `arsenal.execute` + full read of both sites |
+| 2 | indirect `Arsenal.execute` exposure | none found (no aliasing `const a = arsenal; a.execute`) | full read of `agent/index.ts:440-494`; repo grep `\.execute\(` |
+| 3 | runtime register/registerMany/unregister mutation | **none at request time.** `new Arsenal()` once (`src/index.ts:387`); `registerMany` only at construction (`:397,398,442,443`); custom `register` only from `config.tools` in the constructor (`:490-494`); `unregister` (`arsenal/index.ts:528`) has **no** non-test caller | full read `src/index.ts:387-495`; repo grep `register\|registerMany\|unregister` |
+| 4 | module-init subprocess calls | none in the traced modules; `execFileAsync` imported for `runSubprocess`/`isToolAvailable` only (see B3) | full read of `arsenal/index.ts` imports + `agent/index.ts` |
+| 5 | request-time subprocess on this path | **none** | stage trace above; `binary.ts` full read |
+| 6 | execution-path middleware/hooks | `Arsenal` emits events (`tool:executed`/`tool:error`) but no execution hooks that shell out | full read `arsenal/index.ts:377-479` |
+| 7 | result serialization | `redactConfiguredSecrets` (pure) → `ToolResult` returned to agent → `agent:tool_result` | full read |
+| 8 | callbacks/post-processing | `setupEventForwarding` (`src/index.ts:500+`) forwards events; no subprocess | static trace |
+
+**B2 = CLOSED** for the `binary_sink_scan` path, with one residual: `src/server.ts`
+was inspected at the level of its agent-invocation seam and its `execFileAsync`
+call sites (`:562`, `:4534`, `:7145`, `:7167`) were located; the full `server.ts`
+(7000+ lines) was **not** read line-by-line → **UNKNOWN (low)** for an unrelated
+subprocess path there. None of those sites is on the `binary_sink_scan` path.
+
+## B3 — `isToolAvailable` call-site enumeration
+
+Definition: `arsenal/index.ts:3356` (`execFileAsync(probe, [command])`).
+
+Non-test call sites (grep across `src`, then read each):
+
+| caller | when | on `binary_sink_scan` path? | invokes execFile? |
+|---|---|---|---|
+| `adapter-tools.ts:593` `deps.isToolAvailable(adapter.binary)` | per-invocation, **catalog adapter handlers only** | **no** | yes (probe) |
+| `post-ex.ts:62` (`msfconsole`), `:158` (`hydra`) | per-invocation, **post-ex handlers only** | **no** | yes |
+| `index.ts:3437/3476/3522/3563` (`nmap`/`nuclei`/`ffuf`/`curl`) | per-invocation, **EXTERNAL_TOOLS handlers only** | **no** | yes |
+| `src/index.ts:240,434` | dependency injection into `buildAdapterTools`/`buildPostExTools` (not a call) | no | no |
+| `server.ts:4532` | **comment only** | no | no |
+
+`binary_sink_scan` is a builtin whose handler (`binary.ts`) does **not** call
+`isToolAvailable`; registration, `getToolDefinitions`, and pre-dispatch do **not**
+call it either. **B3 = CLOSED:** no `isToolAvailable` call reaches the
+`binary_sink_scan` invocation. Evidence: repo-wide grep of all 29 hits + full read
+of the 4 non-test caller sites + full read of `binary.ts`.
+
+## B4 — Invocation determinism / allowlist
+
+- `Arsenal.execute` (`index.ts:377-479`) performs **no capability allowlist
+  check**; it dispatches any registered name via `this.tools.get(toolName)`
+  (`:381`). The registry is fixed at construction (B2 #3), so the *arbitrariness*
+  is bounded to the 118 registered tools — but **all 118 (incl. Class-B) remain
+  dispatchable** if the caller names them.
+- `getToolDefinitions(categories, names)` (`:502-523`) narrows only what the LLM is
+  **told about** (`agent/index.ts:169`), not what `execute` will accept.
+- **Option A (execution-path allowlist):** not present; requires a new seam inside
+  `Arsenal.execute` (a RAPHAEL-injected allowed-names set).
+- **Option B (post-hoc attestation):** **naturally supported already** — the agent
+  emits `agent:tool_call {name,args,source}` (`agent/index.ts:453`) and
+  `agent:tool_result` (`:494`); `Arsenal` records `ToolExecution {id, toolName,
+  result}` (`:439-444`) and exposes `getExecutions()` (`:484`). A verifier can
+  confirm the executed name+args match the single allowed capability and
+  abort/quarantine on mismatch.
+
+**B4 = NOT CLOSED** (by design — this task is analysis only). Determination:
+**Option B is the mechanism the existing architecture already supports**; Option A
+would be a new seam. Minimum Phase 2C design seam: either (A) an allowed-names
+check added in `Arsenal.execute` before the handler, or (B) a RAPHAEL-side
+attestation consumer over the existing `agent:tool_call`/`tool_result` +
+`getExecutions()` records. An externally observable attestation (execution
+log/transcript) is required; `getToolDefinitions` filtering alone is insufficient.
+
+## B1–B4 status summary
+
+| blocker | status | evidence method |
+|---|---|---|
+| B1 pin integrity | **CLOSED** | full read (git metadata) |
+| B2 invocation path | **CLOSED** (residual: `server.ts` tail UNKNOWN-low) | full read + targeted static trace + grep |
+| B3 `isToolAvailable` | **CLOSED** | grep (all hits) + full read of non-test callers + full read `binary.ts` |
+| B4 determinism/allowlist | **NOT CLOSED** (analysis only; Option B naturally supported) | full read + static trace |
+
+Remaining UNKNOWNs: `server.ts` full-body subprocess paths off the C1A path
+(UNKNOWN-low); no others material to the first proof.
+
+## C — C1A contract ratification proposal (NOT silently ratified)
+
+```
+capability:            C1A static_file_inspect
+provider:              T3MP3ST
+implementation:        binary_sink_scan (BUILTIN_TOOLS)
+first-proof restrictions:
+  - single-file mode ONLY (no directory mode; allowDirectory path excluded)
+  - exact literal RAPHAEL fixture path pinned by the adapter; any other path rejected
+  - read-only
+  - network denied
+  - exactly ONE capability exposed/dispatchable
+  - no Class-B path touched
+  - deterministic, RAPHAEL-authored fixture
+preserved:             C1 static_file_manifest = NOT MET
+```
+The identifier, the single-file policy, and the one-capability scope require
+architecture-authority ratification after a taxonomy collision check.
+
+**Static-only. No provider executed, no implementation, no Phase 2C
+authorization.**

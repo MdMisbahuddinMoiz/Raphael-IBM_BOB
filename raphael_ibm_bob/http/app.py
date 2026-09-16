@@ -318,6 +318,7 @@ def error_response(exc: ApiError) -> Response:
 
 def build_router() -> Router:
     from raphael_ibm_bob.http.routes import (
+        capabilities,
         command,
         discovery,
         evidence,
@@ -376,6 +377,8 @@ def build_router() -> Router:
     router.add("GET", "/operations/evidence", evidence.evidence)
     # M15.8 — literal route MUST precede "/operations/{run_id}" too.
     router.add("GET", "/operations/gate", gate.gate)
+    # M15.9 — literal route MUST precede "/operations/{run_id}" too.
+    router.add("GET", "/operations/capabilities", capabilities.capabilities)
     router.add("GET", "/operations/{run_id}", operations.console)
     router.add("GET", "/operations/{run_id}/events",
                operations.event_stream_page)

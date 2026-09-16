@@ -318,6 +318,7 @@ def error_response(exc: ApiError) -> Response:
 
 def build_router() -> Router:
     from raphael_ibm_bob.http.routes import (
+        command,
         discovery,
         health,
         operations,
@@ -328,6 +329,9 @@ def build_router() -> Router:
     )
     router = Router()
     router.add("GET", "/health", health.health)
+
+    # Command Center — primary read-only operational overview.
+    router.add("GET", "/command", command.command)
 
     router.add("GET", "/sessions", sessions.list_sessions)
     router.add("POST", "/sessions", sessions.create_session)

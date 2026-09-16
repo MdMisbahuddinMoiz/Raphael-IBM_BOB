@@ -27,11 +27,16 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
-include = ["orchestrator*", "agent*", "raphael*", "arena*", "config*", "benchmarks*"]
+where = ["src", "."]
+namespaces = false
+include = ["orchestrator*", "agent*", "raphael*", "arena*", "config*", "benchmarks*", "raphael_ibm_bob*"]
 
 [tool.setuptools.package-dir]
 "" = "src"
+# Governed package lives at the repository root (not under src/).
+"raphael_ibm_bob" = "raphael_ibm_bob"
+# Root-level package otherwise discovered via the root entry above.
+"configs" = "configs"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -16,7 +16,7 @@ Mission → Plan A → Runtime → Broker → Policy → Evidence → Finding
 
 ## Status (verified, not claimed)
 
-- Branch: `migration/bob-mvp`
+- Branch: `feature/raphael-harness-live-model` (current development branch)
 - Full suite: **209 tests, 0 failures** (explicit unittest module list)
 - Hero demo (`demos/authkit_hero.py`): exit 0, `Gate: COMPLETE`
 - Baseline mode (`--mode baseline`): exit nonzero, `Gate: REFUSE`

@@ -54,7 +54,7 @@ there are no third-party runtime dependencies for the BOB path):
 ```bash
 git status --short          # expect: clean
 git log --oneline -3        # expect: M10.5-era history (see §12 of PROVENANCE.md)
-git branch --show-current   # expect: migration/bob-mvp
+git branch --show-current   # expect: feature/raphael-harness-live-model
 python3 --version           # tested: Python 3.14.4
 ```
 

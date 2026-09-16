@@ -59,8 +59,8 @@ import json
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from raphael_ibm_bob.capability_fabric import default_fabric
 from raphael_ibm_bob.contracts import (
-    ActionRequest,
     Capability,
     Mission,
     Plan,
@@ -75,9 +75,15 @@ def _canonical(payload: dict) -> str:
 class Planner:
     """Mission-driven Planner.
 
-    The Planner has NO constructor arguments; the target and capability
-    are derived from the Mission. This is the M8 architectural rule:
-    the Runner cannot secretly inject the target.
+    The Planner has NO target/capability constructor arguments; the target
+    and capability are derived from the Mission (M8 rule: the Runner cannot
+    secretly inject the target).
+
+    M16.3: the mission's declared capability is resolved through the
+    Capability Fabric (`default_fabric()`, a deterministic, patchable
+    module seam — the M8 no-constructor-arg rule is preserved) to a
+    provider that prepares the ActionRequest. The Fabric grants no
+    authority.
     """
 
     def plan_a(self, mission: Mission) -> Plan:
@@ -113,14 +119,15 @@ class Planner:
         )
 
         plan_a_id = derive_plan_a_id(mission)
-        step = ActionRequest(
-            sequence=0,
-            requester="planner",
-            capability=capability,
-            target=target,
+        # M16.3: capability -> Capability Fabric -> Native Provider ->
+        # ActionRequest (no direct construction; no execution authority).
+        provider = default_fabric().resolve(capability)
+        step = provider.build_action_request(
+            capability,
+            target,
             purpose=purpose,
+            requester="planner",
             plan_id=plan_a_id,
-            finding_id=None,
         )
         return Plan(
             plan_id=plan_a_id,

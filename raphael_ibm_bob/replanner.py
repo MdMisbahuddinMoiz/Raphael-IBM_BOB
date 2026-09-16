@@ -46,8 +46,11 @@ import json
 from dataclasses import dataclass
 from typing import List, Optional
 
+from raphael_ibm_bob.capability_fabric import (
+    CapabilityFabric,
+    default_fabric,
+)
 from raphael_ibm_bob.contracts import (
-    ActionRequest,
     Capability,
     FocusedContext,
     Mission,
@@ -91,10 +94,14 @@ class Replanner:
         store: FindingStore,
         ledger: EvidenceLedger,
         strategy: Optional[ReplanStrategy] = None,
+        fabric: Optional[CapabilityFabric] = None,
     ):
         self._store = store
         self._ledger = ledger
         self._strategy = strategy or ReplanStrategy()
+        # M16.3: capability resolution for the Plan B step goes through the
+        # Capability Fabric. None builds a fresh default_fabric().
+        self._fabric = fabric if fabric is not None else default_fabric()
 
     @property
     def store(self) -> FindingStore:
@@ -136,12 +143,14 @@ class Replanner:
             f"counter-target={target}"
         )
         plan_b_id = derive_plan_b_id(parent_plan, refuted.finding_id)
-        step = ActionRequest(
-            sequence=0,
-            requester="replanner",
-            capability=self._strategy.capability,
-            target=target,
+        # M16.3: capability -> Capability Fabric -> Native Provider ->
+        # ActionRequest (no direct construction; no execution authority).
+        provider = self._fabric.resolve(self._strategy.capability)
+        step = provider.build_action_request(
+            self._strategy.capability,
+            target,
             purpose=purpose,
+            requester="replanner",
             plan_id=plan_b_id,
             finding_id=refuted.finding_id,
         )

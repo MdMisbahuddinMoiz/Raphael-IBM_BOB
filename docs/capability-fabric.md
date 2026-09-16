@@ -112,6 +112,37 @@ double (`harness.model.ScriptedModelAdapter`) are unchanged; the
 `Replanner` builds its own ActionRequest in the deterministic path and is
 **not** routed through the Fabric in M16.2 (documented remaining seam).
 
+## Universal adoption (M16.3) — IMPLEMENTED
+
+INVARIANT: **no real RAPHAEL execution path resolves native capability
+implementation without traversing the Capability Fabric.**
+
+```text
+Model proposal  -> Skill -> capability ─┐
+Planner (Plan A) -> mission capability ─┼─> Capability Fabric.resolve
+Replanner (Plan B) -> declared capability ┘        │
+                                                   ▼
+                                     Native Provider.build_action_request
+                                                   ▼
+                                              ActionRequest
+                                                   ▼
+                        Runtime -> Broker -> Policy -> Execution
+```
+
+- `planner.Planner.plan_a` resolves the mission's declared capability via
+  `default_fabric()` (the M8 rule forbids Planner constructor arguments)
+  and prepares the step through the Native Provider.
+- `replanner.Replanner.replan` resolves `ReplanStrategy.capability` via an
+  injected `fabric` (default `default_fabric()`) and prepares the Plan B
+  step through the Native Provider.
+- No direct `ActionRequest(...)` construction remains in `planner.py` or
+  `replanner.py`; neither imports the Broker/Policy/Runtime/Quality Gate.
+
+Exception (documented, test-only): `harness.model.ScriptedModelAdapter`
+is a deterministic **TEST DOUBLE** that returns ActionRequests directly.
+It is not a live provider and is not a production capability-resolution
+path.
+
 ## Future providers — DESIGN ONLY
 
 The seam makes future providers *structurally possible*; it does **not**

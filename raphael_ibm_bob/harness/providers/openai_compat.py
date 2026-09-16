@@ -35,6 +35,11 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
+from raphael_ibm_bob.capability_fabric import (
+    CapabilityFabric,
+    CapabilityFabricError,
+    default_fabric,
+)
 from raphael_ibm_bob.contracts import ActionRequest, Capability
 from raphael_ibm_bob.harness.model import ModelContext
 from raphael_ibm_bob.skills import CapabilityRegistry
@@ -296,8 +301,17 @@ def parse_response_body(body: Dict[str, Any]) -> str:
 
 
 def validate_proposal(data: Any,
-                      registry: CapabilityRegistry) -> ActionRequest:
+                      registry: CapabilityRegistry,
+                      *,
+                      fabric: Optional[CapabilityFabric] = None,
+                      ) -> ActionRequest:
     """Validate structured output and build the ActionRequest.
+
+    M16.2 adoption: the proposal's declared skill resolves to its
+    declared capability, and that capability is resolved through the
+    Capability Fabric (`fabric.resolve`) before the Native Provider
+    prepares the ActionRequest. The Fabric grants NO authority: the
+    resulting request still crosses Runtime -> Broker -> Policy.
 
     Every malformed shape raises StructuredProposalError and nothing
     is executed. Skill/target/purpose come from the model; permission
@@ -358,11 +372,12 @@ def validate_proposal(data: Any,
     if not isinstance(purpose, str) or not purpose:
         raise StructuredProposalError("missing purpose")
     try:
-        proposal = registry.propose(skill_id, target)
-    except (KeyError, ValueError) as exc:
-        raise StructuredProposalError(f"invalid skill: {exc}") from None
-    request = proposal.request
-    if request.capability.value == "write":
+        skill = registry.lookup_skill(skill_id)
+    except KeyError:
+        raise StructuredProposalError(
+            f"invalid skill: {skill_id!r}") from None
+    capability = skill.capability
+    if capability.value == "write":
         if not isinstance(content, str) or not content:
             raise StructuredProposalError(
                 "WRITE proposals require content")
@@ -370,21 +385,26 @@ def validate_proposal(data: Any,
             raise StructuredProposalError(
                 f"content exceeds {MAX_CONTENT_CHARS} chars")
         # Boundary convention: WRITE carries content in purpose.
-        purpose = "content=" + content
-    elif content is not None:
+        final_purpose = "content=" + content
+    else:
+        if content is not None:
+            raise StructuredProposalError(
+                "content is only allowed for WRITE proposals")
+        final_purpose = purpose[:500]
+    # M16.2: capability -> Capability Fabric -> Native Provider ->
+    # ActionRequest. Resolution grants no authority; no silent fallback.
+    resolved_fabric = fabric if fabric is not None else default_fabric()
+    try:
+        provider = resolved_fabric.resolve(capability)
+    except CapabilityFabricError as exc:
         raise StructuredProposalError(
-            "content is only allowed for WRITE proposals")
-    final_purpose = (purpose if request.capability.value == "write"
-                     else purpose[:500])
-    return ActionRequest(
-        sequence=request.sequence,
-        requester=request.requester,
-        capability=request.capability,
-        target=request.target,
+            f"capability resolution failed for "
+            f"{capability.value!r}: {exc}") from None
+    return provider.build_action_request(
+        capability,
+        target,
         purpose=final_purpose,
-        plan_id=request.plan_id,
-        finding_id=request.finding_id,
-        timeout_seconds=request.timeout_seconds,
+        requester=f"skill:{skill.id}",
     )
 
 
@@ -397,9 +417,14 @@ class OpenAICompatAdapter:
     SESSION_HEADER = "x-opencode-session"
 
     def __init__(self, config: OpenAICompatConfig,
-                 registry: CapabilityRegistry):
+                 registry: CapabilityRegistry,
+                 fabric: Optional[CapabilityFabric] = None):
         self._config = config
         self._registry = registry
+        # M16.2: one explicit Fabric instance per adapter (no global
+        # mutable state); capabilities resolve through it before the
+        # ActionRequest is prepared.
+        self._fabric = fabric if fabric is not None else default_fabric()
         self._cancelled = threading.Event()
         self._session_key = uuid.uuid4().hex
 
@@ -424,7 +449,7 @@ class OpenAICompatAdapter:
         except ValueError as exc:
             raise StructuredProposalError(
                 f"model did not return JSON: {exc}") from None
-        return validate_proposal(data, self._registry)
+        return validate_proposal(data, self._registry, fabric=self._fabric)
 
     def _post(self, body: Dict[str, Any],
               session_id: str = "") -> Dict[str, Any]:

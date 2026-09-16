@@ -77,6 +77,41 @@ not import or call the Broker, Policy, Runtime, Quality Gate,
 `execute_capability`, subprocess, socket, or urllib. It never mutates
 findings or evidence.
 
+## Model-led adoption (M16.2) — IMPLEMENTED
+
+The live OpenAI-compatible adapter no longer builds ActionRequests via
+`registry.propose`. The model proposal now flows:
+
+```text
+structured proposal {intent, skill, target, purpose[, content]}
+   ↓  (declared skill)
+SkillDefinition  ->  declared capability
+   ↓
+Capability Fabric.resolve(capability)
+   ↓
+Native Provider (build_action_request)
+   ↓
+ActionRequest
+   ↓
+Runtime -> Broker -> Policy -> Execution -> Evidence
+   -> Verification/Falsification -> Quality Gate
+```
+
+Adoption point: `raphael_ibm_bob/harness/providers/openai_compat.py` →
+`validate_proposal(data, registry, *, fabric=None)`. A per-adapter Fabric
+instance is used (`OpenAICompatAdapter(config, registry, fabric=None)`);
+`None` builds a fresh `default_fabric()`. There is **no silent
+fallback**: an unknown skill, an unresolvable capability, or a provider
+resolution failure raises `StructuredProposalError` and nothing reaches
+the Broker. Provider preparation preserves `target`, `purpose`,
+`requester` (`skill:<id>`), `plan_id`, `finding_id`, and the declared
+`timeout_seconds`.
+
+The deterministic Runner path (`planner.Planner`) and the scripted test
+double (`harness.model.ScriptedModelAdapter`) are unchanged; the
+`Replanner` builds its own ActionRequest in the deterministic path and is
+**not** routed through the Fabric in M16.2 (documented remaining seam).
+
 ## Future providers — DESIGN ONLY
 
 The seam makes future providers *structurally possible*; it does **not**

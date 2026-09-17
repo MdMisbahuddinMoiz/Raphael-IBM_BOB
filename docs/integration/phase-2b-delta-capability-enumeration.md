@@ -1088,3 +1088,47 @@ collision):** `C1A static_file_inspect` overlaps `Capability.READ`/`LIST`
 design, and the proposed ratification; it authorizes no execution and no
 implementation. No provider executed; no runtime/core change. Awaiting architecture
 authorization.
+
+---
+
+# B4 — OPTION-B ATTESTATION HARNESS (IMPLEMENTED, RAPHAEL-SIDE)
+
+Additive; prior findings preserved. This section records the RAPHAEL-side
+implementation of the accepted Option-B design. It is a static, read-only
+validator. **NO provider executed. PHASE 2C: NOT AUTHORIZED.**
+
+- **Module:** `raphael_ibm_bob/b4_attestation.py`
+- **Tests:** `tests/test_b4_attestation.py` (14 cases; synthetic data only)
+- **Cross-check direction (carried from C5):** RAPHAEL-observed boundary events
+  (`agent:tool_call` / `agent:tool_result`) = **PRIMARY**; provider
+  `getExecutions()` executions = **SECONDARY** (a `ToolExecution` lacks sufficient
+  argument/session identity alone, so executions are never sufficient without the
+  boundary event stream).
+- **Dedicated instance:** one proof session bound to one dedicated provider
+  instance; a foreign session or instance invalidates the proof.
+- **Exact matching:** tool name must equal `binary_sink_scan`; `params.path` must
+  equal the canonical absolute fixture literal.
+- **Execution count:** observed executions must equal the expected count (1 for the
+  first proof); extra, missing, or duplicated executions invalidate the proof.
+- **Failure behaviour:** any mismatch → `ABORT` + `QUARANTINE`-the-candidate +
+  structured failure. Never downgraded to a warning.
+- **Post-hoc honesty:** attestation **DETECTS** an out-of-contract execution; it
+  does **NOT PREVENT** one. The forbidden stronger claim
+  ("`No subprocess ran in the provider process.`") is neither asserted nor implied.
+- **Authority boundary:** the harness produces only proof attestation,
+  execution-contract validation, and structured evidence. It never produces
+  authorization, a VERIFIED/REFUTED finding, COMPLETE, or a Quality Gate decision,
+  and it never executes a provider.
+
+**Invariants enforced (named checks):** `single-capability`,
+`expected-tool-is-binary-sink-scan`, `fixture-path-canonical-absolute`,
+`single-proof-session`, `dedicated-instance`, `boundary-tool-call-observed`,
+`tool-name-equality`, `exact-path-literal`, `tool-result-observed`,
+`tool-results-ok`, `execution-observed`, `execution-count`,
+`event-execution-correlation`, `no-duplicate-execution`,
+`result-hash-correlation`.
+
+**Residual (unchanged, carry-forward):** `getExecutions()` remains provider-trusted
+and secondary; post-hoc attestation does not prevent attempts; result-hash
+correlation applies only where the existing model supplies hashes.
+**PHASE 2C NOT AUTHORIZED.**

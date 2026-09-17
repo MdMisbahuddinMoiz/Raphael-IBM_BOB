@@ -95,8 +95,8 @@
       "id": "M1",
       "invariant": "filesystem containment",
       "control": "mount namespace + ro fixture root + no host mounts",
-      "status": "NOT_READY",
-      "evidence": "no container runtime; userns+bwrap AVAILABLE; Gate 1 closure + Gates 3/4 observed, but Gate 2 seccomp BLOCKED (no strace/libseccomp) so Gate 5 M1 escape probes NOT STARTED",
+      "status": "PROBED_PASS",
+      "evidence": "M1 escape/containment probes: 25/25 PASS over 16 families (host FS invisibility, traversal, symlink via /proc/self/root, provider/runtime/fixture read-only, source/home/ssh/config invisibility, no docker sockets, minimal /dev (raw devices absent/unreadable), uid/gid 65534 + caps 0 + NNP 1 + seccomp active, namespaces differ from host, pidns isolated, fork-like clone denied, identity changes denied, no cgroupfs, no child process). Evidence: docs/integration/phase-2c-m1/m1-evidence.json",
       "ready_for_live_proof": false
     },
     {

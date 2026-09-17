@@ -379,3 +379,58 @@ ProviderResult: schema_version, provider_id, operation_id, action_request_id,
 
 status ∈ {success, failure, timeout, denied, unavailable, partial, cancelled}
 ```
+
+---
+
+# PHASE 2C — PROVIDER RUNTIME (RAPHAEL-SIDE) — ADDITIVE
+
+Additive. Static/read-only. **No provider executed. No Class-B capability. No
+Runtime/Broker/Policy/QualityGate change. LIVE PROOF: NOT RUN (BLOCKED).**
+
+Implemented files:
+
+- `raphael_ibm_bob/provider_runtime.py`
+- `raphael_ibm_bob/adapters/t3mp3st_adapter.py`
+- `tests/test_provider_runtime.py` (21 tests, synthetic only)
+
+**ProviderRuntime contract.** `ScopeHandoff` + `ProviderResult` (closed states:
+`success|failure|timeout|denied|unavailable|partial|cancelled`) +
+`invoke_governed(runtime, handoff, request)` = validate scope → invoke with a
+wall-clock bound → normalize. `attest_result(...)` wires the B4 harness
+(`expected_calls = 1`).
+
+**Scope enforcement (RAPHAEL-owned).** Capability must be exactly
+`C1A static_file_inspect`; provider exactly `t3mp3st`; the request target must
+equal the **exact canonical fixture literal** and be a **direct child** of the
+RAPHAEL-owned fixture root (single-file mode); directory mode forbidden;
+`network_denied` required; positive timeout and limits; ids present.
+
+**M3/M4/M6/M7 implemented RAPHAEL-side.** M4: `ProviderResult` is a CLOSED
+allow-list; authority fields (`severity`, `cwe`, `verified`, `refuted`,
+`verdict`, `confidence`, `approved`, `COMPLETE`, `gate…`) are **rejected**
+fail-closed by normalized name (case/separators/NFKC), duplicate JSON keys
+rejected, non-allow-listed fields rejected. M6: provenance fails closed;
+provider `operation_id` is untrusted metadata only. M7: byte cap → `failure`;
+result/artifact count over limit → `partial`/`failure`; **artifacts are
+REFERENCES ONLY** (never ingested/executed). Timeout never becomes `success`;
+`cancellation_acknowledged` only after externally observed teardown (`false`).
+
+**M1/M2/M5 remain NOT CLOSED.** The OS-level mount/network isolation substrate is
+not provisioned in this workspace (no docker/podman) and live teardown was not
+observed. These require the isolation substrate and a live run.
+
+**Adapter.** `T3MP3STAdapter` exposes EXACTLY `("binary_sink_scan",)`; any other
+tool is refused (`OutOfContractToolError`); `invoke` fails closed with
+`ProviderUnavailableError` because the **pinned T3MP3ST provider is not present**
+(no `src/server.ts` / `binary.ts` / `arsenal` / `deepagents`). `InertProviderDouble`
+is a local, clearly-labelled test double — **not** a provider.
+
+**Live proof evidence.** **NONE — NOT RUN.** Preconditions (Steps 12–13) are not
+green: the vetted provider clone and the network-denied isolation substrate are
+absent. No retry, no fabrication.
+
+**Residual register:** M1/M2 isolation substrate; M5 live teardown; parsing the
+real provider payload against the live adapter; event-stream wiring.
+
+**Explicit:** broader provider integration is NOT complete. Only the single
+authorized C1A boundary is defined RAPHAEL-side.

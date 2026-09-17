@@ -1132,3 +1132,44 @@ validator. **NO provider executed. PHASE 2C: NOT AUTHORIZED.**
 and secondary; post-hoc attestation does not prevent attempts; result-hash
 correlation applies only where the existing model supplies hashes.
 **PHASE 2C NOT AUTHORIZED.**
+
+---
+
+# B4 CORRECTIVE CLOSURE (H1–H5) — ADDITIVE
+
+Muse Spark 1.3 audited the B4 implementation (`c72c5125c`) and returned
+**B4 = PARTIALLY CLOSED / Phase 2C = NO-GO**, identifying H1–H5. This note records
+the corrective closure. Static, read-only. **NO provider executed. PHASE 2C NOT
+AUTHORIZED.**
+
+- **H1 — call↔execution cardinality + correlation (FIXED).** The first-proof
+  contract now enforces *per-stream* cardinality and a **call-to-execution
+  relationship**, not just a total count:
+  `len(tool_calls) == len(tool_results) == len(provider_executions) == expected_calls`
+  (first proof `expected_calls = 1`), and each boundary `call_id` must correlate to
+  exactly one provider execution (set equality `{execution.call_id} == {call.call_id}`).
+  The hole (2 calls + 2 results + 1 execution, or 2 calls + 2 executions) now
+  INVALIDATES. Correlation key is the RAPHAEL-side `call_id` carried onto the
+  `ProviderExecution` record by the RAPHAEL collector — **no provider field is
+  fabricated**.
+- **H2 — result cardinality (FIXED).** 1:1 enforced: extra result, missing result,
+  extra execution, missing execution each INVALIDATE (`result-count`, `call-result-correlation`).
+- **H3 — exact path (FIXED).** A provider execution (or boundary call) whose
+  `params.path` is missing, `None`, empty, non-string, or an alternate
+  normalisation now FAILS (`exact-path-literal`). Canonical fixture *setup* remains
+  distinct from exact-literal *attestation*.
+- **H4 — identifiers (FIXED).** `ProofSession` requires non-empty, non-whitespace
+  `proof_session_id` and `instance_id` (`proof-session-id-nonempty`,
+  `instance-id-nonempty`). Global uniqueness is deliberately out of scope.
+- **H5 — naming (FIXED).** The `single-capability` check is renamed
+  **`capability-declared`** ("the proof declares one expected capability and
+  enforces it"); the invariant is unchanged in strength.
+
+**New/renamed named checks:** `proof-session-id-nonempty`, `instance-id-nonempty`,
+`capability-declared`, `call-count`, `result-count`, `call-result-correlation`,
+`call-execution-correlation`; `exact-path-literal` strengthened.
+
+**Tests:** `tests/test_b4_attestation.py` — 27 tests (14 prior + 13 new: the 9 Muse
+adversarial cases, attack cases C and D, missing-result, and the H5 naming check),
+all green. **M15.4 flake deliberately untouched** (unrelated shared-infrastructure
+concern). **PHASE 2C NOT AUTHORIZED.**

@@ -164,5 +164,107 @@ class B4Attestation(unittest.TestCase):
             self.assertNotIn(forbidden_key, res.to_dict())
 
 
+    # --- B4 corrective closure: H1/H2/H3/H4 adversarial cases ---
+
+    def test_13_double_valid_one_execution(self):
+        # Attack A / Muse case 1: 2 calls + 2 results + 1 execution.
+        calls = [_call(), _call(seq=3, call_id="c2")]
+        results = [_result(), _result(seq=4, call_id="c2")]
+        res = attest(_proof(), calls, results, [_execution()])
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("call-count", res.failures)
+        self.assertIn("call-execution-correlation", res.failures)
+
+    def test_14_double_valid_two_executions(self):
+        # Attack B / Muse case 2: exactly-one semantics for the first proof.
+        calls = [_call(), _call(seq=3, call_id="c2")]
+        results = [_result(), _result(seq=4, call_id="c2")]
+        executions = [_execution(),
+                      _execution(execution_id="x2", call_id="c2")]
+        res = attest(_proof(), calls, results, executions)
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("call-count", res.failures)
+
+    def test_15_duplicate_call_id_divergence(self):
+        # Attack H / Muse case 3: same call_id reused with divergent payload.
+        calls = [_call(), _call(seq=3, call_id="c1")]
+        res = attest(_proof(), calls, [_result()], [_execution()])
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("no-duplicate-execution", res.failures)
+        self.assertIn("call-result-correlation", res.failures)
+
+    def test_16_empty_proof_session_id(self):
+        # Attack F / Muse case 4.
+        res = attest(_proof(proof_session_id=""),
+                     [_call(session_id="")], [_result(session_id="")],
+                     [_execution(session_id="")])
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("proof-session-id-nonempty", res.failures)
+
+    def test_17_empty_instance_id(self):
+        # Attack G / Muse case 5 (whitespace-only).
+        res = attest(_proof(instance_id="   "),
+                     [_call(instance_id="   ")], [_result(instance_id="   ")],
+                     [_execution(instance_id="   ")])
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("instance-id-nonempty", res.failures)
+
+    def test_18_one_sided_hash_execution_only(self):
+        # Muse case 6: execution hash present, result hash absent.
+        res = attest(_proof(), [_call()], [_result(result_hash=None)],
+                     [_execution(result_hash="h1")])
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("result-hash-correlation", res.failures)
+
+    def test_19_one_sided_hash_result_only(self):
+        # Muse case 7: result hash present, execution hash absent.
+        res = attest(_proof(), [_call()], [_result(result_hash="h1")],
+                     [_execution(result_hash=None)])
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("result-hash-correlation", res.failures)
+
+    def test_20_non_canonical_fixture_path(self):
+        # Muse case 8: fixture literal must already be canonical.
+        bad = "/srv/raphael/../raphael/fixtures/sink.bin"
+        res = attest(_proof(fixture_path=bad),
+                     [_call(params={"path": bad})], [_result()],
+                     [_execution(path=bad)])
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("fixture-path-canonical-absolute", res.failures)
+
+    def test_21_path_none_execution(self):
+        # Attack E / Muse case 9: a None path must not bypass exact match.
+        res = attest(_proof(), [_call()], [_result()],
+                     [_execution(path=None)])
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("exact-path-literal", res.failures)
+
+    def test_22_extra_result(self):
+        # Attack C: 1 call + 2 results + 1 execution.
+        results = [_result(), _result(seq=4, call_id="c2")]
+        res = attest(_proof(), [_call()], results, [_execution()])
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("result-count", res.failures)
+
+    def test_23_extra_execution(self):
+        # Attack D: 1 call + 1 result + 2 executions.
+        executions = [_execution(),
+                      _execution(execution_id="x2", call_id="c2")]
+        res = attest(_proof(), [_call()], [_result()], executions)
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("execution-count", res.failures)
+
+    def test_24_missing_boundary_result(self):
+        res = attest(_proof(), [_call()], [], [_execution()])
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("tool-result-observed", res.failures)
+
+    def test_25_capability_declared_wording(self):
+        res = attest(_proof(), [_call()], [_result()], [_execution()])
+        names = [c.name for c in res.checks]
+        self.assertIn("capability-declared", names)
+        self.assertNotIn("single-capability", names)
+
+
 if __name__ == "__main__":
     unittest.main()

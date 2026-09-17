@@ -23,10 +23,10 @@
     },
     {
       "id": "G0-DEPS",
-      "invariant": "provider dependency state",
+      "invariant": "provider dependency state installed + statically verified",
       "control": "package-lock.json installed",
-      "status": "NOT_READY",
-      "evidence": "node_modules ABSENT; npm ci --ignore-scripts AUTHORIZED but not yet executed",
+      "status": "READY",
+      "evidence": "npm ci --ignore-scripts exit 0; node_modules PRESENT (422 pkgs, ~293M); Playwright browsers skipped; package.json/lock + provider HEAD unchanged; no provider execution; live_proof NOT_READY",
       "ready_for_live_proof": false
     },
     {
@@ -123,10 +123,28 @@
   "raphael_head_note": "pre-isolation-design docs commit",
   "design_reference": "docs/integration/phase-2c-isolation-engineering-design.md",
   "dependency_install": {
-    "authorized": true,
-    "command": "cd /home/moiz/audit-repos/T3MP3ST && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --ignore-scripts",
-    "scope": "dependency installation only; NOT provider execution/proof",
-    "executed": false
+    "executed": true,
+    "command": "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --ignore-scripts",
+    "cwd": "/home/moiz/audit-repos/T3MP3ST",
+    "exit_code": 0,
+    "package_source": "pinned package-lock.json (lockfileVersion 3)",
+    "node_modules": "PRESENT",
+    "installed_size": "~293M",
+    "packages_added": 422,
+    "playwright_browser_download": "SKIPPED",
+    "package_json_unchanged": true,
+    "package_lock_unchanged": true,
+    "provider_head_unchanged": "29824d5625ede419ac8cdae418c8f4c72c6270f7",
+    "provider_worktree_clean": true,
+    "provider_execution": false,
+    "live_proof": false,
+    "advisories": "5 vulnerabilities (4 moderate, 1 high) - advisory only",
+    "install_scripts_skipped": [
+      "esbuild",
+      "fsevents",
+      "playwright/node_modules/fsevents"
+    ],
+    "note": "dependencies installed and statically verified ONLY; does not imply live-proof readiness"
   },
   "launcher_contract": {
     "reference": "phase-2c-isolation-engineering-design.md \u00a72b",

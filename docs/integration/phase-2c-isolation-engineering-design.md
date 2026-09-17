@@ -203,16 +203,65 @@ timeout / stop
   unless (a)+(b)+(c) are observed.
 - `orphan_possible` remains `true` until that observation exists.
 
-### 5.2 Result acceptance window + late output (R4)
+**cgroup.kill is LOAD-BEARING (Correction 3).** Ordinary **process-group
+signaling is supplementary only**: a descendant that re-`setsid()`s (or
+double-forks) leaves the original process group and escapes a plain
+`kill(-pgid)`. Therefore the sandbox workload is launched inside its **own
+cgroup v2**, and termination of the workload is driven by **`cgroup.kill`**
+(which the kernel applies to every task in the cgroup, regardless of session /
+process-group drift). Teardown verification requires observing **cgroup
+emptiness after termination** (`cgroup.events` → `populated 0` and/or empty
+`cgroup.procs`). PID anti-reuse remains protected via `/proc/<pid>/stat`
+`starttime` and/or `pidfd`. `cancellation_acknowledged` remains `false` until
+independent termination observation succeeds; `orphan_possible` remains `true`
+until termination is observed. **Not experimentally proven yet** — this is the
+required design, to be verified by the M5 live teardown probe.
 
-- There is an **explicit timeout / acceptance window**: a result is accepted
-  only if it is received and attributable **inside** the window.
-- **Late output after timeout/stop is CUT OFF** and recorded as
-  `late_output: true` on the outcome; it is **never** accepted and can never
-  become `success`.
-- `late_output` is part of the evidence record (alongside `orphan_possible`),
-  and downstream consumers must treat `late_output: true` (or
-  `orphan_possible: true`) as non-success.
+### 5.2 `late_output` schema home (Correction 2)
+
+`late_output` is a **transcript-level evidence field** and is
+**RAPHAEL-controlled**:
+
+- **Schema owner:** the RAPHAEL transcript/evidence record (the layer that
+  ingests the sandbox transcript), **not** the provider and **not** raw provider
+  output. Raw provider output does **not** define this field.
+- **Preservation:** B4 evidence normalization / attestation **receives and
+  preserves** `late_output` where applicable (it flows through the same
+  transcript evidence path as the boundary events).
+- **Definition:** `late_output: true` ⟺ output/result arrived **after** the
+  timeout/stop acceptance boundary.
+- **Monotonic safety:** `late_output: true` can **never** become `success`, and
+  can never promote a `timeout` / `denied` / `failure` into `VERIFIED` or
+  `COMPLETE`.
+- **Future option (non-authoritative):** a `ProviderResult.late_output` mirror
+  may be added at implementation time; the transcript-level field remains the
+  explicit schema owner and the source of truth.
+
+### 5.3 Bounded drain-before-kill ordering (Correction 4)
+
+Pinned M5 lifecycle ordering (fail-closed):
+
+```
+1. timeout / stop condition is detected
+2. stop accepting provider success               (acceptance boundary closes)
+3. enter a BOUNDED drain window for the already-generated RAPHAEL
+   transcript / evidence                         (hard cap; see below)
+4. after the bounded window, terminate the sandbox workload
+5. cgroup.kill is LOAD-BEARING (Correction 3)
+6. process-group kill may be supplementary only
+7. observe PID / process-tree / cgroup termination state
+8. only then set cancellation_acknowledged = true
+9. if termination is NOT observed, keep orphan_possible = true
+10. late output after the acceptance boundary is recorded as
+    late_output = true and never becomes success
+```
+
+- **The drain MUST be bounded** (a fixed hard cap, e.g. a small number of
+  seconds). The provider **cannot extend the drain indefinitely** — it is a
+  RAPHAEL-owned timer, not a provider-controlled wait.
+- **Fail-closed on transcript flush failure:** if the drain or the transcript
+  flush fails, evidence may be **incomplete/invalid**, but the outcome stays
+  non-success — **a timeout never becomes `success`**.
 - Implemented only at the live stage; the RAPHAEL-side `ProviderResult` already
   carries `orphan_possible` and never yields success on timeout.
 

@@ -161,19 +161,25 @@
   "isolation_substrate": {
     "implemented": true,
     "module": "raphael_ibm_bob/isolation_substrate.py",
-    "tests": "tests/test_isolation_substrate.py (24 static tests)",
+    "tests": "tests/test_isolation_substrate.py (27 static tests)",
     "state": "IMPLEMENTED_NOT_PROBED",
-    "contracts": [
-      "bwrap argv",
-      "mount table",
-      "network ns",
-      "userns/uid/gid",
-      "cap-drop ALL + no-new-privs",
-      "cgroup v2 limits + kill",
-      "seccomp policy",
-      "bounded tmpfs scratch",
-      "launcher seam"
+    "corrections": [
+      "B1 tmpfs size enforced in argv",
+      "B2 seccomp DRAFT_NOT_PROVEN",
+      "B3 pinned executable + runtime ro-bind",
+      "B4 no_new_privs required vs observed",
+      "B5 numeric/containment/fixture/pid hardening"
     ],
-    "note": "contracts constructed + statically tested only; no bwrap launch, no cgroup created, no seccomp loaded, no provider execution; M1/M2/M5 remain OPEN"
+    "tmpfs_size": "ENFORCED_IN_ARGV",
+    "tmpfs_flags_residual": [
+      "noexec",
+      "nosuid",
+      "nodev"
+    ],
+    "seccomp_status": "DRAFT_NOT_PROVEN",
+    "no_new_privs_state": "NOT_YET_PROVEN",
+    "executable": "/usr/bin/node",
+    "command_pinned": true,
+    "note": "construction corrected and statically tested; nothing launched; M1/M2/M5 remain OPEN"
   }
 }

@@ -129,6 +129,19 @@ DEFAULT_CPU_MAX = "50000 100000"
 #: bwrap program (never executed by this module).
 BWRAP = "bwrap"
 
+#: Environment variables that could create an unintended egress path. All are
+#: explicitly UNSET in the sandbox (bwrap --unsetenv) so an inherited host
+#: proxy/DNS configuration cannot widen the network boundary.
+PROXY_ENV_VARS: Tuple[str, ...] = (
+    "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "FTP_PROXY", "NO_PROXY",
+    "http_proxy", "https_proxy", "all_proxy", "ftp_proxy", "no_proxy",
+)
+
+
+def unsetenv_contract() -> Tuple[Dict[str, str], ...]:
+    """The proxy/env variables removed from the sandbox environment."""
+    return tuple({"kind": "unsetenv", "name": name} for name in PROXY_ENV_VARS)
+
 
 class SubstrateConfigError(Exception):
     """Fail-closed configuration error for the isolation substrate."""
@@ -465,6 +478,11 @@ def build_bwrap_argv(spec: SandboxSpec,
     if seccomp_fd is not None:
         argv[argv.index("--chdir"):argv.index("--chdir")] = [
             "--seccomp", str(seccomp_fd)]
+    # Correction 3: proxy/env hardening — unset egress-path variables.
+    unset: List[str] = []
+    for name in PROXY_ENV_VARS:
+        unset += ["--unsetenv", name]
+    argv[argv.index("--chdir"):argv.index("--chdir")] = unset
     # GATE 1: explicit read-only runtime closure binds (no tree binds).
     closure = node_runtime_closure()
     validate_node_closure(closure)
@@ -714,6 +732,7 @@ __all__ = [
     "NodeRuntimeClosure",
     "SYSTEM_LIBRARY_PREFIXES",
     "PROVIDER_PIN",
+    "PROXY_ENV_VARS",
     "ProviderRef",
     "SANDBOX_GID",
     "SANDBOX_UID",
@@ -739,6 +758,7 @@ __all__ = [
     "seccomp_curation_methodology",
     "seccomp_install_description",
     "termination_observed",
+    "unsetenv_contract",
     "validate_fixture_root",
     "validate_node_closure",
     "validate_sandbox_spec",

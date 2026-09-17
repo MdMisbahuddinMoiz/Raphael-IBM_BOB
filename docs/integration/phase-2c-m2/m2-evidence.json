@@ -4,45 +4,132 @@
   "freeze": {
     "allowlist_sha256": "8a7efc6f4d11bea59b60a9099dd88e287b8f46f300ba158befd6c922fb0ddaf2",
     "bpf_sha256": "d1574a64643907e6c95ccafbfc74e7f04977781014ade214011e57994cb65242",
-    "builder_argv_len": 131,
-    "cap_drop": "ALL",
+    "builder_argv_len": 151,
     "closure_paths": 31,
+    "proxy_vars": [
+      "HTTP_PROXY",
+      "HTTPS_PROXY",
+      "ALL_PROXY",
+      "FTP_PROXY",
+      "NO_PROXY",
+      "http_proxy",
+      "https_proxy",
+      "all_proxy",
+      "ftp_proxy",
+      "no_proxy"
+    ],
     "scratch_mode": "NO_SCRATCH",
     "seccomp_fd": "3",
     "uid_gid": [
       "65534",
       "65534"
     ],
+    "unsetenv": [
+      "HTTP_PROXY",
+      "HTTPS_PROXY",
+      "ALL_PROXY",
+      "FTP_PROXY",
+      "NO_PROXY",
+      "http_proxy",
+      "https_proxy",
+      "all_proxy",
+      "ftp_proxy",
+      "no_proxy"
+    ],
     "unshare_net": true
   },
-  "host_net_ns": "net:[4026531833]",
-  "rc": 0,
+  "network_namespace": "net:[4026532293]",
+  "node_pid": 1178035,
+  "strace": {
+    "command": "strace -f -p 1178035 -e trace=network -tt -T -o /tmp/raphael_g2/out/st4/m2_node.trace",
+    "exit_code": 0,
+    "trace_hash": "a2f74510762c4985ca5ae83912b2cfa409f7086a186eb1d33442c5498cca1e77",
+    "stderr_hash": "7045b2fa5b9824173b6845dc076ba412e62252d6cfbf081efe0ccef85eb85be4",
+    "net_line_count": 40,
+    "bwrap_only": false,
+    "assertions": {
+      "all_passed": true,
+      "node_pid_discovered": true,
+      "proxy_absent_in_probe": true,
+      "socket_denied_direct": true,
+      "strace_rc_zero": true,
+      "trace_has_node_network_syscalls": true,
+      "trace_not_bwrap_only": true
+    },
+    "all_assertions_passed": true
+  },
+  "direct_syscall_evidence": {
+    "socket": {
+      "EPERM": 40
+    },
+    "connect": "BLOCKED/DEPENDENT (socket denied)",
+    "bind": "BLOCKED/DEPENDENT",
+    "listen": "BLOCKED/DEPENDENT",
+    "accept": "BLOCKED/DEPENDENT",
+    "sendto": "BLOCKED/DEPENDENT",
+    "recvfrom": "BLOCKED/DEPENDENT",
+    "setsockopt": "BLOCKED/DEPENDENT",
+    "getsockopt": "BLOCKED/DEPENDENT"
+  },
+  "interfaces": {
+    "visible": [
+      "lo"
+    ],
+    "lo_rx_bytes": "0",
+    "lo_tx_bytes": "0"
+  },
+  "routes": {
+    "ipv4": "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT                                                       \n",
+    "ipv6": "00000000000000000000000000000000 00 00000000000000000000000000000000 00 00000000000000000000000000000000 ffffffff 00000001 00000000 00200200       lo\n00000000000000000000000000000001 80 00000000000000000000000000000000 00 00000000000000000000000000000000 00000000 00000002 00000000 80200001       lo\n00000000000000000000000000000000 00 00000000000000000000000000000000 00 00000000000000000000000000000000 ffffffff 00000001 00000000 00200200       lo\n",
+    "ipv6_default_or_nonloopback": "NONE (all-zero)"
+  },
+  "dns": {
+    "resolv_conf": "ENOENT",
+    "resolution": {
+      "code": "ECONNREFUSED",
+      "errno": null,
+      "ok": false
+    }
+  },
+  "proxy_env": {
+    "probe": [],
+    "argv_unsetenv": [
+      "HTTP_PROXY",
+      "HTTPS_PROXY",
+      "ALL_PROXY",
+      "FTP_PROXY",
+      "NO_PROXY",
+      "http_proxy",
+      "https_proxy",
+      "all_proxy",
+      "ftp_proxy",
+      "no_proxy"
+    ]
+  },
   "total": 13,
-  "pass": 11,
+  "pass": 8,
   "fail": 0,
-  "blocked": 2,
+  "blocked": 5,
   "fails": [],
-  "blocked_probes": [
-    "M2-P9",
-    "M2-P12"
-  ],
   "records": [
     {
       "probe_id": "M2-P1",
       "status": "PASS",
-      "expected": "no host interfaces; only namespace-local (lo)",
+      "expected": "no host interfaces; loopback only",
       "actual": {
         "interfaces": [
           "lo"
-        ]
+        ],
+        "lo_rx": "0",
+        "lo_tx": "0"
       },
       "classification": "DIRECT",
-      "evidence": "Inter-|   Receive                                                |  Transmit\n face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed\n"
+      "evidence": "{\"if\": [\"lo\"], \"rx\": \"0\", \"tx\": \"0\"}"
     },
     {
       "probe_id": "M2-P2",
       "status": "PASS",
-      "expected": "no routes (no default route)",
+      "expected": "no IPv4 routes / no default route",
       "actual": {
         "route_table": "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT"
       },
@@ -52,10 +139,9 @@
     {
       "probe_id": "M2-P3",
       "status": "PASS",
-      "expected": "resolver config absent; resolution denied",
+      "expected": "resolver config absent; resolution fails",
       "actual": {
-        "resolv.conf": "ENOENT",
-        "hosts": "ENOENT",
+        "resolv": "ENOENT",
         "dns_result": {
           "code": "ECONNREFUSED",
           "errno": null,
@@ -63,75 +149,77 @@
         }
       },
       "classification": "INFERRED",
-      "evidence": "{\"resolv\": \"ENOENT\", \"hosts\": \"ENOENT\", \"dns\": {\"code\": \"ECONNREFUSED\", \"errno\": null, \"ok\": false}}"
+      "evidence": "{\"resolv\": \"ENOENT\", \"dns\": {\"code\": \"ECONNREFUSED\", \"errno\": null, \"ok\": false}}"
     },
     {
       "probe_id": "M2-P4",
       "status": "PASS",
-      "expected": "socket(AF_INET) denied",
+      "expected": "socket(AF_INET/AF_INET6) denied at syscall level",
       "actual": {
-        "code": "EPERM",
-        "errno": -1,
-        "ok": false
+        "syscall_evidence": {
+          "socket": {
+            "EPERM": 40
+          }
+        },
+        "trace_hash": "a2f74510762c4985ca5ae83912b2cfa409f7086a186eb1d33442c5498cca1e77"
       },
-      "classification": "INFERRED",
-      "evidence": "{\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}"
+      "classification": "DIRECT",
+      "evidence": "{\"socket\": {\"EPERM\": 40}}"
     },
     {
       "probe_id": "M2-P5",
-      "status": "PASS",
-      "expected": "socket(AF_INET6) denied",
+      "status": "BLOCKED",
+      "expected": "connect denied",
       "actual": {
-        "code": "EPERM",
-        "errno": -1,
-        "ok": false
+        "reached": false,
+        "observed": {}
       },
-      "classification": "INFERRED",
-      "evidence": "{\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}"
+      "classification": "BLOCKED",
+      "evidence": "{\"dependent_on\": \"socket() denial\", \"trace\": \"a2f74510762c4985\"}"
     },
     {
       "probe_id": "M2-P6",
-      "status": "PASS",
-      "expected": "TCP connect denied (socket denied)",
+      "status": "BLOCKED",
+      "expected": "connect denied",
       "actual": {
-        "code": "EPERM",
-        "errno": -1,
-        "ok": false
+        "reached": false,
+        "observed": {}
       },
-      "classification": "INFERRED",
-      "evidence": "{\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}"
+      "classification": "BLOCKED",
+      "evidence": "{\"dependent_on\": \"socket() denial\", \"trace\": \"a2f74510762c4985\"}"
     },
     {
       "probe_id": "M2-P7",
-      "status": "PASS",
-      "expected": "UDP send denied (socket/bind denied)",
+      "status": "BLOCKED",
+      "expected": "sendto denied",
       "actual": {
-        "code": "EPERM",
-        "errno": -1,
-        "ok": false
+        "reached": false,
+        "observed": {}
       },
-      "classification": "INFERRED",
-      "evidence": "{\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}"
+      "classification": "BLOCKED",
+      "evidence": "{\"dependent_on\": \"socket() denial\", \"trace\": \"a2f74510762c4985\"}"
     },
     {
       "probe_id": "M2-P8",
-      "status": "PASS",
-      "expected": "bind/listen denied (socket denied)",
+      "status": "BLOCKED",
+      "expected": "bind/listen denied",
       "actual": {
-        "code": "EPERM",
-        "errno": -1,
-        "ok": false
+        "reached": false,
+        "observed": {}
       },
-      "classification": "INFERRED",
-      "evidence": "{\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}"
+      "classification": "BLOCKED",
+      "evidence": "{\"dependent_on\": \"socket() denial\", \"trace\": \"a2f74510762c4985\"}"
     },
     {
       "probe_id": "M2-P9",
       "status": "BLOCKED",
       "expected": "sendto/recvfrom second-level result",
-      "actual": "BLOCKED: socket creation is already denied; no fabricated second-level result",
-      "classification": "INFERRED",
-      "evidence": "dependency: P4/P7"
+      "actual": {
+        "socketpair": null,
+        "sendto": null
+      },
+      "classification": "BLOCKED",
+      "evidence": "dependency: socket() denied"
     },
     {
       "probe_id": "M2-P10",
@@ -147,24 +235,51 @@
     {
       "probe_id": "M2-P11",
       "status": "PASS",
-      "expected": "no inherited proxy env",
+      "expected": "no proxy vars in sandbox env despite host proxies set",
       "actual": {
-        "proxy_vars": []
+        "probe_proxy_vars": [],
+        "host_set_for_run": [
+          "HTTP_PROXY",
+          "HTTPS_PROXY",
+          "http_proxy"
+        ],
+        "argv_unsetenv": [
+          "HTTP_PROXY",
+          "HTTPS_PROXY",
+          "ALL_PROXY",
+          "FTP_PROXY",
+          "NO_PROXY",
+          "http_proxy",
+          "https_proxy",
+          "all_proxy",
+          "ftp_proxy",
+          "no_proxy"
+        ]
       },
       "classification": "DIRECT",
-      "evidence": "[]"
+      "evidence": "{\"probe\": [], \"unsetenv\": [\"HTTP_PROXY\", \"HTTPS_PROXY\", \"ALL_PROXY\", \"FTP_PROXY\", \"NO_PROXY\", \"http_proxy\", \"https_proxy\", \"all_proxy\", \"ftp_proxy\", \"no_proxy\"]}"
     },
     {
       "probe_id": "M2-P12",
-      "status": "BLOCKED",
+      "status": "PASS",
       "expected": "network syscall family denied at syscall level",
       "actual": {
-        "node_syscall_trace": "NOT CAPTURED (host-side trace did not record the probe's socket denials)",
-        "policy": "socket/connect/bind/listen/accept/sendto/recvfrom/setsockopt/getsockopt are NOT in the allowlist (default EPERM)",
-        "node_level": "all returned EPERM (errno -1)"
+        "per_syscall": {
+          "socket": {
+            "EPERM": 40
+          }
+        },
+        "frames": [
+          "17:44:19.250813 socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC|SOCK_NONBLOCK, IPPROTO_IP) = -1 EPERM (Operation not permitted) <0.000155>",
+          "17:44:19.256606 socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC|SOCK_NONBLOCK, IPPROTO_IP) = -1 EPERM (Operation not permitted) <0.000167>",
+          "17:44:19.257539 socket(AF_INET6, SOCK_STREAM|SOCK_CLOEXEC|SOCK_NONBLOCK, IPPROTO_IP) = -1 EPERM (Operation not permitted) <0.000145>",
+          "17:44:19.265763 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC|SOCK_NONBLOCK, IPPROTO_IP) = -1 EPERM (Operation not permitted) <0.000115>"
+        ],
+        "node_pid": 1178035,
+        "strace_rc": 0
       },
-      "classification": "UNVERIFIED",
-      "evidence": "see m2_raw.json net_trace_lines (bwrap netlink setup only)"
+      "classification": "DIRECT",
+      "evidence": "a2f74510762c4985ca5ae83912b2cfa409f7086a186eb1d33442c5498cca1e77"
     },
     {
       "probe_id": "M2-P13",
@@ -174,31 +289,12 @@
         "interfaces": [
           "lo"
         ],
-        "connect_127_0_0_1": {
-          "code": "EPERM",
-          "errno": -1,
-          "ok": false
-        }
+        "socket_denied": true
       },
       "classification": "DIRECT",
-      "evidence": "{\"if\": [\"lo\"], \"p4\": {\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}}"
+      "evidence": "lo only; socket() denied"
     }
   ],
-  "final_status": "PARTIAL",
-  "reason": "No egress observed and no probe succeeded; however syscall-level trace evidence for the AF_INET/AF_INET6 socket denials (M2-P4..P8/P12) was NOT captured, so it is not classified as proof per the M2 evidence rules.",
-  "no_successful_egress": true,
-  "syscall_trace_evidence": {
-    "attempted": true,
-    "node_file_found": false,
-    "note": "host-side strace of the sandboxed run did not exhibit the probe's socket denials; bwrap netlink setup lines only"
-  },
-  "observations": {
-    "interfaces": [
-      "lo"
-    ],
-    "route_empty": true,
-    "resolv_conf": "ENOENT",
-    "netns_differs": true,
-    "proxy_env": []
-  }
+  "final_status": "PROBED_PASS",
+  "no_successful_egress": true
 }

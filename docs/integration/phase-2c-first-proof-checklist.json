@@ -103,8 +103,8 @@
       "id": "M2",
       "invariant": "network egress denied",
       "control": "net namespace with zero interfaces + no DNS",
-      "status": "PARTIAL",
-      "evidence": "M2 probes: 11 PASS / 0 FAIL / 2 BLOCKED. No egress observed and no probe succeeded: netns distinct (sandbox net:[...] != host), only 'lo', empty route table, /etc/resolv.conf ENOENT, no proxy env, AF_INET/AF_INET6/TCP/UDP/listen all EPERM (Node level). PARTIAL because syscall-level trace evidence for the socket denials (M2-P4..P8/P12) was NOT captured; M2-P9 blocked by dependency. Evidence: docs/integration/phase-2c-m2/m2-evidence.json",
+      "status": "PROBED_PASS",
+      "evidence": "M2 recapture with DIRECT syscall evidence: fail-closed PID-attached strace on the inner node PID (1178035), strace rc=0, 40x socket() = -1 EPERM; only 'lo' (RX/TX 0), IPv4 route table empty, IPv6 all-zero (no default/non-loopback route), /etc/resolv.conf ENOENT, probe env proxy-free despite host proxies set (argv --unsetenv x10). connect/bind/listen/accept/sendto/recvfrom/setsockopt/getsockopt recorded BLOCKED/DEPENDENT (socket denied). 8 PASS / 0 FAIL / 5 BLOCKED. Evidence: docs/integration/phase-2c-m2/m2-evidence.json",
       "ready_for_live_proof": false
     },
     {

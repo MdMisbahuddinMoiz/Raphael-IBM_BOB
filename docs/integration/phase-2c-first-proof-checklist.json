@@ -157,5 +157,23 @@
     "generic_dispatcher": false
   },
   "receipt_pipeline": "parse_closed_payload -> normalize_result -> b4_attestation.attest",
-  "late_output_handling": "late_output=true after timeout; never success"
+  "late_output_handling": "late_output=true after timeout; never success",
+  "isolation_substrate": {
+    "implemented": true,
+    "module": "raphael_ibm_bob/isolation_substrate.py",
+    "tests": "tests/test_isolation_substrate.py (24 static tests)",
+    "state": "IMPLEMENTED_NOT_PROBED",
+    "contracts": [
+      "bwrap argv",
+      "mount table",
+      "network ns",
+      "userns/uid/gid",
+      "cap-drop ALL + no-new-privs",
+      "cgroup v2 limits + kill",
+      "seccomp policy",
+      "bounded tmpfs scratch",
+      "launcher seam"
+    ],
+    "note": "contracts constructed + statically tested only; no bwrap launch, no cgroup created, no seccomp loaded, no provider execution; M1/M2/M5 remain OPEN"
+  }
 }

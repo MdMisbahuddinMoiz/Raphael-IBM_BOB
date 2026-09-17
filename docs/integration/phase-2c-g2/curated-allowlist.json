@@ -73,12 +73,6 @@
       "syscall": "futex"
     },
     {
-      "classification": "threading",
-      "evidence": "fallback-justified",
-      "reason": "FALLBACK: glibc thread creation when clone3 returns ENOSYS (arg-filtered to CLONE_VM|CLONE_THREAD only, so fork() is denied)",
-      "syscall": "clone"
-    },
-    {
       "classification": "loader",
       "evidence": "amended-observed",
       "reason": "bwrap PID-1 sandbox init reaps the executed command (observed: bwrap init wait() EPERM without it)",

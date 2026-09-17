@@ -17,6 +17,7 @@ from raphael_ibm_bob.seccomp_policy import (
     EPERM,
     SPECIAL_ACTIONS,
     Libseccomp,
+    build_pfc,
     build_policy,
     allowed_syscall_names,
     scmp_errno,
@@ -96,6 +97,66 @@ class CuratedPolicy(unittest.TestCase):
 
     def test_10_arch_is_x86_64_only(self):
         self.assertEqual(Libseccomp().arch_native(), AUDIT_ARCH_X86_64)
+
+
+class ExportedPolicyPFC(unittest.TestCase):
+    """B1 regression: inspect the ACTUAL exported policy, not tuples."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.lib = Libseccomp()
+        cls.pfc = build_pfc()
+        cls.clone_nr = cls.lib.resolve("clone")
+        cls.clone3_nr = cls.lib.resolve("clone3")
+
+    def _lines(self):
+        return [ln.strip() for ln in self.pfc.splitlines() if ln.strip()]
+
+    def _block_after(self, needle):
+        """Lines from the matching syscall up to and including its action."""
+        lines = self._lines()
+        for i, ln in enumerate(lines):
+            if needle in ln:
+                window = [ln]
+                for nxt in lines[i + 1:i + 8]:
+                    window.append(nxt)
+                    if nxt.startswith("action"):
+                        break
+                return window
+        self.fail(f"no line containing {needle!r} in exported PFC")
+
+    def test_11_no_unconditional_clone_allow(self):
+        block = self._block_after(f"== {self.clone_nr})")
+        joined = " ".join(block)
+        has_arg = "$a0" in joined
+        has_allow = "ALLOW" in joined
+        self.assertTrue(has_arg, "clone must carry an argument comparison")
+        self.assertFalse(has_allow and not has_arg,
+                         "clone allowed with NO argument comparison")
+
+    def test_12_clone_rule_has_argument_mask_and_allow(self):
+        block = self._block_after(f"== {self.clone_nr})")
+        joined = " ".join(block)
+        self.assertIn("$a0", joined, "clone rule must compare arg0 (flags)")
+        self.assertIn("ALLOW", joined, "thread-flagged clone must be allowed")
+
+    def test_13_clone_is_arg_filtered_not_unconditional_in_config(self):
+        allowed = set(allowed_syscall_names())
+        self.assertNotIn("clone", allowed)
+        self.assertIn("clone", {n for (n, _a, _k, _v, _e) in ARG_FILTERED})
+
+    def test_14_no_shadowing_between_allow_and_arg_filters(self):
+        allowed = set(allowed_syscall_names())
+        filtered = {n for (n, _a, _k, _v, _e) in ARG_FILTERED}
+        self.assertEqual(allowed & filtered, set())
+
+    def test_15_clone3_handled_separately_with_enosys(self):
+        block = self._block_after(f"== {self.clone3_nr})")
+        joined = " ".join(block)
+        self.assertIn("ERRNO(38)", joined,
+                      "clone3 must be explicitly handled with ENOSYS")
+        self.assertNotIn("ALLOW", joined)
+        self.assertEqual(SPECIAL_ACTIONS["clone3"], ENOSYS)
 
 
 if __name__ == "__main__":

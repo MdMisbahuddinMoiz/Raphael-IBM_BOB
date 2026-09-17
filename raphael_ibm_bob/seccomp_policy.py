@@ -95,7 +95,6 @@ CURATED_ALLOWLIST: Tuple[AllowedSyscall, ...] = (
     AllowedSyscall("rseq", "loader", "glibc restartable sequences", "loader.trace"),
     AllowedSyscall("prlimit64", "loader", "glibc resource limit query", "loader.trace"),
     AllowedSyscall("futex", "threading", "libuv/V8 synchronization", "loader.trace"),
-    AllowedSyscall("clone", "threading", "FALLBACK: glibc thread creation when clone3 returns ENOSYS (arg-filtered to CLONE_VM|CLONE_THREAD only, so fork() is denied)", "fallback-justified"),
     AllowedSyscall("wait4", "loader", "bwrap PID-1 sandbox init reaps the executed command (observed: bwrap init wait() EPERM without it)", "amended-observed"),
     AllowedSyscall("sched_getaffinity", "threading", "V8/libuv CPU count probe", "loader.trace"),
     AllowedSyscall("getpid", "identity-read", "process id query", "loader.trace"),
@@ -233,6 +232,8 @@ class Libseccomp:
         lib.seccomp_rule_add_array.restype = ctypes.c_int
         lib.seccomp_export_bpf.argtypes = [ctypes.c_void_p, ctypes.c_int]
         lib.seccomp_export_bpf.restype = ctypes.c_int
+        lib.seccomp_export_pfc.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        lib.seccomp_export_pfc.restype = ctypes.c_int
         lib.seccomp_arch_native.argtypes = []
         lib.seccomp_arch_native.restype = ctypes.c_uint32
 
@@ -245,7 +246,15 @@ class Libseccomp:
             raise SeccompError(f"libseccomp cannot resolve syscall {name!r}")
         return nr
 
-    def build_bpf(self) -> bytes:
+    def _build_ctx(self):
+        """Build the libseccomp ctx from the curated tables (no shadowing).
+
+        IMPORTANT: a syscall must appear EITHER in CURATED_ALLOWLIST (no arg
+        filter) OR in ARG_FILTERED (arg filter) — never both. libseccomp would
+        collapse a no-arg ALLOW with an arg-filtered ALLOW into an
+        unconditional allow. ``_assert_no_shadowing()`` guards this.
+        """
+        self._assert_no_shadowing()
         lib = self.lib
         ctx = lib.seccomp_init(scmp_errno(EPERM))
         if not ctx:
@@ -270,25 +279,62 @@ class Libseccomp:
                     ctypes.byref(cmp))
                 if rc != 0:
                     raise SeccompError(f"arg filter {name} rc={rc}")
-            fd, path = tempfile.mkstemp(prefix="raphael_bpf_")
+            return ctx
+        except Exception:
+            lib.seccomp_release(ctx)
+            raise
+
+    @staticmethod
+    def _assert_no_shadowing() -> None:
+        allowed = {e.name for e in CURATED_ALLOWLIST}
+        overlapping = allowed & {name for (name, _a, _k, _v, _e) in ARG_FILTERED}
+        for name in overlapping:
+            raise SeccompError(
+                f"syscall {name!r} is both unconditionally allowed and "
+                "arg-filtered (would collapse to an unconditional allow)")
+
+    def _export(self, ctx, exporter) -> bytes:
+        lib = self.lib
+        fd, path = tempfile.mkstemp(prefix="raphael_policy_")
+        try:
+            os.close(fd)
+            out = os.open(path, os.O_WRONLY | os.O_TRUNC)
             try:
-                os.close(fd)
-                out = os.open(path, os.O_WRONLY | os.O_TRUNC)
-                try:
-                    rc = lib.seccomp_export_bpf(ctx, out)
-                finally:
-                    os.close(out)
-                if rc != 0:
-                    raise SeccompError(f"seccomp_export_bpf rc={rc}")
-                with open(path, "rb") as fh:
-                    return fh.read()
+                rc = exporter(ctx, out)
             finally:
-                try:
-                    os.unlink(path)
-                except OSError:
-                    pass
+                os.close(out)
+            if rc != 0:
+                raise SeccompError(f"seccomp export rc={rc}")
+            with open(path, "rb") as fh:
+                return fh.read()
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+    def build_bpf(self) -> bytes:
+        lib = self.lib
+        ctx = self._build_ctx()
+        try:
+            return self._export(ctx, lib.seccomp_export_bpf)
         finally:
             lib.seccomp_release(ctx)
+
+    def export_pfc(self) -> str:
+        """Human-readable pseudo filter code (actual exported policy)."""
+        lib = self.lib
+        ctx = self._build_ctx()
+        try:
+            return self._export(ctx, lib.seccomp_export_pfc).decode(
+                "utf-8", "replace")
+        finally:
+            lib.seccomp_release(ctx)
+
+
+def build_pfc() -> str:
+    """Return the ACTUAL exported pseudo filter code for the curated policy."""
+    return Libseccomp().export_pfc()
 
 
 def build_policy(export_path: Optional[str] = None) -> PolicyDigests:
@@ -313,6 +359,6 @@ __all__ = [
     "AllowedSyscall", "ARG_FILTERED", "AUDIT_ARCH_X86_64", "CLONE_NEWMASK",
     "CURATED_ALLOWLIST", "DENIED_SYSCALLS", "IOCTL_FIONBIO", "IOCTL_TCGETS2",
     "Libseccomp", "PR_SET_NAME", "PolicyDigests", "SPECIAL_ACTIONS",
-    "SeccompError", "allowlist_json", "allowed_syscall_names", "build_policy",
-    "scmp_errno",
+    "SeccompError", "allowlist_json", "allowed_syscall_names", "build_pfc",
+    "build_policy", "scmp_errno",
 ]

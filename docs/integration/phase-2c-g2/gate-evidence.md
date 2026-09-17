@@ -23,6 +23,11 @@ shape** (same userns/pid/ipc/uts/net, uid 65534, cap-drop ALL, same ro binds),
 traced with `strace -f` from inside the sandbox (strace bound read-only, trace
 written to a rw host bind).
 
+> Note (B2): the earlier probe-stage record of `argv length 115` /
+> `GENERATED_ARGV_SMOKE_OK` was produced by a superseded builder. The current
+> builder output is documented under Gate E (`argv length 131`,
+> `SUBSTRATE_ARGV_SMOKE_OK_CURRENT_BUILDER`).
+
 - workload 1 (loader): `node -e 'process.stdout.write("RAPHAEL_OK")'`
 - workload 2 (IO-shape): read a dummy JSON file (`/smoke/dummy.json`, **not** the
   c1a fixture), `JSON.parse`, deterministic stdout.
@@ -65,14 +70,23 @@ read-only. This closes Muse's "Node runtime closure forward obligation".
 ## Gate C — curated deny-by-default policy
 
 `curated-allowlist.json`
-(sha256 `4c61fa6406da745a13c6f609eaa31feb75b4275eb02ef4d14102f2754159fa5e`).
+(sha256 `33b2fe92c93eec3e0bc761e985d67bf2632783934c2ba3fb8dfadc4ccff0a080`
+— corrected B1 revision).
 
-- **47 allow entries**, each with classification, reason, and trace evidence.
+- **46 allow entries**, each with classification, reason, and trace evidence.
 - Default action `SCMP_ACT_ERRNO(EPERM)`; x86_64 native arch only.
-- Arg-filtered: `clone` (requires `(flags & CLONE_VM|CLONE_THREAD) == CLONE_VM|CLONE_THREAD`;
-  any `CLONE_NEW*` or fork-style flags denied), `prctl` (only `PR_SET_NAME`),
-  `ioctl` (only `FIONBIO`, `TCGETS2`).
-- Special: `clone3` → **ENOSYS** (so glibc falls back to `clone`).
+- **Corrected mechanism (B1).** `clone` is **argument-filtered only** — there
+  is NO unconditional clone allow (the earlier revision listed `clone` in both
+  tables, which libseccomp collapsed into an unconditional allow; the entry was
+  removed). The single clone rule is
+  `SCMP_ACT_ALLOW` for `(flags & (CLONE_VM|CLONE_THREAD)) == (CLONE_VM|CLONE_THREAD)`:
+  thread-compatible flags are allowed; `CLONE_NEW*` namespace flags and
+  fork-like flags are denied. `prctl` (only `PR_SET_NAME`) and `ioctl` (only
+  `FIONBIO`, `TCGETS2`) are likewise argument-filtered.
+- Special: `clone3` → **ENOSYS** (so glibc falls back to `clone`), handled
+  separately from `clone`.
+- The exported pseudo filter code (PFC) was inspected directly to prove the
+  corrected shape — see the PFC regression tests.
 - Denied families documented in `DENIED_SYSCALLS` (socket/connect, ptrace,
   process_vm_*, mount API incl. `open_tree`/`move_mount`/`fsopen`/`fsmount`/
   `fspick`/`mount_setattr`, unshare/setns, bpf, perf_event_open, userfaultfd,
@@ -91,9 +105,9 @@ already-installed `libseccomp.so.2` builds the filter and exports raw BPF via
 
 | digest | value |
 |---|---|
-| BPF bytes | 544 |
-| BPF sha256 | `2a8ca0f732f25d0d90d889f7ff8307fca045de923828d2191c36ff30e056ab67` |
-| module allowlist sha256 | `fcf0beeef99ddfc44b0bf7a6520e63e89ac09b66d01c1a3c0d73e1bcfb392668` |
+| BPF bytes | 592 |
+| BPF sha256 | `903ac4af8781a9d1c99f7f2f8ac579669ba6f9776e916bde4d4e59b472095860` |
+| curated-allowlist.json sha256 | `33b2fe92c93eec3e0bc761e985d67bf2632783934c2ba3fb8dfadc4ccff0a080` |
 
 The blob is committed as `raphael_c1a_policy.bpf`. Integration: the substrate
 emits `--seccomp <FD>` (fd >= 3) so bwrap applies the filter to the sandboxed
@@ -112,10 +126,20 @@ Host-side strace of the filtered run shows the **only EPERM** is the intended
 `clone3` → ENOSYS (1×) → glibc fell back to `clone` with thread flags (6×,
 allowed). No unexpected EPERM on any allowed syscall.
 
-**Substrate argv smoke:** the argv produced by
-`build_bwrap_argv(spec, seccomp_fd=3)` (full closure incl. the 6 assets, no
-tmpfs, `--seccomp 3`) ran `node --version` → `v22.22.1`, rc 0 →
-`SUBSTRATE_ARGV_SMOKE_OK`.
+**B1 fixed-policy re-run:** trace sha256
+`d87cd99c32f36418b799286d4d282a29a5f6317c69e15802ac332534834270ce`; only
+EPERM = `io_uring_setup` (intended); `clone3`→ENOSYS (1) → `clone` (6, thread
+flags) allowed.
+
+**Substrate argv smoke (current builder, regenerated B2):** the argv produced
+by the CURRENT `build_bwrap_argv(spec, seccomp_fd=3)` is **length 131**
+(replacing the stale G1-era length 115), with 34 `--ro-bind` pairs,
+`--seccomp 3` at index 34 (before `--` at index 128), tail
+`/provider -- /usr/bin/node /provider/c1a_launcher.js`, unshare flags
+user/pid/ipc/uts/net, `--die-with-parent --new-session --cap-drop ALL
+--dev /dev --proc /proc`, uid/gid 65534, and **no `--tmpfs`/`--size`
+(NO_SCRATCH)**. It ran `node --version` → `v22.22.1`, rc 0 →
+**`SUBSTRATE_ARGV_SMOKE_OK_CURRENT_BUILDER`**.
 
 ## Gate F — negative Node-reachable probes (all under the policy)
 

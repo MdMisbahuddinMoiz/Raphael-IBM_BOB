@@ -4,64 +4,122 @@
   "capability": "C1A static_file_inspect",
   "provider": "T3MP3ST binary_sink_scan",
   "provider_pin": "29824d5625ede419ac8cdae418c8f4c72c6270f7",
-  "raphael_head": "1f17de329aa95bd18e66c49426d40c30eed26e23",
+  "raphael_head": "6dfe6046b2fd01308357ba38d8032c1a6b2ccd34",
   "live_proof_authorized": false,
-  "status_values": ["READY", "NOT_READY", "UNKNOWN"],
+  "status_values": [
+    "READY",
+    "NOT_READY",
+    "UNKNOWN"
+  ],
   "note": "No item is READY from specification alone; environmental items require the actual proof environment and independent verification.",
   "items": [
-    {"id": "G0", "invariant": "provider pin verified",
-     "control": "pinned commit + clean tree",
-     "status": "READY",
-     "evidence": "/home/moiz/audit-repos/T3MP3ST HEAD == pin; git status clean"},
-    {"id": "G0-DEPS", "invariant": "provider dependency state",
-     "control": "package-lock.json installed",
-     "status": "NOT_READY",
-     "evidence": "node_modules ABSENT; requires `npm ci` (network/package install) - not authorized"},
-    {"id": "G2", "invariant": "RAPHAEL-owned fixture root",
-     "control": "fixture dir owned by RAPHAEL, deterministic file",
-     "status": "READY",
-     "evidence": "fixtures/c1a_proof/raphael_c1a_fixture.txt sha256 c033fda6e893ed965de8496ad170628d33ce69817c6ad05bbb63bcb5e1010bd1"},
-    {"id": "M1", "invariant": "filesystem containment",
-     "control": "mount namespace + ro fixture root + no host mounts",
-     "status": "NOT_READY",
-     "evidence": "no container runtime; userns+bwrap AVAILABLE but not provisioned, no escape probes run"},
-    {"id": "M2", "invariant": "network egress denied",
-     "control": "net namespace with zero interfaces + no DNS",
-     "status": "NOT_READY",
-     "evidence": "userns+netns functional (USERNET_NS_OK) but not provisioned/verified for the proof"},
-    {"id": "M5", "invariant": "teardown/cancellation observed",
-     "control": "externally observed process reaping",
-     "status": "NOT_READY",
-     "evidence": "no live provider; teardown observation not implemented"},
-    {"id": "B4", "invariant": "dedicated session + execution attestation",
-     "control": "B4 option-B attestation, expected_calls=1",
-     "status": "READY",
-     "evidence": "b4_attestation.py CLOSED (27 tests); dedicated provider-instance lifecycle remains DESIGN only"},
-    {"id": "B4-LIFECYCLE", "invariant": "fresh dedicated provider instance",
-     "control": "create/bind/execute/collect/attest/teardown/discard",
-     "status": "NOT_READY",
-     "evidence": "lifecycle designed, not implemented (see provisioning doc)"},
-    {"id": "C1A", "invariant": "exact capability and fixture path",
-     "control": "single capability, exact canonical literal, single-file",
-     "status": "READY",
-     "evidence": "provider_runtime.validate_scope enforces; tests 1-6"},
-    {"id": "C1A-TRANSPORT", "invariant": "out-of-process adapter transport",
-     "control": "HTTP/MCP to isolated provider",
-     "status": "NOT_READY",
-     "evidence": "T3MP3STAdapter fails closed (UNAVAILABLE); transport not implemented"},
-    {"id": "M4", "invariant": "provider authority metadata inerted",
-     "control": "closed allow-list; authority fields rejected",
-     "status": "READY",
-     "evidence": "parse_closed_payload + nested scalar-only result schema; tests 11/23/26"},
-    {"id": "M7", "invariant": "response/artifact limits",
-     "control": "byte cap, result/artifact counts, artifact bytes",
-     "status": "READY",
-     "evidence": "normalize_result limits; tests 7/24/25"}
+    {
+      "id": "G0",
+      "invariant": "provider pin verified",
+      "control": "pinned commit + clean tree",
+      "status": "READY",
+      "evidence": "/home/moiz/audit-repos/T3MP3ST HEAD == pin; git status clean",
+      "ready_for_live_proof": false
+    },
+    {
+      "id": "G0-DEPS",
+      "invariant": "provider dependency state",
+      "control": "package-lock.json installed",
+      "status": "NOT_READY",
+      "evidence": "node_modules ABSENT; requires `npm ci` (network/package install) - not authorized",
+      "ready_for_live_proof": false
+    },
+    {
+      "id": "G2",
+      "invariant": "RAPHAEL-owned fixture root",
+      "control": "fixture dir owned by RAPHAEL, deterministic file",
+      "status": "READY",
+      "evidence": "fixtures/c1a_proof/raphael_c1a_fixture.txt sha256 c033fda6e893ed965de8496ad170628d33ce69817c6ad05bbb63bcb5e1010bd1",
+      "ready_for_live_proof": false
+    },
+    {
+      "id": "M1",
+      "invariant": "filesystem containment",
+      "control": "mount namespace + ro fixture root + no host mounts",
+      "status": "NOT_READY",
+      "evidence": "no container runtime; userns+bwrap AVAILABLE but not provisioned, no escape probes run",
+      "ready_for_live_proof": false
+    },
+    {
+      "id": "M2",
+      "invariant": "network egress denied",
+      "control": "net namespace with zero interfaces + no DNS",
+      "status": "NOT_READY",
+      "evidence": "userns+netns functional (USERNET_NS_OK) but not provisioned/verified for the proof",
+      "ready_for_live_proof": false
+    },
+    {
+      "id": "M5",
+      "invariant": "teardown/cancellation observed",
+      "control": "externally observed process reaping",
+      "status": "NOT_READY",
+      "evidence": "no live provider; teardown observation not implemented",
+      "ready_for_live_proof": false
+    },
+    {
+      "id": "B4",
+      "invariant": "dedicated session + execution attestation",
+      "control": "B4 option-B attestation, expected_calls=1",
+      "status": "READY",
+      "evidence": "b4_attestation.py CLOSED (27 tests); dedicated provider-instance lifecycle remains DESIGN only",
+      "ready_for_live_proof": false
+    },
+    {
+      "id": "B4-LIFECYCLE",
+      "invariant": "fresh dedicated provider instance",
+      "control": "create/bind/execute/collect/attest/teardown/discard",
+      "status": "NOT_READY",
+      "evidence": "lifecycle designed, not implemented (see provisioning doc)",
+      "ready_for_live_proof": false
+    },
+    {
+      "id": "C1A",
+      "invariant": "exact capability and fixture path",
+      "control": "single capability, exact canonical literal, single-file",
+      "status": "READY",
+      "evidence": "provider_runtime.validate_scope enforces; tests 1-6",
+      "ready_for_live_proof": false
+    },
+    {
+      "id": "C1A-TRANSPORT",
+      "invariant": "out-of-process adapter transport",
+      "control": "HTTP/MCP to isolated provider",
+      "status": "NOT_READY",
+      "evidence": "T3MP3STAdapter fails closed (UNAVAILABLE); transport not implemented",
+      "ready_for_live_proof": false
+    },
+    {
+      "id": "M4",
+      "invariant": "provider authority metadata inerted",
+      "control": "closed allow-list; authority fields rejected",
+      "status": "READY",
+      "evidence": "parse_closed_payload + nested scalar-only result schema; tests 11/23/26",
+      "ready_for_live_proof": false
+    },
+    {
+      "id": "M7",
+      "invariant": "response/artifact limits",
+      "control": "byte cap, result/artifact counts, artifact bytes",
+      "status": "READY",
+      "evidence": "normalize_result limits; tests 7/24/25",
+      "ready_for_live_proof": false
+    }
   ],
   "blockers": [
     "provider node_modules absent (`npm ci` requires network/package install authorization)",
     "no container runtime (docker/podman absent); isolation must use userns+bwrap+tmpfs (not yet provisioned or verified)",
     "out-of-process adapter transport not implemented",
     "dedicated fresh-instance lifecycle not implemented"
-  ]
+  ],
+  "readiness_stage": {
+    "provisioning_design": "READY_FOR_PROVISIONING_DESIGN",
+    "live_proof": "NOT_READY"
+  },
+  "raphael_head_note": "pre-isolation-design docs commit",
+  "design_reference": "docs/integration/phase-2c-isolation-engineering-design.md"
 }

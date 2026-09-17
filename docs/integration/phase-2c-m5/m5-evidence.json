@@ -1,0 +1,158 @@
+{
+  "artifact": "phase-2c-m5-evidence",
+  "stage": "M5",
+  "delegation_context": {
+    "scope_cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/raphael-m5-1789668461.scope",
+    "child_cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/raphael-m5-1789668461.scope/raphael-child",
+    "uid": 1000,
+    "mechanism": "systemd-run --user --scope -p Delegate=yes + RAPHAEL-owned child cgroup + holder process"
+  },
+  "tracked": {
+    "pid": 1180136,
+    "starttime": "3049271",
+    "state_before": "S",
+    "cmdline": "sleep 300"
+  },
+  "teardown": {
+    "action": "cgroup.kill (write 1)",
+    "events_before": "populated 1\nfrozen 0",
+    "events_after": "populated 0\nfrozen 0",
+    "populated_zero_after_polls": 2,
+    "seconds": 0.051
+  },
+  "post_kill": {
+    "pid_after": "PRESENT",
+    "state_after": "Z",
+    "starttime_after": "3049271",
+    "same_process": true,
+    "target_terminated": true
+  },
+  "leftover": {
+    "observation": "CONFIRMED_ABSENT",
+    "sleep300": [
+      {
+        "pid": 1180134,
+        "state": "S"
+      }
+    ],
+    "holders_expected": [
+      {
+        "pid": 1180134,
+        "state": "S"
+      }
+    ],
+    "target_live": false
+  },
+  "cleanup": {
+    "child_rmdir": true,
+    "scope_gone": true
+  },
+  "reuse_guard": "PID present? starttime compared; Z=>terminated",
+  "total": 7,
+  "pass": 7,
+  "fail": 0,
+  "blocked": 0,
+  "fails": [],
+  "records": [
+    {
+      "probe_id": "M5-P1",
+      "status": "PASS",
+      "expected": "delegated child cgroup created under RAPHAEL-owned scope",
+      "actual": {
+        "scope": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/raphael-m5-1789668461.scope",
+        "child": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/raphael-m5-1789668461.scope/raphael-child",
+        "child_exists": true,
+        "scope_subtree_control": ""
+      },
+      "classification": "DIRECT",
+      "evidence": "{\"child\": \"/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/raphael-m5-1789668461.scope/raphael-child\", \"subtree\": \"\"}"
+    },
+    {
+      "probe_id": "M5-P2",
+      "status": "PASS",
+      "expected": "tracked PID + starttime recorded BEFORE teardown",
+      "actual": {
+        "pid": 1180136,
+        "state": "S",
+        "starttime": "3049271",
+        "cmdline": "sleep 300",
+        "events_before": "populated 1\nfrozen 0"
+      },
+      "classification": "DIRECT",
+      "evidence": "{\"pid\": 1180136, \"starttime\": \"3049271\", \"events\": \"populated 1\\nfrozen 0\"}"
+    },
+    {
+      "probe_id": "M5-P3",
+      "status": "PASS",
+      "expected": "cgroup.kill issued against the HELD child cgroup",
+      "actual": {
+        "kill_written": true
+      },
+      "classification": "DIRECT",
+      "evidence": "true"
+    },
+    {
+      "probe_id": "M5-P4",
+      "status": "PASS",
+      "expected": "populated=0 independently established after kill",
+      "actual": {
+        "events_before": "populated 1\nfrozen 0",
+        "events_after": "populated 0\nfrozen 0",
+        "polls": 2,
+        "seconds": 0.051
+      },
+      "classification": "DIRECT",
+      "evidence": "{\"before\": \"populated 1\\nfrozen 0\", \"after\": \"populated 0\\nfrozen 0\"}"
+    },
+    {
+      "probe_id": "M5-P5",
+      "status": "PASS",
+      "expected": "PID/starttime anti-reuse validated",
+      "actual": {
+        "pid_after": "PRESENT",
+        "state_after": "Z",
+        "starttime_after": "3049271",
+        "same_process": true,
+        "target_terminated": true
+      },
+      "classification": "DIRECT",
+      "evidence": "{\"pid_after\": \"PRESENT\", \"state_after\": \"Z\", \"same_process\": true}"
+    },
+    {
+      "probe_id": "M5-P6",
+      "status": "PASS",
+      "expected": "leftover-process observation classified (target vs holder)",
+      "actual": {
+        "observation": "CONFIRMED_ABSENT",
+        "target_live": false,
+        "sleep300": [
+          {
+            "pid": 1180134,
+            "state": "S"
+          }
+        ],
+        "holder": [
+          {
+            "pid": 1180134,
+            "state": "S"
+          }
+        ]
+      },
+      "classification": "DIRECT",
+      "evidence": "{\"leftover\": [{\"pid\": 1180134, \"state\": \"S\"}], \"target_live\": false}"
+    },
+    {
+      "probe_id": "M5-P7",
+      "status": "PASS",
+      "expected": "cleanup: child rmdir + scope removal",
+      "actual": {
+        "child_rmdir": true,
+        "scope_gone": true
+      },
+      "classification": "DIRECT",
+      "evidence": "{\"rmdir\": true, \"scope_gone\": true}"
+    }
+  ],
+  "final_status": "PROBED_PASS",
+  "no_provider_execution": true
+}

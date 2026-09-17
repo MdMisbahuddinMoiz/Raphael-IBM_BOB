@@ -111,8 +111,8 @@
       "id": "M5",
       "invariant": "teardown/cancellation observed",
       "control": "externally observed process reaping",
-      "status": "NOT_READY",
-      "evidence": "Gate 7 BLOCKED: cgroup root NOT writable/delegated (CGROUP_NOT_WRITABLE); no cgroup.kill/populated=0 observation possible",
+      "status": "PROBED_PASS",
+      "evidence": "M5 teardown observed on a RAPHAEL-owned child cgroup under a delegated systemd user scope (with a holder process so the scope survives): tracked PID+starttime recorded; cgroup.kill written; populated 1 -> 0 in 0.051s (2 polls); target terminated (state Z, same starttime => no PID-reuse false absence); leftover scan shows the target not live (holder expected alive); child rmdir + scope removed. 7/7 PASS. Evidence: docs/integration/phase-2c-m5/m5-evidence.json",
       "ready_for_live_proof": false
     },
     {

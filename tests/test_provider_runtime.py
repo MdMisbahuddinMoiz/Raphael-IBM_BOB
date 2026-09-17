@@ -316,6 +316,35 @@ class ProviderRuntimeTests(unittest.TestCase):
         self.assertFalse(result.cancellation_acknowledged)
         self.assertFalse(result.success)
 
+    def test_28_bool_numeric_bounds_rejected(self):
+        # bools are not valid numeric limits (True/False must be rejected)
+        for bad in (True, False):
+            with self.assertRaises(ScopeViolation):
+                validate_scope(_handoff(self.root, self.fx,
+                                        timeout_seconds=bad), self.request)
+            with self.assertRaises(ScopeViolation):
+                validate_scope(_handoff(self.root, self.fx,
+                                        max_results=bad), self.request)
+
+    def test_29_orphan_possible_only_on_timeout(self):
+        ok = invoke_governed(InertProviderDouble(), self.handoff,
+                             self.request)
+        self.assertFalse(ok.orphan_possible)
+        failure = invoke_governed(
+            InertProviderDouble(extra={"severity": "x"}), self.handoff,
+            self.request)
+        self.assertIs(failure.state, ProviderState.FAILURE)
+        self.assertFalse(failure.orphan_possible)
+        unavailable = invoke_governed(T3MP3STAdapter(), self.handoff,
+                                      self.request)
+        self.assertIs(unavailable.state, ProviderState.UNAVAILABLE)
+        self.assertFalse(unavailable.orphan_possible)
+        timed = invoke_governed(_SlowRuntime(delay=0.2),
+                                _handoff(self.root, self.fx,
+                                         timeout_seconds=0.05),
+                                self.request)
+        self.assertTrue(timed.orphan_possible)
+
     # --- builders -------------------------------------------------------
 
     def _call(self, **over):

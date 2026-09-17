@@ -193,13 +193,13 @@ class ProviderRuntimeTests(unittest.TestCase):
     # 14
     def test_14_extra_tool_attempt(self):
         calls = [self._call(), self._call(seq=3, call_id="c2", tool="shell")]
-        att = attest_result(self.handoff, None, calls, [self._result()],
+        att = attest_result(self.handoff, calls, [self._result()],
                             [self._exec()])
         self.assertIs(att.status, AttestationStatus.INVALID)
 
     # 15
     def test_15_extra_execution(self):
-        att = attest_result(self.handoff, None, [self._call()],
+        att = attest_result(self.handoff, [self._call()],
                             [self._result()],
                             [self._exec(), self._exec(execution_id="x2",
                                                       call_id="c2")])
@@ -227,7 +227,7 @@ class ProviderRuntimeTests(unittest.TestCase):
 
     # 19
     def test_19_session_mismatch(self):
-        att = attest_result(self.handoff, None, [self._call()],
+        att = attest_result(self.handoff, [self._call()],
                             [self._result()],
                             [self._exec(session_id="PS-2")])
         self.assertIs(att.status, AttestationStatus.INVALID)
@@ -240,7 +240,7 @@ class ProviderRuntimeTests(unittest.TestCase):
         self.assertIs(result.state, ProviderState.DENIED)
 
     def test_valid_b4_attests(self):
-        att = attest_result(self.handoff, None, [self._call()],
+        att = attest_result(self.handoff, [self._call()],
                             [self._result()], [self._exec()])
         self.assertIs(att.status, AttestationStatus.ATTESTED)
 
@@ -250,6 +250,71 @@ class ProviderRuntimeTests(unittest.TestCase):
         for key in ("verified", "refuted", "complete", "verdict", "gate",
                     "authorized"):
             self.assertNotIn(key, result.to_dict())
+
+    # --- Phase 2C hardening: J1-J6 ---
+
+    def test_22_wrong_provider_id(self):
+        with self.assertRaises(ScopeViolation):
+            validate_scope(
+                _handoff(self.root, self.fx, provider_id="decepticon"),
+                self.request)
+
+    def test_23_nested_authority_in_results(self):
+        # J5: a nested object inside an ALLOWED result key must be rejected.
+        result = invoke_governed(
+            InertProviderDouble(extra={"results": [
+                {"path": str(self.fx), "kind": {"severity": "critical"}}]}),
+            self.handoff, self.request)
+        self.assertIs(result.state, ProviderState.FAILURE)
+
+    def test_24_artifact_value_and_byte_limit(self):
+        # non-string artifact ref -> rejected
+        bad = invoke_governed(
+            InertProviderDouble(extra={"artifacts": [123]}),
+            self.handoff, self.request)
+        self.assertIs(bad.state, ProviderState.FAILURE)
+        # J1: artifact byte budget exceeded -> non-success
+        over = _handoff(self.root, self.fx, max_artifact_bytes=4)
+        big = invoke_governed(
+            InertProviderDouble(extra={"artifacts": ["ref://0123456789"]}),
+            over, self.request)
+        self.assertIs(big.state, ProviderState.FAILURE)
+
+    def test_25_explicit_truncated_flag(self):
+        result = invoke_governed(
+            InertProviderDouble(extra={"truncated": True}),
+            self.handoff, self.request)
+        self.assertIs(result.state, ProviderState.PARTIAL)
+        self.assertFalse(result.success)
+
+    def test_26_normalized_authority_key(self):
+        for key in ("Severity", "SEVERITY", "gate-pass", "veri fied",
+                    "authorization"):
+            result = invoke_governed(
+                InertProviderDouble(extra={key: "x"}), self.handoff,
+                self.request)
+            self.assertIs(result.state, ProviderState.FAILURE,
+                          f"normalized authority key {key!r} not rejected")
+
+    def test_27_nan_invalid_limits(self):
+        for bad in (float("nan"), float("inf"), float("-inf"), 0.0, -1.0,
+                    "5"):
+            with self.assertRaises(ScopeViolation):
+                validate_scope(_handoff(self.root, self.fx,
+                                        timeout_seconds=bad), self.request)
+        for field in ("max_response_bytes", "max_results", "max_artifacts",
+                      "max_artifact_bytes"):
+            with self.assertRaises(ScopeViolation):
+                validate_scope(_handoff(self.root, self.fx,
+                                        **{field: float("nan")}),
+                               self.request)
+
+    def test_timeout_marks_orphan_possible(self):
+        h = _handoff(self.root, self.fx, timeout_seconds=0.05)
+        result = invoke_governed(_SlowRuntime(delay=0.2), h, self.request)
+        self.assertTrue(result.orphan_possible)
+        self.assertFalse(result.cancellation_acknowledged)
+        self.assertFalse(result.success)
 
     # --- builders -------------------------------------------------------
 
@@ -274,7 +339,7 @@ class ProviderRuntimeTests(unittest.TestCase):
         return ProviderExecution(**base)
 
     def _attest(self, path):
-        return attest_result(self.handoff, None, [self._call()],
+        return attest_result(self.handoff, [self._call()],
                              [self._result()],
                              [self._exec(path=path)])
 

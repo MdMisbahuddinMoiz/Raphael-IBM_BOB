@@ -434,3 +434,48 @@ real provider payload against the live adapter; event-stream wiring.
 
 **Explicit:** broader provider integration is NOT complete. Only the single
 authorized C1A boundary is defined RAPHAEL-side.
+
+---
+
+# PHASE 2C HARDENING (J1–J6) — ADDITIVE
+
+Additive. Static/read-only. **No provider executed. Live proof NOT AUTHORIZED.**
+Muse Spark 1.3's Phase 2C review classified the contract CONDITIONAL and raised
+six minor defects; this note records their closure.
+
+- **J1 — `max_artifact_bytes` enforced.** The artifact byte budget is now
+  enforced RAPHAEL-side over the summed UTF-8 length of the reference strings;
+  exceeding it yields `failure` (never `success`). Artifacts remain **references
+  only** — no ingestion, no execution, no semantic promotion; provider metadata
+  cannot bypass the budget.
+- **J2 — dead `result` parameter removed.** `attest_result(handoff, result, …)`
+  carried an unused `result`; it never participated in correlation or
+  normalization (B4 consumes only boundary events + provider executions). The
+  parameter was removed; callers/tests updated. **No authority or evidence
+  contract changed.**
+- **J3 — finite-positive numeric validation.** `timeout_seconds`,
+  `request.timeout_seconds`, `max_response_bytes`, `max_results`,
+  `max_artifacts`, and `max_artifact_bytes` must now be **finite and positive**.
+  `NaN`, `+inf`, `-inf`, non-numeric, zero, and negative values are rejected
+  (NaN previously slipped past `<= 0`).
+- **J4 — orphan / may-continue representation.** `ProviderResult` gains
+  `orphan_possible` (default `false`), set `true` on `timeout`: RAPHAEL stopped
+  waiting while the provider execution **may still continue**. This is explicit
+  uncertainty — it does **not** claim cancellation, termination, or reaping.
+  `cancellation_acknowledged` stays `false` absent externally observed teardown,
+  and `orphan_possible` can never be read as success.
+- **J5 — nested result-value constraints.** Result-item values are restricted to
+  **bounded scalars** (str ≤ 4096, finite float, int, bool, null); nested
+  objects/arrays are rejected outright. This closes nested authority smuggling
+  (`severity`/`cwe`/`verified`/`verdict`/`confidence`/`approved`/`gate`/
+  `authorization`/`complete` inside an otherwise-allowed key) via the existing
+  closed-allow-list philosophy — no giant deny-list.
+- **J6 — tests.** Six required tests added (wrong provider_id; nested authority
+  in `results[]`; non-string artifact value; explicit `truncated=true` →
+  `partial`; case/separator-normalized authority key; NaN/invalid numeric limit)
+  plus one for `orphan_possible`, taking `tests/test_provider_runtime.py` to
+  **28 tests**.
+
+**M1 / M2 / M5 remain OPEN.** No OS-level isolation substrate, no live teardown
+observation. Environmental isolation is **NOT** implemented. **Live proof NOT
+AUTHORIZED; no provider provisioning performed.**

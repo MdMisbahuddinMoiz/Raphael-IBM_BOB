@@ -26,6 +26,7 @@ authorization / policy approval / gate state. It normalizes evidence.
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 import unicodedata
@@ -186,6 +187,16 @@ def _valid_id(value: Any) -> bool:
     return isinstance(value, str) and value.strip() != ""
 
 
+def _finite_positive(value: Any, name: str) -> float:
+    """Reject NaN, +-inf, non-numeric, zero, and negative bounds (J3)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ScopeViolation(f"{name} must be numeric")
+    number = float(value)
+    if not math.isfinite(number) or number <= 0:
+        raise ScopeViolation(f"{name} must be finite and positive")
+    return number
+
+
 def _canonical(path: str) -> str:
     return os.path.normpath(os.path.abspath(path))
 
@@ -216,10 +227,11 @@ def validate_scope(handoff: ScopeHandoff,
         raise ScopeViolation("directory mode is forbidden for this proof")
     if not handoff.network_denied:
         raise ScopeViolation("network egress must be denied")
-    if handoff.timeout_seconds <= 0:
-        raise ScopeViolation("timeout must be positive")
-    if handoff.max_response_bytes <= 0 or handoff.max_results <= 0:
-        raise ScopeViolation("output limits must be positive")
+    _finite_positive(handoff.timeout_seconds, "timeout_seconds")
+    _finite_positive(handoff.max_response_bytes, "max_response_bytes")
+    _finite_positive(handoff.max_results, "max_results")
+    _finite_positive(handoff.max_artifacts, "max_artifacts")
+    _finite_positive(handoff.max_artifact_bytes, "max_artifact_bytes")
     for name in ("fixture_root", "fixture_path"):
         value = getattr(handoff, name)
         if not os.path.isabs(value) or _canonical(value) != value:
@@ -241,8 +253,8 @@ def validate_scope(handoff: ScopeHandoff,
         raise ScopeViolation(
             f"target must equal the exact fixture literal: {target!r} != "
             f"{handoff.fixture_path!r}")
-    if request.timeout_seconds is not None and request.timeout_seconds <= 0:
-        raise ScopeViolation("request timeout must be positive when set")
+    if request.timeout_seconds is not None:
+        _finite_positive(request.timeout_seconds, "request.timeout_seconds")
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +276,7 @@ class ProviderResult:
     result_hash: Optional[str] = None
     truncated: bool = False
     cancellation_acknowledged: bool = False
+    orphan_possible: bool = False
     provider_message: str = ""
     operation_id_untrusted: Optional[str] = None
     error: str = ""
@@ -286,6 +299,7 @@ class ProviderResult:
             "result_hash": self.result_hash,
             "truncated": self.truncated,
             "cancellation_acknowledged": self.cancellation_acknowledged,
+            "orphan_possible": self.orphan_possible,
             "provider_message": self.provider_message,
             "operation_id_untrusted": self.operation_id_untrusted,
             "error": self.error,
@@ -293,6 +307,28 @@ class ProviderResult:
 
 
 _ALLOWED_RESULT_KEYS = frozenset({"path", "kind", "offset", "size", "hash"})
+
+#: Max length of a single scalar string inside a result item (M7/J5).
+_MAX_RESULT_STRING = 4096
+
+
+def _scalar_ok(value: Any) -> bool:
+    """Result-item values must be bounded scalars (J5).
+
+    Nested objects/arrays are rejected outright: a nested structure could
+    otherwise smuggle an authority field (severity/cwe/verified/verdict/
+    confidence/approved/gate/authorization/complete) past the top-level
+    allow-list. Strings are length-bounded; floats must be finite.
+    """
+    if value is None or isinstance(value, bool):
+        return True
+    if isinstance(value, int):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, str):
+        return len(value) <= _MAX_RESULT_STRING
+    return False
 
 
 def normalize_result(handoff: ScopeHandoff, raw: bytes) -> ProviderResult:
@@ -334,6 +370,11 @@ def normalize_result(handoff: ScopeHandoff, raw: bytes) -> ProviderResult:
     for item in results_raw:
         if not isinstance(item, dict) or set(item) - _ALLOWED_RESULT_KEYS:
             return _fail(ProviderState.FAILURE, "result item outside schema")
+        for key, value in item.items():
+            if not _scalar_ok(value):
+                return _fail(
+                    ProviderState.FAILURE,
+                    f"result value must be a bounded scalar: {key!r}")
         path = item.get("path")
         if not isinstance(path, str) or path == "":
             return _fail(ProviderState.DENIED, "provider result missing path")
@@ -348,9 +389,16 @@ def normalize_result(handoff: ScopeHandoff, raw: bytes) -> ProviderResult:
     if len(artifacts_raw) > handoff.max_artifacts:
         return _fail(ProviderState.FAILURE, "artifact count over limit")
     artifacts: List[str] = []
+    artifact_bytes = 0
     for ref in artifacts_raw:
         if not isinstance(ref, str) or not ref:
             return _fail(ProviderState.FAILURE, "artifact ref must be a string")
+        artifact_bytes += len(ref.encode("utf-8"))
+        if artifact_bytes > handoff.max_artifact_bytes:
+            return _fail(
+                ProviderState.FAILURE,
+                f"artifact bytes exceed max_artifact_bytes="
+                f"{handoff.max_artifact_bytes}")
         artifacts.append(ref)   # REFERENCES ONLY — never ingested
 
     message = data.get("provider_message", "")
@@ -424,6 +472,9 @@ def invoke_governed(runtime: ProviderRuntime, handoff: ScopeHandoff,
             capability_id=handoff.capability_id,
             provider_id=handoff.provider_id,
             cancellation_acknowledged=False,
+            # RAPHAEL stopped waiting; the provider execution may still be
+            # running. This is uncertainty, NOT a cancellation/teardown claim.
+            orphan_possible=True,
             error=f"wall-clock exceeded: {elapsed:.3f}s > "
                   f"{handoff.timeout_seconds}s")
     return result
@@ -445,7 +496,7 @@ def fixture_integrity_ok(pre: Dict[str, Any],
     return pre == post
 
 
-def attest_result(handoff: ScopeHandoff, result: ProviderResult,
+def attest_result(handoff: ScopeHandoff,
                   calls: Sequence[BoundaryToolCall],
                   results: Sequence[BoundaryToolResult],
                   executions: Sequence[ProviderExecution],

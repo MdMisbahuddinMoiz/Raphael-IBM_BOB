@@ -1,0 +1,204 @@
+{
+  "artifact": "phase-2c-m2-evidence",
+  "stage": "M2",
+  "freeze": {
+    "allowlist_sha256": "8a7efc6f4d11bea59b60a9099dd88e287b8f46f300ba158befd6c922fb0ddaf2",
+    "bpf_sha256": "d1574a64643907e6c95ccafbfc74e7f04977781014ade214011e57994cb65242",
+    "builder_argv_len": 131,
+    "cap_drop": "ALL",
+    "closure_paths": 31,
+    "scratch_mode": "NO_SCRATCH",
+    "seccomp_fd": "3",
+    "uid_gid": [
+      "65534",
+      "65534"
+    ],
+    "unshare_net": true
+  },
+  "host_net_ns": "net:[4026531833]",
+  "rc": 0,
+  "total": 13,
+  "pass": 11,
+  "fail": 0,
+  "blocked": 2,
+  "fails": [],
+  "blocked_probes": [
+    "M2-P9",
+    "M2-P12"
+  ],
+  "records": [
+    {
+      "probe_id": "M2-P1",
+      "status": "PASS",
+      "expected": "no host interfaces; only namespace-local (lo)",
+      "actual": {
+        "interfaces": [
+          "lo"
+        ]
+      },
+      "classification": "DIRECT",
+      "evidence": "Inter-|   Receive                                                |  Transmit\n face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed\n"
+    },
+    {
+      "probe_id": "M2-P2",
+      "status": "PASS",
+      "expected": "no routes (no default route)",
+      "actual": {
+        "route_table": "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT"
+      },
+      "classification": "DIRECT",
+      "evidence": "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT                                                       \n"
+    },
+    {
+      "probe_id": "M2-P3",
+      "status": "PASS",
+      "expected": "resolver config absent; resolution denied",
+      "actual": {
+        "resolv.conf": "ENOENT",
+        "hosts": "ENOENT",
+        "dns_result": {
+          "code": "ECONNREFUSED",
+          "errno": null,
+          "ok": false
+        }
+      },
+      "classification": "INFERRED",
+      "evidence": "{\"resolv\": \"ENOENT\", \"hosts\": \"ENOENT\", \"dns\": {\"code\": \"ECONNREFUSED\", \"errno\": null, \"ok\": false}}"
+    },
+    {
+      "probe_id": "M2-P4",
+      "status": "PASS",
+      "expected": "socket(AF_INET) denied",
+      "actual": {
+        "code": "EPERM",
+        "errno": -1,
+        "ok": false
+      },
+      "classification": "INFERRED",
+      "evidence": "{\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}"
+    },
+    {
+      "probe_id": "M2-P5",
+      "status": "PASS",
+      "expected": "socket(AF_INET6) denied",
+      "actual": {
+        "code": "EPERM",
+        "errno": -1,
+        "ok": false
+      },
+      "classification": "INFERRED",
+      "evidence": "{\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}"
+    },
+    {
+      "probe_id": "M2-P6",
+      "status": "PASS",
+      "expected": "TCP connect denied (socket denied)",
+      "actual": {
+        "code": "EPERM",
+        "errno": -1,
+        "ok": false
+      },
+      "classification": "INFERRED",
+      "evidence": "{\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}"
+    },
+    {
+      "probe_id": "M2-P7",
+      "status": "PASS",
+      "expected": "UDP send denied (socket/bind denied)",
+      "actual": {
+        "code": "EPERM",
+        "errno": -1,
+        "ok": false
+      },
+      "classification": "INFERRED",
+      "evidence": "{\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}"
+    },
+    {
+      "probe_id": "M2-P8",
+      "status": "PASS",
+      "expected": "bind/listen denied (socket denied)",
+      "actual": {
+        "code": "EPERM",
+        "errno": -1,
+        "ok": false
+      },
+      "classification": "INFERRED",
+      "evidence": "{\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}"
+    },
+    {
+      "probe_id": "M2-P9",
+      "status": "BLOCKED",
+      "expected": "sendto/recvfrom second-level result",
+      "actual": "BLOCKED: socket creation is already denied; no fabricated second-level result",
+      "classification": "INFERRED",
+      "evidence": "dependency: P4/P7"
+    },
+    {
+      "probe_id": "M2-P10",
+      "status": "PASS",
+      "expected": "sandbox netns distinct from host",
+      "actual": {
+        "sandbox": "net:[4026532293]",
+        "host": "net:[4026531833]"
+      },
+      "classification": "DIRECT",
+      "evidence": "{\"s\": \"net:[4026532293]\", \"h\": \"net:[4026531833]\"}"
+    },
+    {
+      "probe_id": "M2-P11",
+      "status": "PASS",
+      "expected": "no inherited proxy env",
+      "actual": {
+        "proxy_vars": []
+      },
+      "classification": "DIRECT",
+      "evidence": "[]"
+    },
+    {
+      "probe_id": "M2-P12",
+      "status": "BLOCKED",
+      "expected": "network syscall family denied at syscall level",
+      "actual": {
+        "node_syscall_trace": "NOT CAPTURED (host-side trace did not record the probe's socket denials)",
+        "policy": "socket/connect/bind/listen/accept/sendto/recvfrom/setsockopt/getsockopt are NOT in the allowlist (default EPERM)",
+        "node_level": "all returned EPERM (errno -1)"
+      },
+      "classification": "UNVERIFIED",
+      "evidence": "see m2_raw.json net_trace_lines (bwrap netlink setup only)"
+    },
+    {
+      "probe_id": "M2-P13",
+      "status": "PASS",
+      "expected": "loopback present but unusable",
+      "actual": {
+        "interfaces": [
+          "lo"
+        ],
+        "connect_127_0_0_1": {
+          "code": "EPERM",
+          "errno": -1,
+          "ok": false
+        }
+      },
+      "classification": "DIRECT",
+      "evidence": "{\"if\": [\"lo\"], \"p4\": {\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}}"
+    }
+  ],
+  "final_status": "PARTIAL",
+  "reason": "No egress observed and no probe succeeded; however syscall-level trace evidence for the AF_INET/AF_INET6 socket denials (M2-P4..P8/P12) was NOT captured, so it is not classified as proof per the M2 evidence rules.",
+  "no_successful_egress": true,
+  "syscall_trace_evidence": {
+    "attempted": true,
+    "node_file_found": false,
+    "note": "host-side strace of the sandboxed run did not exhibit the probe's socket denials; bwrap netlink setup lines only"
+  },
+  "observations": {
+    "interfaces": [
+      "lo"
+    ],
+    "route_empty": true,
+    "resolv_conf": "ENOENT",
+    "netns_differs": true,
+    "proxy_env": []
+  }
+}

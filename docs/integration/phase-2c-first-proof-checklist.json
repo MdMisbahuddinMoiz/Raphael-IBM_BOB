@@ -103,8 +103,8 @@
       "id": "M2",
       "invariant": "network egress denied",
       "control": "net namespace with zero interfaces + no DNS",
-      "status": "NOT_READY",
-      "evidence": "userns+netns functional (USERNET_NS_OK); Gate 6 M2 egress probes NOT STARTED (requires M1 accepted)",
+      "status": "PARTIAL",
+      "evidence": "M2 probes: 11 PASS / 0 FAIL / 2 BLOCKED. No egress observed and no probe succeeded: netns distinct (sandbox net:[...] != host), only 'lo', empty route table, /etc/resolv.conf ENOENT, no proxy env, AF_INET/AF_INET6/TCP/UDP/listen all EPERM (Node level). PARTIAL because syscall-level trace evidence for the socket denials (M2-P4..P8/P12) was NOT captured; M2-P9 blocked by dependency. Evidence: docs/integration/phase-2c-m2/m2-evidence.json",
       "ready_for_live_proof": false
     },
     {

@@ -44,11 +44,25 @@ AUDIT_ARCH_X86_64 = 0xC000003E
 EPERM = 1
 ENOSYS = 38
 
-#: CLONE_NEW* bits that MUST NOT appear in a clone() flags argument.
-CLONE_NEWMASK = (0x00020000 | 0x02000000 | 0x04000000 | 0x08000000 |
-                 0x10000000 | 0x20000000 | 0x40000000)   # NS CGROUP UTS IPC USER PID NET
+#: Complete Linux CLONE_NEW* namespace family (linux/sched.h). These MUST be
+#: absent from a clone() flags argument.
+CLONE_NEWTIME = 0x00000080
+CLONE_NEWNS = 0x00020000
+CLONE_NEWCGROUP = 0x02000000
+CLONE_NEWUTS = 0x04000000
+CLONE_NEWIPC = 0x08000000
+CLONE_NEWUSER = 0x10000000
+CLONE_NEWPID = 0x20000000
+CLONE_NEWNET = 0x40000000
+
+CLONE_NEWMASK_FULL = (CLONE_NEWTIME | CLONE_NEWNS | CLONE_NEWCGROUP |
+                      CLONE_NEWUTS | CLONE_NEWIPC | CLONE_NEWUSER |
+                      CLONE_NEWPID | CLONE_NEWNET)
+
+#: Thread-compatible bits that MUST be present for a permitted clone().
 CLONE_VM = 0x00000100
 CLONE_THREAD = 0x00010000
+CLONE_THREAD_BITS = CLONE_VM | CLONE_THREAD
 
 PR_SET_NAME = 15
 IOCTL_FIONBIO = 0x5421
@@ -133,14 +147,32 @@ CURATED_ALLOWLIST: Tuple[AllowedSyscall, ...] = (
 
 #: Arg-filtered allows: (syscall, arg_index, kind, datum_a, datum_b).
 #: ``eq`` matches (arg == datum_a). ``masked_eq`` matches
-#: (arg & datum_a) == datum_b. clone requires the thread bits and forbids the
-#: CLONE_NEW* namespace bits, so fork()/unshare-style clones are denied.
+#: (arg & datum_a) == datum_b.
 ARG_FILTERED: Tuple[Tuple[str, int, str, int, int], ...] = (
-    ("clone", 0, "masked_eq", CLONE_VM | CLONE_THREAD, CLONE_VM | CLONE_THREAD),
+    ("clone", 0, "masked_eq", CLONE_THREAD_BITS | CLONE_NEWMASK_FULL,
+     CLONE_THREAD_BITS),
     ("prctl", 0, "eq", PR_SET_NAME, 0),
     ("ioctl", 1, "eq", IOCTL_FIONBIO, 0),
     ("ioctl", 1, "eq", IOCTL_TCGETS2, 0),
 )
+
+
+def clone_comparisons() -> Tuple[Tuple[int, str, int, int], ...]:
+    """The clone rule as ONE masked comparison enforcing BOTH conditions.
+
+        (flags & (THREAD_BITS | NEWMASK_FULL)) == THREAD_BITS
+
+    This requires the thread-compatible bits to be present (the datum) and
+    every CLONE_NEW* bit in the mask to be zero, so a clone carrying ANY
+    CLONE_NEW* bit is rejected even when CLONE_VM|CLONE_THREAD are also set —
+    the filter does not rely on kernel-side rejection.
+
+    Why one comparison: libseccomp rejects more than one SCMP_CMP_MASKED_EQ
+    for the same argument (EINVAL), and separate ALLOW rules would OR rather
+    than AND, so the two requirements are folded into a single mask.
+    """
+    return ((0, "masked_eq", CLONE_THREAD_BITS | CLONE_NEWMASK_FULL,
+             CLONE_THREAD_BITS),)
 
 #: Denied explicitly (documented intent). All are already denied by the
 #: default action; listing them keeps the review auditable.
@@ -356,7 +388,8 @@ def build_policy(export_path: Optional[str] = None) -> PolicyDigests:
 
 
 __all__ = [
-    "AllowedSyscall", "ARG_FILTERED", "AUDIT_ARCH_X86_64", "CLONE_NEWMASK",
+    "AllowedSyscall", "ARG_FILTERED", "AUDIT_ARCH_X86_64", "CLONE_NEWMASK_FULL",
+    "CLONE_THREAD_BITS", "clone_comparisons",
     "CURATED_ALLOWLIST", "DENIED_SYSCALLS", "IOCTL_FIONBIO", "IOCTL_TCGETS2",
     "Libseccomp", "PR_SET_NAME", "PolicyDigests", "SPECIAL_ACTIONS",
     "SeccompError", "allowlist_json", "allowed_syscall_names", "build_pfc",

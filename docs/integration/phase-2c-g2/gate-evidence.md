@@ -75,18 +75,26 @@ read-only. This closes Muse's "Node runtime closure forward obligation".
 
 - **46 allow entries**, each with classification, reason, and trace evidence.
 - Default action `SCMP_ACT_ERRNO(EPERM)`; x86_64 native arch only.
-- **Corrected mechanism (B1).** `clone` is **argument-filtered only** — there
-  is NO unconditional clone allow (the earlier revision listed `clone` in both
-  tables, which libseccomp collapsed into an unconditional allow; the entry was
-  removed). The single clone rule is
-  `SCMP_ACT_ALLOW` for `(flags & (CLONE_VM|CLONE_THREAD)) == (CLONE_VM|CLONE_THREAD)`:
-  thread-compatible flags are allowed; `CLONE_NEW*` namespace flags and
-  fork-like flags are denied. `prctl` (only `PR_SET_NAME`) and `ioctl` (only
-  `FIONBIO`, `TCGETS2`) are likewise argument-filtered.
+- **Corrected mechanism (B1 + R1).** `clone` is **argument-filtered only** — no
+  unconditional clone allow exists (the B1 defect listed `clone` in both tables,
+  which libseccomp collapsed into an unconditional allow; that entry was
+  removed). The single clone rule is one masked comparison:
+  `SCMP_ACT_ALLOW` for `(flags & (CLONE_THREAD_BITS | CLONE_NEWMASK_FULL)) == CLONE_THREAD_BITS`,
+  where `CLONE_THREAD_BITS = CLONE_VM|CLONE_THREAD` and `CLONE_NEWMASK_FULL`
+  covers the full Linux family (`CLONE_NEWTIME|NEWNS|NEWCGROUP|NEWUTS|NEWIPC|NEWUSER|NEWPID|NEWNET`).
+  So the intended thread-compatible bits are REQUIRED and **every CLONE_NEW*
+  bit is explicitly denied by the filter** (a clone carrying NEW* fails even
+  when VM|THREAD are also set — kernel-side rejection is not relied upon).
+  `fork`-like clones (no thread bits) are denied. `prctl` (only `PR_SET_NAME`)
+  and `ioctl` (only `FIONBIO`, `TCGETS2`) are likewise argument-filtered.
+  (One combined mask, not two comparisons: libseccomp returns EINVAL for more
+  than one `MASKED_EQ` on the same argument, and separate ALLOW rules OR.)
 - Special: `clone3` → **ENOSYS** (so glibc falls back to `clone`), handled
   separately from `clone`.
 - The exported pseudo filter code (PFC) was inspected directly to prove the
-  corrected shape — see the PFC regression tests.
+  corrected shape and to evaluate the clone predicate — see the PFC regression
+  tests (R1 tests 16–21 derive the allow/reject decision from the exported mask
+  and datum itself).
 - Denied families documented in `DENIED_SYSCALLS` (socket/connect, ptrace,
   process_vm_*, mount API incl. `open_tree`/`move_mount`/`fsopen`/`fsmount`/
   `fspick`/`mount_setattr`, unshare/setns, bpf, perf_event_open, userfaultfd,
@@ -106,8 +114,9 @@ already-installed `libseccomp.so.2` builds the filter and exports raw BPF via
 | digest | value |
 |---|---|
 | BPF bytes | 592 |
-| BPF sha256 | `903ac4af8781a9d1c99f7f2f8ac579669ba6f9776e916bde4d4e59b472095860` |
-| curated-allowlist.json sha256 | `33b2fe92c93eec3e0bc761e985d67bf2632783934c2ba3fb8dfadc4ccff0a080` |
+| BPF sha256 | `d1574a64643907e6c95ccafbfc74e7f04977781014ade214011e57994cb65242` (R1 revision) |
+| curated-allowlist.json sha256 | `8a7efc6f4d11bea59b60a9099dd88e287b8f46f300ba158befd6c922fb0ddaf2` (R1 revision) |
+| clone rule (PFC) | `if ($a0.lo32 & 0x7e030180 == 65792)` → mask `0x7e030180` = THREAD_BITS\|NEWMASK_FULL, datum `65792` = `0x10100` = CLONE_VM\|CLONE_THREAD |
 
 The blob is committed as `raphael_c1a_policy.bpf`. Integration: the substrate
 emits `--seccomp <FD>` (fd >= 3) so bwrap applies the filter to the sandboxed
@@ -178,6 +187,52 @@ process migration into it failed (`EINVAL`/`EPERM`) — automation runs in
 host processes here. **M5 prerequisite is substantially verified (create,
 limits, kill, termination, cleanup) but `populated=0` observation remains a
 forward obligation for the M5 teardown design.**
+
+## R1 — clone NEW* exclusion (corrected)
+
+Rebuilt after adding the explicit `CLONE_NEW*` exclusion (see Gate C). New BPF
+sha256 `d1574a64…` (592 B); allowlist sha256 `8a7efc6f…`.
+
+- PFC: `if ($a0.lo32 & 0x7e030180 == 65792)` — the mask includes the full
+  `CLONE_NEW*` family, the datum requires `CLONE_VM|CLONE_THREAD`.
+- R1 regression tests 16–21 derive the decision from the exported mask/datum:
+  a thread-compatible clone reaches ALLOW; clones carrying `CLONE_NEWNS`,
+  any other single NEW* bit, or multiple NEW* bits are rejected; a clone
+  without thread bits (or fork-style `SIGCHLD`) is rejected; no unconditional
+  clone ALLOW; `clone3` remains `ERRNO(38)`.
+- Positive smoke re-run: loader `RAPHAEL_OK` and io_shape `RAPHAEL_IO {...}`
+  both exit 0; **no unexpected EPERM**; `clone3`→ENOSYS→`clone` still works.
+
+## R2 — non-provider C1A launcher-shape smoke
+
+A harmless, deterministic nested CommonJS module tree mirrors the future C1A
+launcher shape (no provider code, no T3MP3ST import, no fixture, no network,
+no child_process, no dynamic command execution):
+
+```
+main.js → lib/scanner.js → {lib/util/parse.js, lib/util/io.js, lib/util/index.js,
+                            lib/pkg/index.js (resolved via lib/pkg/package.json)}
+```
+
+It exercises nested `require()`, `index.js`/`package.json` resolution, multi-file
+stat/read, parse, and module init, emitting
+`RAPHAEL_SHAPE {"pkg":"raphael-smoke-pkg","rows":3,"sum":7,"keys":["alpha","beta","gamma"],"hasUtil":true}`.
+
+| run | result |
+|---|---|
+| without seccomp (strace) | exit 0, exact output |
+| with current curated policy (`--seccomp 3`) | exit 0, identical output |
+
+Trace sha256 `0af2fd637b1eb191757697679e1c09bb1ed75e909b64944b9a07d6eba9c2fbde`;
+shape inventory `launcher-shape-inventory.json`
+(sha256 `a999436bab60168b56450b19235a4d4c8828a64ce5089162cd748cec3dc06c9c`).
+
+**Delta vs the plain-Node inventory: NO new syscalls.** 49 unique syscalls, of
+which 47 are allowed/arg-filtered and 2 (`io_uring_setup`, `io_uring_enter`)
+are the intentional denials that libuv falls back from (exit 0 proves the
+fallback). `getdents64` did NOT appear — module resolution resolved explicit
+paths and `package.json` without directory listing. No allowlist entries were
+added; the policy is unchanged by R2.
 
 ## Gate H — scratch decision (D1)
 

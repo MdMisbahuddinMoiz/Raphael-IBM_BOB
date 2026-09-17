@@ -11,6 +11,18 @@ import unittest
 from raphael_ibm_bob.seccomp_policy import (
     ARG_FILTERED,
     AUDIT_ARCH_X86_64,
+    CLONE_NEWCGROUP,
+    CLONE_NEWIPC,
+    CLONE_NEWMASK_FULL,
+    CLONE_NEWNET,
+    CLONE_NEWNS,
+    CLONE_NEWPID,
+    CLONE_NEWTIME,
+    CLONE_NEWUSER,
+    CLONE_NEWUTS,
+    CLONE_THREAD_BITS,
+    CLONE_VM,
+    CLONE_THREAD,
     CURATED_ALLOWLIST,
     DENIED_SYSCALLS,
     ENOSYS,
@@ -71,12 +83,15 @@ class CuratedPolicy(unittest.TestCase):
         self.assertIn(("prctl", 0, "eq"), kinds)
         self.assertIn(("ioctl", 1, "eq"), kinds)
 
-    def test_6_clone_requires_thread_bits(self):
+    def test_6_clone_requires_thread_bits_and_forbids_new_star(self):
         clone = [f for f in ARG_FILTERED if f[0] == "clone"][0]
-        _s, _a, kind, datum_a, datum_b = clone
+        _s, _a, kind, mask, datum = clone
         self.assertEqual(kind, "masked_eq")
-        self.assertEqual(datum_a, datum_b)          # (flags & VM|THREAD) == VM|THREAD
-        self.assertNotEqual(datum_a, 0)
+        self.assertEqual(datum, CLONE_THREAD_BITS)
+        self.assertEqual(mask, CLONE_THREAD_BITS | CLONE_NEWMASK_FULL)
+        for bit in (CLONE_NEWNS, CLONE_NEWNET, CLONE_NEWUSER, CLONE_NEWPID,
+                    CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWCGROUP, CLONE_NEWTIME):
+            self.assertTrue(mask & bit, f"{bit:#x} must be in the clone mask")
 
     def test_7_wait4_allowed_for_bwrap_init(self):
         self.assertIn("wait4", allowed_syscall_names())
@@ -149,6 +164,50 @@ class ExportedPolicyPFC(unittest.TestCase):
         allowed = set(allowed_syscall_names())
         filtered = {n for (n, _a, _k, _v, _e) in ARG_FILTERED}
         self.assertEqual(allowed & filtered, set())
+
+    def _clone_mask_datum(self):
+        import re
+        block = "\n".join(self._block_after(f"== {self.clone_nr})"))
+        m = re.search(r"\$a0\.lo32 & (0x[0-9a-fA-F]+) == (\d+|0x[0-9a-fA-F]+)",
+                      block)
+        self.assertIsNotNone(
+            m, "clone PFC must contain a masked arg0 comparison")
+        mask = int(m.group(1), 16)
+        datum = int(m.group(2), 0) if m.group(2).startswith("0x") else int(m.group(2))
+        return mask, datum
+
+    def _clone_allowed(self, flags):
+        mask, datum = self._clone_mask_datum()
+        return (flags & mask) == datum
+
+    def test_16_thread_compatible_clone_reaches_allow(self):
+        mask, datum = self._clone_mask_datum()
+        self.assertNotEqual(mask, 0)
+        self.assertTrue(self._clone_allowed(CLONE_VM | CLONE_THREAD))
+        self.assertTrue(self._clone_allowed(
+            CLONE_VM | CLONE_THREAD | 0x00000004 | 0x00010000))
+
+    def test_17_clone_with_newns_rejected(self):
+        self.assertFalse(self._clone_allowed(CLONE_VM | CLONE_THREAD | CLONE_NEWNS))
+
+    def test_18_clone_with_other_new_flags_rejected(self):
+        for bit in (CLONE_NEWNET, CLONE_NEWUSER, CLONE_NEWPID, CLONE_NEWUTS,
+                    CLONE_NEWIPC, CLONE_NEWCGROUP, CLONE_NEWTIME):
+            self.assertFalse(self._clone_allowed(CLONE_VM | CLONE_THREAD | bit),
+                             f"clone with {bit:#x} must be rejected")
+
+    def test_19_clone_with_multiple_new_flags_rejected(self):
+        self.assertFalse(self._clone_allowed(
+            CLONE_VM | CLONE_THREAD | CLONE_NEWNS | CLONE_NEWUSER | CLONE_NEWPID))
+
+    def test_20_clone_without_thread_bits_rejected(self):
+        self.assertFalse(self._clone_allowed(0))
+        self.assertFalse(self._clone_allowed(0x00000011))   # fork-style SIGCHLD
+
+    def test_21_clone_mask_covers_full_new_family(self):
+        mask, _daterm = self._clone_mask_datum()
+        self.assertEqual(mask & CLONE_NEWMASK_FULL, CLONE_NEWMASK_FULL)
+        self.assertEqual(mask & CLONE_THREAD_BITS, CLONE_THREAD_BITS)
 
     def test_15_clone3_handled_separately_with_enosys(self):
         block = self._block_after(f"== {self.clone3_nr})")

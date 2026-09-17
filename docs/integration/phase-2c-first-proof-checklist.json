@@ -125,10 +125,10 @@
     },
     {
       "id": "B4-LIFECYCLE",
-      "invariant": "fresh dedicated provider instance",
+      "invariant": "fresh dedicated provider instance lifecycle",
       "control": "create/bind/execute/collect/attest/teardown/discard",
-      "status": "NOT_READY",
-      "evidence": "lifecycle designed, not implemented (see provisioning doc)",
+      "status": "IMPLEMENTED_NOT_PROVIDER_VERIFIED",
+      "evidence": "b4_lifecycle.py: ordered fail-closed lifecycle (CREATED..CLOSED) with sandbox/workload identity binding, strictly contiguous transitions, evidence-required teardown observation, no-authority-smuggling, integrity hashing, and M5-evidence binding (populated 1->0 + target_terminated + no_provider_execution). Attestation is lifecycle-integrity ONLY (never provider/gate success). M5 evidence bound; provider-instance creation remains a live-proof concern. Tests: tests/test_b4_lifecycle.py (14).",
       "ready_for_live_proof": false
     },
     {

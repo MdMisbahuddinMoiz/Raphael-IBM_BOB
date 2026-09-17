@@ -4,8 +4,20 @@
   "capability": "C1A static_file_inspect",
   "provider": "T3MP3ST binary_sink_scan",
   "provider_pin": "29824d5625ede419ac8cdae418c8f4c72c6270f7",
-  "raphael_head": "6dfe6046b2fd01308357ba38d8032c1a6b2ccd34",
+  "raphael_head": "9c7cb06f7d86fcf552b67294db8945f740de52a3",
   "live_proof_authorized": false,
+  "probe_stage": {
+    "evidence": "docs/integration/phase-2c-probe-stage-evidence.md",
+    "date": "2026-09-17",
+    "gate0_preflight": "PASS (cgroup root NOT writable; strace + libseccomp absent)",
+    "gate1_node_closure": "PASS (libnode.so.127 + 23 libs explicit ro-binds; GENERATED_ARGV_SMOKE_OK)",
+    "gate2_seccomp_curation": "BLOCKED (no strace, no libseccomp bindings)",
+    "gate3_nnp": "PASS (NoNewPrivs: 1 observed inside sandbox)",
+    "gate4_tmpfs": "PASS (size/nosuid/nodev enforced; noexec NOT enforced)",
+    "gate5_M1": "NOT STARTED (Gate 2 blocks Gates 1-4 success)",
+    "gate6_M2": "NOT STARTED (M1 not accepted)",
+    "gate7_M5": "BLOCKED (cgroup root not writable/delegated)"
+  },
   "status_values": [
     "READY",
     "NOT_READY",
@@ -42,7 +54,7 @@
       "invariant": "filesystem containment",
       "control": "mount namespace + ro fixture root + no host mounts",
       "status": "NOT_READY",
-      "evidence": "no container runtime; userns+bwrap AVAILABLE but not provisioned, no escape probes run",
+      "evidence": "no container runtime; userns+bwrap AVAILABLE; Gate 1 closure + Gates 3/4 observed, but Gate 2 seccomp BLOCKED (no strace/libseccomp) so Gate 5 M1 escape probes NOT STARTED",
       "ready_for_live_proof": false
     },
     {
@@ -50,7 +62,7 @@
       "invariant": "network egress denied",
       "control": "net namespace with zero interfaces + no DNS",
       "status": "NOT_READY",
-      "evidence": "userns+netns functional (USERNET_NS_OK) but not provisioned/verified for the proof",
+      "evidence": "userns+netns functional (USERNET_NS_OK); Gate 6 M2 egress probes NOT STARTED (requires M1 accepted)",
       "ready_for_live_proof": false
     },
     {
@@ -58,7 +70,7 @@
       "invariant": "teardown/cancellation observed",
       "control": "externally observed process reaping",
       "status": "NOT_READY",
-      "evidence": "no live provider; teardown observation not implemented",
+      "evidence": "Gate 7 BLOCKED: cgroup root NOT writable/delegated (CGROUP_NOT_WRITABLE); no cgroup.kill/populated=0 observation possible",
       "ready_for_live_proof": false
     },
     {
@@ -111,10 +123,12 @@
     }
   ],
   "blockers": [
-    "provider node_modules absent (`npm ci` requires network/package install authorization)",
-    "no container runtime (docker/podman absent); isolation must use userns+bwrap+tmpfs (not yet provisioned or verified)",
+    "no strace and no libseccomp python bindings; empirical seccomp curation + filter load/verify not possible (Gate 2 BLOCKED)",
+    "root cgroup NOT writable/delegated to executing user (CGROUP_NOT_WRITABLE); cgroup.kill/populated=0 unobservable (Gate 7 BLOCKED)",
+    "no container runtime (docker/podman absent); isolation uses userns+bwrap+tmpfs",
     "out-of-process adapter transport not implemented",
-    "dedicated fresh-instance lifecycle not implemented"
+    "dedicated fresh-instance lifecycle not implemented",
+    "tmpfs scratch has NO noexec (observed); scratch is executable inside the sandbox"
   ],
   "readiness_stage": {
     "provisioning_design": "READY_FOR_PROVISIONING_DESIGN",
@@ -161,25 +175,34 @@
   "isolation_substrate": {
     "implemented": true,
     "module": "raphael_ibm_bob/isolation_substrate.py",
-    "tests": "tests/test_isolation_substrate.py (27 static tests)",
-    "state": "IMPLEMENTED_NOT_PROBED",
+    "tests": "tests/test_isolation_substrate.py (30 tests)",
+    "state": "PARTIALLY_PROBED",
     "corrections": [
       "B1 tmpfs size enforced in argv",
       "B2 seccomp DRAFT_NOT_PROVEN",
       "B3 pinned executable + runtime ro-bind",
       "B4 no_new_privs required vs observed",
-      "B5 numeric/containment/fixture/pid hardening"
+      "B5 numeric/containment/fixture/pid hardening",
+      "Gate 1 explicit Node runtime closure (libnode.so.127 + 23 libs)"
     ],
-    "tmpfs_size": "ENFORCED_IN_ARGV",
-    "tmpfs_flags_residual": [
-      "noexec",
-      "nosuid",
-      "nodev"
-    ],
+    "tmpfs_size": "OBSERVED_ENFORCED",
+    "tmpfs_flags_observed": {
+      "nosuid": "OBSERVED_ENFORCED",
+      "nodev": "OBSERVED_ENFORCED",
+      "noexec": "OBSERVED_NOT_ENFORCED"
+    },
     "seccomp_status": "DRAFT_NOT_PROVEN",
-    "no_new_privs_state": "NOT_YET_PROVEN",
+    "no_new_privs_state": "OBSERVED_INSIDE_SANDBOX",
+    "node_runtime_closure": {
+      "runtime": "/usr/bin/node",
+      "interpreter": "/lib64/ld-linux-x86-64.so.2",
+      "library_count": 23,
+      "key_library": "/usr/lib/x86_64-linux-gnu/libnode.so.127",
+      "bind_mode": "individual ro-bind per path; no tree binds",
+      "smoke": "GENERATED_ARGV_SMOKE_OK (node --version -> v22.22.1)"
+    },
     "executable": "/usr/bin/node",
     "command_pinned": true,
-    "note": "construction corrected and statically tested; nothing launched; M1/M2/M5 remain OPEN"
+    "note": "Gate 1 closure + Gates 3/4 observed; Gate 2 seccomp BLOCKED; Gate 5/6 M1/M2 NOT STARTED; Gate 7 M5 BLOCKED; provider never executed"
   }
 }

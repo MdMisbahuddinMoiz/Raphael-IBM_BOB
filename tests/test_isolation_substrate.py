@@ -20,6 +20,7 @@ from raphael_ibm_bob.isolation_substrate import (
     FIXTURE_SHA256,
     LAUNCHER_ENTRY,
     MISSING_CANDIDATES,
+    NODE_BUILTIN_ASSETS,
     NODE_CLOSURE_LIBS,
     NODE_INTERPRETER,
     NODE_RUNTIME,
@@ -29,6 +30,7 @@ from raphael_ibm_bob.isolation_substrate import (
     SANDBOX_GID,
     SANDBOX_UID,
     SCRATCH_FLAGS,
+    SCRATCH_MODE,
     ArbitraryInputError,
     FixtureRef,
     NodeRuntimeClosure,
@@ -88,33 +90,32 @@ class SubstrateStatic(unittest.TestCase):
         self.base, self.provider, self.froot, self.fx, self.sha = _tree(self)
         self.spec = _spec(self.provider, self.froot, self.fx, self.sha)
 
-    # --- B1: tmpfs must match the claims --------------------------------
+    # --- Gate H (D1): no scratch at all ---------------------------------
 
-    def test_1_tmpfs_size_enforced_in_actual_argv(self):
+    def test_1_no_scratch_in_actual_argv(self):
         argv = list(build_bwrap_argv(self.spec))
-        i = argv.index("--tmpfs")
-        self.assertEqual(argv[i], "--tmpfs")
-        self.assertEqual(argv[i + 1], "/tmp")
-        self.assertEqual(argv[i - 2], "--size")
-        self.assertEqual(argv[i - 1], str(self.spec.scratch_bytes))
+        self.assertNotIn("--tmpfs", argv)
+        self.assertNotIn("--size", argv)
+        self.assertNotIn("/tmp", argv)
+        self.assertEqual(SCRATCH_MODE, "NO_SCRATCH")
 
-    def test_2_tmpfs_flags_observed_state_not_claimed_in_argv(self):
+    def test_2_scratch_flags_report_no_scratch(self):
         joined = " ".join(build_bwrap_argv(self.spec))
-        # bwrap --tmpfs cannot express per-mount noexec/nosuid/nodev in argv.
         for flag in ("noexec", "nosuid", "nodev"):
             self.assertNotIn(flag, joined, f"{flag} must not be claimed")
-        # GATE 4 observed the real kernel state; noexec is NOT enforced.
-        self.assertEqual(SCRATCH_FLAGS["size"], "OBSERVED_ENFORCED")
-        self.assertEqual(SCRATCH_FLAGS["noexec"], "OBSERVED_NOT_ENFORCED")
-        self.assertEqual(SCRATCH_FLAGS["nosuid"], "OBSERVED_ENFORCED")
-        self.assertEqual(SCRATCH_FLAGS["nodev"], "OBSERVED_ENFORCED")
+        self.assertEqual(SCRATCH_FLAGS["tmpfs"], "NO_SCRATCH")
+        for key in ("size", "noexec", "nosuid", "nodev"):
+            self.assertEqual(SCRATCH_FLAGS[key], "NOT_APPLICABLE")
 
-    def test_3_scratch_bounds_preserved(self):
-        self.assertEqual(self.spec.scratch_bytes, 16 * 1024 * 1024)
-        with self.assertRaises(SubstrateConfigError):
-            validate_sandbox_spec(_spec(self.provider, self.froot, self.fx,
-                                        self.sha,
-                                        scratch_bytes=256 * 1024 * 1024 + 1))
+    def test_3_scratch_configuration_removed(self):
+        with self.assertRaises(TypeError):
+            _spec(self.provider, self.froot, self.fx, self.sha,
+                  scratch_bytes=16 * 1024 * 1024)
+        for bad in (True, 0, -1, float("nan")):
+            with self.assertRaises(SubstrateConfigError):
+                validate_sandbox_spec(_spec(self.provider, self.froot,
+                                            self.fx, self.sha,
+                                            timeout_seconds=bad))
 
     # --- B2: seccomp DRAFT ----------------------------------------------
 
@@ -181,6 +182,11 @@ class SubstrateStatic(unittest.TestCase):
         self.assertEqual(len(NODE_CLOSURE_LIBS), len(set(NODE_CLOSURE_LIBS)))
         self.assertIn("/usr/lib/x86_64-linux-gnu/libnode.so.127",
                       closure.libraries)
+        for asset in NODE_BUILTIN_ASSETS:
+            self.assertIn(asset, pairs)
+            self.assertEqual(pairs[asset], asset)
+        self.assertIn("/usr/share/nodejs/cjs-module-lexer/lexer.js",
+                      closure.assets)
 
     def test_8b_no_library_tree_is_bound(self):
         argv = list(build_bwrap_argv(self.spec))
@@ -233,7 +239,7 @@ class SubstrateStatic(unittest.TestCase):
             with self.assertRaises(SubstrateConfigError):
                 validate_sandbox_spec(_spec(self.provider, self.froot,
                                             self.fx, self.sha,
-                                            scratch_bytes=bad))
+                                            uid=0))
 
     def test_12_node_modules_containment(self):
         outside = self.base / "outside_modules"
@@ -284,9 +290,11 @@ class SubstrateStatic(unittest.TestCase):
                     ("ro-bind", "/fixture/" + self.fx.name),
                     ("ro-bind", NODE_RUNTIME)]
         expected += [("ro-bind", p)
-                     for p in (closure.interpreter,) + closure.libraries]
-        expected += [("dev", "/dev"), ("proc", "/proc"), ("tmpfs", "/tmp")]
+                     for p in ((closure.interpreter,) + closure.libraries
+                               + closure.assets)]
+        expected += [("dev", "/dev"), ("proc", "/proc")]
         self.assertEqual([(m["kind"], m["dest"]) for m in mounts], expected)
+        self.assertNotIn("tmpfs", [m["kind"] for m in mounts])
 
     def test_18_provider_and_node_modules_read_only(self):
         mounts = mount_contract(self.spec)
@@ -296,6 +304,20 @@ class SubstrateStatic(unittest.TestCase):
                          ["ro", "ro"])
         argv = list(build_bwrap_argv(self.spec))
         self.assertNotIn("--bind", argv)
+
+    # --- Gate D: seccomp fd integration ---------------------------------
+
+    def test_18a_seccomp_fd_emitted_when_supplied(self):
+        argv = list(build_bwrap_argv(self.spec, seccomp_fd=3))
+        i = argv.index("--seccomp")
+        self.assertEqual(argv[i + 1], "3")
+        self.assertLess(i, argv.index("--"))
+        self.assertNotIn("--seccomp", list(build_bwrap_argv(self.spec)))
+
+    def test_18b_seccomp_fd_validation_fail_closed(self):
+        for bad in (True, 0, 1, 2, -1, "3", 3.0):
+            with self.assertRaises(SubstrateConfigError):
+                build_bwrap_argv(self.spec, seccomp_fd=bad)
 
     def test_19_no_host_home_or_docker_socket(self):
         home = str(Path.home())

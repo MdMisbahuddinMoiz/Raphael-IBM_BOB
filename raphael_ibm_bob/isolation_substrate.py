@@ -82,6 +82,19 @@ NODE_CLOSURE_LIBS: Tuple[str, ...] = (
     "/usr/lib/x86_64-linux-gnu/libzstd.so.1",
 )
 
+#: GATE B (observed): Ubuntu's Node EXTERNALIZES several builtins to data
+#: files. Without these the pinned runtime aborts at startup ("Cannot load
+#: externalized builtin"), so they are part of the runtime closure. Enumerated
+#: with: strings libnode.so.127 | grep /usr/share/nodejs
+NODE_BUILTIN_ASSETS: Tuple[str, ...] = (
+    "/usr/share/nodejs/acorn-walk/dist/walk.js",
+    "/usr/share/nodejs/acorn/dist/acorn.js",
+    "/usr/share/nodejs/cjs-module-lexer/dist/lexer.js",
+    "/usr/share/nodejs/cjs-module-lexer/lexer.js",
+    "/usr/share/nodejs/minimatch/dist/cjs/index.bundle.js",
+    "/usr/share/nodejs/undici/undici-fetch.js",
+)
+
 #: The ONLY prefixes a closure path may live under (GATE 1). This forbids
 #: binding arbitrary host trees or caller-supplied runtime locations.
 SYSTEM_LIBRARY_PREFIXES: Tuple[str, ...] = (
@@ -89,6 +102,7 @@ SYSTEM_LIBRARY_PREFIXES: Tuple[str, ...] = (
     "/usr/lib/x86_64-linux-gnu",
     "/lib/x86_64-linux-gnu",
     "/lib64",
+    "/usr/share/nodejs",
 )
 
 #: The future RAPHAEL-owned launcher entry (read-only); NOT executed here.
@@ -98,9 +112,10 @@ LAUNCHER_ENTRY = "/provider/c1a_launcher.js"
 SANDBOX_UID = 65534
 SANDBOX_GID = 65534
 
-#: Scratch bounds (B1).
-DEFAULT_SCRATCH_BYTES = 16 * 1024 * 1024
-MAX_SCRATCH_BYTES = 256 * 1024 * 1024
+#: Gate H (D1): scratch ELIMINATED. Plain-Node traces (loader + IO-shape,
+#: `/tmp` access count = 0) proved no writable scratch is required, so no
+#: tmpfs is mounted; the sandbox has no writable filesystem at all.
+SCRATCH_MODE = "NO_SCRATCH"
 
 #: Timeout bound.
 DEFAULT_TIMEOUT_SECONDS = 30.0
@@ -230,21 +245,24 @@ class NodeRuntimeClosure:
     runtime: str
     interpreter: str
     libraries: Tuple[str, ...]
+    assets: Tuple[str, ...] = ()
 
     def all_paths(self) -> Tuple[str, ...]:
-        return (self.runtime, self.interpreter) + tuple(self.libraries)
+        return ((self.runtime, self.interpreter) + tuple(self.libraries)
+                + tuple(self.assets))
 
     def to_dict(self) -> Dict[str, Any]:
         return {"runtime": self.runtime, "interpreter": self.interpreter,
-                "libraries": list(self.libraries), "mode": "ro",
-                "tree_binds": [], "closure_size": len(self.all_paths())}
+                "libraries": list(self.libraries), "assets": list(self.assets),
+                "mode": "ro", "tree_binds": [], "closure_size": len(self.all_paths())}
 
 
 def node_runtime_closure() -> NodeRuntimeClosure:
     """Return the pinned static closure. No discovery, no execution."""
     return NodeRuntimeClosure(runtime=NODE_RUNTIME,
                               interpreter=NODE_INTERPRETER,
-                              libraries=NODE_CLOSURE_LIBS)
+                              libraries=NODE_CLOSURE_LIBS,
+                              assets=NODE_BUILTIN_ASSETS)
 
 
 def validate_node_closure(closure: NodeRuntimeClosure) -> None:
@@ -274,7 +292,6 @@ class SandboxSpec:
     fixture: FixtureRef
     node_runtime: str = NODE_RUNTIME
     launcher_entry: str = LAUNCHER_ENTRY
-    scratch_bytes: int = DEFAULT_SCRATCH_BYTES
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
     memory_max: str = DEFAULT_MEMORY_MAX
     pids_max: str = DEFAULT_PIDS_MAX
@@ -304,8 +321,6 @@ def validate_sandbox_spec(spec: SandboxSpec) -> None:
         raise SubstrateConfigError("fixture sha256 must be 64 hex chars")
     if not spec.cgroup_root.startswith("/sys/fs/cgroup"):
         raise SubstrateConfigError("cgroup_root must be under /sys/fs/cgroup")
-    _finite_positive(spec.scratch_bytes, "scratch_bytes",
-                     maximum=MAX_SCRATCH_BYTES)
     _finite_positive(spec.timeout_seconds, "timeout_seconds",
                      maximum=MAX_TIMEOUT_SECONDS)
     if spec.uid == 0 or spec.gid == 0:
@@ -352,15 +367,14 @@ def ensure_fixture_literal(spec: SandboxSpec, path: str) -> str:
 # bwrap contract
 # ---------------------------------------------------------------------------
 
-#: Scratch property state. GATE 4 probe (bwrap 0.11.1) read the kernel-visible
-#: mount options for the sandboxed /tmp: `size` IS enforced, `nosuid`/`nodev`
-#: ARE present, and `noexec` is ABSENT (scratch remains executable). These are
-#: OBSERVED, not configured.
+#: Gate H (D1): scratch is NOT mounted at all. The G4 observation (noexec
+#: absent) is therefore moot: there is no writable filesystem in the sandbox.
 SCRATCH_FLAGS = {
-    "size": "OBSERVED_ENFORCED",
-    "noexec": "OBSERVED_NOT_ENFORCED",
-    "nosuid": "OBSERVED_ENFORCED",
-    "nodev": "OBSERVED_ENFORCED",
+    "tmpfs": "NO_SCRATCH",
+    "size": "NOT_APPLICABLE",
+    "noexec": "NOT_APPLICABLE",
+    "nosuid": "NOT_APPLICABLE",
+    "nodev": "NOT_APPLICABLE",
 }
 
 
@@ -382,14 +396,13 @@ def mount_contract(spec: SandboxSpec) -> Tuple[Dict[str, Any], ...]:
         {"kind": "ro-bind", "src": spec.node_runtime,
          "dest": spec.node_runtime, "mode": "ro"},
     ]
-    for path in (closure.interpreter,) + closure.libraries:
+    for path in ((closure.interpreter,) + closure.libraries
+                 + closure.assets):
         mounts.append({"kind": "ro-bind", "src": path, "dest": path,
                        "mode": "ro"})
     mounts += [
         {"kind": "dev", "src": "dev", "dest": "/dev", "mode": "minimal"},
         {"kind": "proc", "src": "proc", "dest": "/proc", "mode": "private"},
-        {"kind": "tmpfs", "src": "tmpfs", "dest": "/tmp",
-         "size": spec.scratch_bytes, "flags": dict(SCRATCH_FLAGS)},
     ]
     return tuple(mounts)
 
@@ -414,9 +427,21 @@ def command_argv(spec: SandboxSpec) -> Tuple[str, ...]:
     return (spec.node_runtime, spec.launcher_entry)
 
 
-def build_bwrap_argv(spec: SandboxSpec) -> Tuple[str, ...]:
-    """Concrete, auditable bwrap argv. NOT executed by this module."""
+def build_bwrap_argv(spec: SandboxSpec,
+                     seccomp_fd: Optional[int] = None) -> Tuple[str, ...]:
+    """Concrete, auditable bwrap argv. NOT executed by this module.
+
+    ``seccomp_fd`` is an inherited file descriptor holding the curated BPF
+    blob (see :mod:`raphael_ibm_bob.seccomp_policy`); when given it is passed
+    as ``--seccomp <fd>`` so bwrap applies the filter to the sandboxed process
+    BEFORE the pinned Node command is exec'd.
+    """
     validate_sandbox_spec(spec)
+    if seccomp_fd is not None:
+        if isinstance(seccomp_fd, bool) or not isinstance(seccomp_fd, int):
+            raise SubstrateConfigError("seccomp_fd must be an integer fd")
+        if seccomp_fd < 3:
+            raise SubstrateConfigError("seccomp_fd must be >= 3 (not stdio)")
     argv: List[str] = [
         BWRAP,
         "--unshare-user", "--uid", str(spec.uid), "--gid", str(spec.gid),
@@ -433,17 +458,19 @@ def build_bwrap_argv(spec: SandboxSpec) -> Tuple[str, ...]:
         "--ro-bind", spec.node_runtime, spec.node_runtime,
         "--dev", "/dev",
         "--proc", "/proc",
-        # sized tmpfs (B1): --size applies to the next --tmpfs
-        "--size", str(spec.scratch_bytes),
-        "--tmpfs", "/tmp",
+        # Gate H (D1): NO scratch tmpfs mounted.
         "--chdir", "/provider",
         "--",
     ]
+    if seccomp_fd is not None:
+        argv[argv.index("--chdir"):argv.index("--chdir")] = [
+            "--seccomp", str(seccomp_fd)]
     # GATE 1: explicit read-only runtime closure binds (no tree binds).
     closure = node_runtime_closure()
     validate_node_closure(closure)
     binds: List[str] = []
-    for path in (closure.interpreter,) + closure.libraries:
+    for path in ((closure.interpreter,) + closure.libraries
+                 + closure.assets):
         binds += ["--ro-bind", path, path]
     argv[argv.index("--chdir"):argv.index("--chdir")] = binds
     argv.extend(command_argv(spec))
@@ -672,14 +699,13 @@ __all__ = [
     "C1A_TOOL",
     "CGROUP_TEARDOWN_STEPS",
     "CgroupPlan",
-    "DEFAULT_SCRATCH_BYTES",
     "DEFAULT_TIMEOUT_SECONDS",
     "FIXTURE_SHA256",
     "FixtureRef",
     "LAUNCHER_ENTRY",
     "LauncherContract",
-    "MAX_SCRATCH_BYTES",
     "MISSING_CANDIDATES",
+    "NODE_BUILTIN_ASSETS",
     "NODE_CLOSURE_LIBS",
     "NODE_INTERPRETER",
     "NODE_RUNTIME",
@@ -692,6 +718,7 @@ __all__ = [
     "SANDBOX_GID",
     "SANDBOX_UID",
     "SCRATCH_FLAGS",
+    "SCRATCH_MODE",
     "SandboxSpec",
     "SeccompPolicy",
     "SubstrateConfigError",

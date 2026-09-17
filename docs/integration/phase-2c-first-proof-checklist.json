@@ -14,7 +14,7 @@
     "gate2_seccomp_curation": "BLOCKED (no strace, no libseccomp bindings)",
     "gate3_nnp": "PASS (NoNewPrivs: 1 observed inside sandbox)",
     "gate4_tmpfs": "PASS (size/nosuid/nodev enforced; noexec NOT enforced)",
-    "gate5_M1": "NOT STARTED (Gate 2 blocks Gates 1-4 success)",
+    "gate5_M1": "NOT STARTED (predecessor gate set incomplete: G1 PASS, G3 PASS, G4 PASS, G2 BLOCKED — because G2 is BLOCKED the required G1/G2/G3/G4 set is not complete, so M1 cannot START)",
     "gate6_M2": "NOT STARTED (M1 not accepted)",
     "gate7_M5": "BLOCKED (cgroup root not writable/delegated)"
   },

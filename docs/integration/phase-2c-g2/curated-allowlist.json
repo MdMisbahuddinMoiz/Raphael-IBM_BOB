@@ -1,0 +1,390 @@
+{
+  "allow": [
+    {
+      "classification": "loader",
+      "evidence": "loader.trace",
+      "reason": "bwrap execs the pinned Node binary after applying the filter",
+      "syscall": "execve"
+    },
+    {
+      "classification": "memory",
+      "evidence": "loader.trace",
+      "reason": "heap growth",
+      "syscall": "brk"
+    },
+    {
+      "classification": "memory",
+      "evidence": "loader.trace",
+      "reason": "V8/loader mappings incl. JIT code space",
+      "syscall": "mmap"
+    },
+    {
+      "classification": "memory",
+      "evidence": "loader.trace",
+      "reason": "V8 JIT W^X transitions",
+      "syscall": "mprotect"
+    },
+    {
+      "classification": "memory",
+      "evidence": "loader.trace",
+      "reason": "mapping teardown",
+      "syscall": "munmap"
+    },
+    {
+      "classification": "memory",
+      "evidence": "loader.trace",
+      "reason": "V8 heap advice",
+      "syscall": "madvise"
+    },
+    {
+      "classification": "loader",
+      "evidence": "loader.trace",
+      "reason": "glibc TLS/FS base setup",
+      "syscall": "arch_prctl"
+    },
+    {
+      "classification": "loader",
+      "evidence": "loader.trace",
+      "reason": "glibc thread bookkeeping",
+      "syscall": "set_tid_address"
+    },
+    {
+      "classification": "loader",
+      "evidence": "loader.trace",
+      "reason": "glibc robust futex list",
+      "syscall": "set_robust_list"
+    },
+    {
+      "classification": "loader",
+      "evidence": "loader.trace",
+      "reason": "glibc restartable sequences",
+      "syscall": "rseq"
+    },
+    {
+      "classification": "loader",
+      "evidence": "loader.trace",
+      "reason": "glibc resource limit query",
+      "syscall": "prlimit64"
+    },
+    {
+      "classification": "threading",
+      "evidence": "loader.trace",
+      "reason": "libuv/V8 synchronization",
+      "syscall": "futex"
+    },
+    {
+      "classification": "threading",
+      "evidence": "fallback-justified",
+      "reason": "FALLBACK: glibc thread creation when clone3 returns ENOSYS (arg-filtered to CLONE_VM|CLONE_THREAD only, so fork() is denied)",
+      "syscall": "clone"
+    },
+    {
+      "classification": "loader",
+      "evidence": "amended-observed",
+      "reason": "bwrap PID-1 sandbox init reaps the executed command (observed: bwrap init wait() EPERM without it)",
+      "syscall": "wait4"
+    },
+    {
+      "classification": "threading",
+      "evidence": "loader.trace",
+      "reason": "V8/libuv CPU count probe",
+      "syscall": "sched_getaffinity"
+    },
+    {
+      "classification": "identity-read",
+      "evidence": "loader.trace",
+      "reason": "process id query",
+      "syscall": "getpid"
+    },
+    {
+      "classification": "identity-read",
+      "evidence": "loader.trace",
+      "reason": "thread id query",
+      "syscall": "gettid"
+    },
+    {
+      "classification": "identity-read",
+      "evidence": "loader.trace",
+      "reason": "uid query (non-root sandbox identity)",
+      "syscall": "getuid"
+    },
+    {
+      "classification": "identity-read",
+      "evidence": "loader.trace",
+      "reason": "effective uid query",
+      "syscall": "geteuid"
+    },
+    {
+      "classification": "identity-read",
+      "evidence": "loader.trace",
+      "reason": "gid query",
+      "syscall": "getgid"
+    },
+    {
+      "classification": "identity-read",
+      "evidence": "loader.trace",
+      "reason": "effective gid query",
+      "syscall": "getegid"
+    },
+    {
+      "classification": "info",
+      "evidence": "loader.trace",
+      "reason": "read-only capability query by V8/libuv; cannot change identity",
+      "syscall": "capget"
+    },
+    {
+      "classification": "info",
+      "evidence": "loader.trace",
+      "reason": "kernel/arch probe",
+      "syscall": "uname"
+    },
+    {
+      "classification": "info",
+      "evidence": "loader.trace",
+      "reason": "CSPRNG seeding",
+      "syscall": "getrandom"
+    },
+    {
+      "classification": "info",
+      "evidence": "loader.trace",
+      "reason": "cwd query during module resolution",
+      "syscall": "getcwd"
+    },
+    {
+      "classification": "io",
+      "evidence": "io_shape.trace",
+      "reason": "glibc stat on modern kernels (module resolution)",
+      "syscall": "statx"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "stat of candidate module paths",
+      "syscall": "newfstatat"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "fd stat",
+      "syscall": "fstat"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "existence probe during module resolution",
+      "syscall": "access"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "open scripts/data/libs (read-only mounts only)",
+      "syscall": "openat"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "read fds/files",
+      "syscall": "read"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "positional read",
+      "syscall": "pread64"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "stdout/stderr emission",
+      "syscall": "write"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "fd seek",
+      "syscall": "lseek"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "fd close",
+      "syscall": "close"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "fd flag management (glibc/libuv)",
+      "syscall": "fcntl"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "symlink resolution (/proc/self/exe etc.)",
+      "syscall": "readlink"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "symlink resolution during module lookup",
+      "syscall": "readlinkat"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "libuv internal pipe",
+      "syscall": "pipe2"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "libuv async wakeup",
+      "syscall": "eventfd2"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "libuv event loop",
+      "syscall": "epoll_create1"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "libuv event loop registration",
+      "syscall": "epoll_ctl"
+    },
+    {
+      "classification": "io",
+      "evidence": "loader.trace",
+      "reason": "libuv event loop wait",
+      "syscall": "epoll_pwait"
+    },
+    {
+      "classification": "signals",
+      "evidence": "loader.trace",
+      "reason": "signal handler installation",
+      "syscall": "rt_sigaction"
+    },
+    {
+      "classification": "signals",
+      "evidence": "loader.trace",
+      "reason": "signal mask management",
+      "syscall": "rt_sigprocmask"
+    },
+    {
+      "classification": "exit",
+      "evidence": "loader.trace",
+      "reason": "thread exit",
+      "syscall": "exit"
+    },
+    {
+      "classification": "exit",
+      "evidence": "loader.trace",
+      "reason": "process exit",
+      "syscall": "exit_group"
+    }
+  ],
+  "arg_filtered": [
+    {
+      "arg": 0,
+      "extra": 65792,
+      "kind": "masked_eq",
+      "syscall": "clone",
+      "value": 65792
+    },
+    {
+      "arg": 0,
+      "extra": 0,
+      "kind": "eq",
+      "syscall": "prctl",
+      "value": 15
+    },
+    {
+      "arg": 1,
+      "extra": 0,
+      "kind": "eq",
+      "syscall": "ioctl",
+      "value": 21537
+    },
+    {
+      "arg": 1,
+      "extra": 0,
+      "kind": "eq",
+      "syscall": "ioctl",
+      "value": 2150388778
+    }
+  ],
+  "denied": [
+    "socket",
+    "socketpair",
+    "connect",
+    "bind",
+    "listen",
+    "accept",
+    "sendto",
+    "recvfrom",
+    "recvmsg",
+    "sendmsg",
+    "setsockopt",
+    "getsockopt",
+    "ptrace",
+    "process_vm_readv",
+    "process_vm_writev",
+    "mount",
+    "umount2",
+    "pivot_root",
+    "chroot",
+    "open_tree",
+    "move_mount",
+    "fsopen",
+    "fsmount",
+    "fspick",
+    "mount_setattr",
+    "statmount",
+    "listmount",
+    "unshare",
+    "setns",
+    "clone3",
+    "bpf",
+    "perf_event_open",
+    "userfaultfd",
+    "io_uring_setup",
+    "io_uring_enter",
+    "io_uring_register",
+    "kexec_load",
+    "kexec_file_load",
+    "init_module",
+    "finit_module",
+    "delete_module",
+    "keyctl",
+    "add_key",
+    "request_key",
+    "landlock_create_ruleset",
+    "landlock_add_rule",
+    "landlock_restrict_self",
+    "open_by_handle_at",
+    "name_to_handle_at",
+    "memfd_create",
+    "execveat",
+    "pidfd_open",
+    "pidfd_getfd",
+    "pidfd_send_signal",
+    "openat2",
+    "setuid",
+    "setgid",
+    "setgroups",
+    "setresuid",
+    "setresgid",
+    "capset",
+    "seccomp",
+    "inotify_init",
+    "inotify_init1",
+    "inotify_add_watch",
+    "waitid",
+    "sched_setaffinity",
+    "setpriority",
+    "vmsplice"
+  ],
+  "special": {
+    "clone3": 38
+  }
+}

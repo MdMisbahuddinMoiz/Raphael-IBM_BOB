@@ -20,14 +20,18 @@ from raphael_ibm_bob.isolation_substrate import (
     FIXTURE_SHA256,
     LAUNCHER_ENTRY,
     MISSING_CANDIDATES,
+    NODE_CLOSURE_LIBS,
+    NODE_INTERPRETER,
     NODE_RUNTIME,
     NNP_STATE,
     PROVIDER_PIN,
+    SYSTEM_LIBRARY_PREFIXES,
     SANDBOX_GID,
     SANDBOX_UID,
     SCRATCH_FLAGS,
     ArbitraryInputError,
     FixtureRef,
+    NodeRuntimeClosure,
     ProviderRef,
     SandboxSpec,
     SubstrateConfigError,
@@ -41,6 +45,7 @@ from raphael_ibm_bob.isolation_substrate import (
     mount_contract,
     network_contract,
     nnp_requirement,
+    node_runtime_closure,
     observe_no_new_privs,
     pid_starttime,
     process_contract,
@@ -48,6 +53,7 @@ from raphael_ibm_bob.isolation_substrate import (
     seccomp_install_description,
     termination_observed,
     validate_fixture_root,
+    validate_node_closure,
     validate_sandbox_spec,
 )
 
@@ -92,14 +98,16 @@ class SubstrateStatic(unittest.TestCase):
         self.assertEqual(argv[i - 2], "--size")
         self.assertEqual(argv[i - 1], str(self.spec.scratch_bytes))
 
-    def test_2_tmpfs_flags_not_claimed_in_argv(self):
+    def test_2_tmpfs_flags_observed_state_not_claimed_in_argv(self):
         joined = " ".join(build_bwrap_argv(self.spec))
-        # noexec/nosuid/nodev are NOT supported by bwrap --tmpfs: not claimed.
+        # bwrap --tmpfs cannot express per-mount noexec/nosuid/nodev in argv.
         for flag in ("noexec", "nosuid", "nodev"):
             self.assertNotIn(flag, joined, f"{flag} must not be claimed")
-        for flag in ("noexec", "nosuid", "nodev"):
-            self.assertEqual(SCRATCH_FLAGS[flag], "RESIDUAL_UNPROVEN")
-        self.assertEqual(SCRATCH_FLAGS["size"], "ENFORCED")
+        # GATE 4 observed the real kernel state; noexec is NOT enforced.
+        self.assertEqual(SCRATCH_FLAGS["size"], "OBSERVED_ENFORCED")
+        self.assertEqual(SCRATCH_FLAGS["noexec"], "OBSERVED_NOT_ENFORCED")
+        self.assertEqual(SCRATCH_FLAGS["nosuid"], "OBSERVED_ENFORCED")
+        self.assertEqual(SCRATCH_FLAGS["nodev"], "OBSERVED_ENFORCED")
 
     def test_3_scratch_bounds_preserved(self):
         self.assertEqual(self.spec.scratch_bytes, 16 * 1024 * 1024)
@@ -156,16 +164,57 @@ class SubstrateStatic(unittest.TestCase):
         with self.assertRaises(SubstrateConfigError):
             build_bwrap_argv(bad)
 
+    # --- GATE 1: Node runtime closure -----------------------------------
+
+    def test_8a_every_closure_path_bound_explicitly_readonly(self):
+        closure = node_runtime_closure()
+        argv = list(build_bwrap_argv(self.spec))
+        pairs = {}
+        for idx, token in enumerate(argv):
+            if token == "--ro-bind":
+                pairs[argv[idx + 1]] = argv[idx + 2]
+        self.assertIn(NODE_RUNTIME, pairs)
+        self.assertIn(NODE_INTERPRETER, pairs)
+        for lib in NODE_CLOSURE_LIBS:
+            self.assertIn(lib, pairs)
+            self.assertEqual(pairs[lib], lib)
+        self.assertEqual(len(NODE_CLOSURE_LIBS), len(set(NODE_CLOSURE_LIBS)))
+        self.assertIn("/usr/lib/x86_64-linux-gnu/libnode.so.127",
+                      closure.libraries)
+
+    def test_8b_no_library_tree_is_bound(self):
+        argv = list(build_bwrap_argv(self.spec))
+        for idx, token in enumerate(argv):
+            if token == "--ro-bind":
+                src = argv[idx + 1]
+                self.assertNotIn(src, ("/usr/lib", "/lib", "/lib64", "/usr"),
+                                 f"tree bind leaked: {src}")
+
+    def test_8c_closure_paths_reject_caller_input(self):
+        for bad in ("libnode.so.127", "/opt/evil.so",
+                    "/usr/lib/x86_64-linux-gnu/../evil.so"):
+            with self.assertRaises(SubstrateConfigError):
+                validate_node_closure(NodeRuntimeClosure(
+                    runtime=NODE_RUNTIME, interpreter=NODE_INTERPRETER,
+                    libraries=(bad,)))
+        with self.assertRaises(SubstrateConfigError):
+            validate_node_closure(NodeRuntimeClosure(
+                runtime=NODE_RUNTIME, interpreter=NODE_INTERPRETER,
+                libraries=("/usr/lib/x86_64-linux-gnu/libc.so.6",) * 2))
+        for prefix in SYSTEM_LIBRARY_PREFIXES:
+            self.assertTrue(prefix.startswith("/"))
+
     # --- B4: no_new_privs requirement vs observation --------------------
 
     def test_9_nnp_requirement_distinct_from_observation(self):
         req = nnp_requirement()
         self.assertTrue(req["required"])
-        self.assertEqual(req["state"], "NOT_YET_PROVEN")
-        self.assertEqual(NNP_STATE, "NOT_YET_PROVEN")
+        # GATE 3 observed NoNewPrivs: 1 inside the probe sandbox.
+        self.assertEqual(req["state"], "OBSERVED_INSIDE_SANDBOX")
+        self.assertEqual(NNP_STATE, "OBSERVED_INSIDE_SANDBOX")
         proc = process_contract(self.spec)
         self.assertTrue(proc["no_new_privs_required"])
-        self.assertEqual(proc["no_new_privs_state"], "NOT_YET_PROVEN")
+        self.assertEqual(proc["no_new_privs_state"], "OBSERVED_INSIDE_SANDBOX")
 
     def test_10_nnp_observation_parser(self):
         self.assertTrue(observe_no_new_privs("Name:\tnode\nNoNewPrivs:\t1\n"))
@@ -229,13 +278,15 @@ class SubstrateStatic(unittest.TestCase):
 
     def test_17_exact_mount_specification(self):
         mounts = mount_contract(self.spec)
-        self.assertEqual(
-            [(m["kind"], m["dest"]) for m in mounts],
-            [("ro-bind", "/provider"),
-             ("ro-bind", "/provider/node_modules"),
-             ("ro-bind", "/fixture/" + self.fx.name),
-             ("ro-bind", NODE_RUNTIME),
-             ("dev", "/dev"), ("proc", "/proc"), ("tmpfs", "/tmp")])
+        closure = node_runtime_closure()
+        expected = [("ro-bind", "/provider"),
+                    ("ro-bind", "/provider/node_modules"),
+                    ("ro-bind", "/fixture/" + self.fx.name),
+                    ("ro-bind", NODE_RUNTIME)]
+        expected += [("ro-bind", p)
+                     for p in (closure.interpreter,) + closure.libraries]
+        expected += [("dev", "/dev"), ("proc", "/proc"), ("tmpfs", "/tmp")]
+        self.assertEqual([(m["kind"], m["dest"]) for m in mounts], expected)
 
     def test_18_provider_and_node_modules_read_only(self):
         mounts = mount_contract(self.spec)

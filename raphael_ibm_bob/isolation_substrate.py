@@ -50,6 +50,47 @@ FIXTURE_SHA256 = ("c033fda6e893ed965de8496ad170628d33ce69817c6ad0"
 #: Pinned, deterministic Node runtime (absolute; never caller-supplied).
 NODE_RUNTIME = "/usr/bin/node"
 
+#: GATE 1 — explicit read-only runtime closure for the pinned Node runtime.
+#: Enumerated STATICALLY with `readelf`/`ldd` against the pinned runtime
+#: (no Node execution). The runtime links `libnode.so.127` + libc directly
+#: and pulls the icu/ssl/uv/... closure transitively. Every path below is
+#: bound INDIVIDUALLY read-only; no `/usr/lib` or `/lib` TREE is ever bound.
+NODE_INTERPRETER = "/lib64/ld-linux-x86-64.so.2"
+NODE_CLOSURE_LIBS: Tuple[str, ...] = (
+    "/usr/lib/x86_64-linux-gnu/libada-url0.so.3",
+    "/usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1",
+    "/usr/lib/x86_64-linux-gnu/libbrotlidec.so.1",
+    "/usr/lib/x86_64-linux-gnu/libbrotlienc.so.1",
+    "/usr/lib/x86_64-linux-gnu/libc.so.6",
+    "/usr/lib/x86_64-linux-gnu/libcares.so.2",
+    "/usr/lib/x86_64-linux-gnu/libcrypto.so.3",
+    "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+    "/usr/lib/x86_64-linux-gnu/libicudata.so.78",
+    "/usr/lib/x86_64-linux-gnu/libicui18n.so.78",
+    "/usr/lib/x86_64-linux-gnu/libicuuc.so.78",
+    "/usr/lib/x86_64-linux-gnu/libllhttp.so.9.3",
+    "/usr/lib/x86_64-linux-gnu/libm.so.6",
+    "/usr/lib/x86_64-linux-gnu/libnghttp2.so.14",
+    "/usr/lib/x86_64-linux-gnu/libnode.so.127",
+    "/usr/lib/x86_64-linux-gnu/libsimdjson.so.29",
+    "/usr/lib/x86_64-linux-gnu/libsimdutf.so.31",
+    "/usr/lib/x86_64-linux-gnu/libsqlite3.so.0",
+    "/usr/lib/x86_64-linux-gnu/libssl.so.3",
+    "/usr/lib/x86_64-linux-gnu/libstdc++.so.6",
+    "/usr/lib/x86_64-linux-gnu/libuv.so.1",
+    "/usr/lib/x86_64-linux-gnu/libz.so.1",
+    "/usr/lib/x86_64-linux-gnu/libzstd.so.1",
+)
+
+#: The ONLY prefixes a closure path may live under (GATE 1). This forbids
+#: binding arbitrary host trees or caller-supplied runtime locations.
+SYSTEM_LIBRARY_PREFIXES: Tuple[str, ...] = (
+    "/usr/bin",
+    "/usr/lib/x86_64-linux-gnu",
+    "/lib/x86_64-linux-gnu",
+    "/lib64",
+)
+
 #: The future RAPHAEL-owned launcher entry (read-only); NOT executed here.
 LAUNCHER_ENTRY = "/provider/c1a_launcher.js"
 
@@ -180,6 +221,49 @@ class FixtureRef:
 
 
 # ---------------------------------------------------------------------------
+# Node runtime closure (GATE 1 — static enumeration, no execution)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class NodeRuntimeClosure:
+    """Explicit, read-only runtime closure for the pinned Node runtime."""
+    runtime: str
+    interpreter: str
+    libraries: Tuple[str, ...]
+
+    def all_paths(self) -> Tuple[str, ...]:
+        return (self.runtime, self.interpreter) + tuple(self.libraries)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"runtime": self.runtime, "interpreter": self.interpreter,
+                "libraries": list(self.libraries), "mode": "ro",
+                "tree_binds": [], "closure_size": len(self.all_paths())}
+
+
+def node_runtime_closure() -> NodeRuntimeClosure:
+    """Return the pinned static closure. No discovery, no execution."""
+    return NodeRuntimeClosure(runtime=NODE_RUNTIME,
+                              interpreter=NODE_INTERPRETER,
+                              libraries=NODE_CLOSURE_LIBS)
+
+
+def validate_node_closure(closure: NodeRuntimeClosure) -> None:
+    """Every closure path must be an explicit canonical file under a known
+    system prefix. No duplicates, no directory trees, no caller paths."""
+    paths = closure.all_paths()
+    if len(set(paths)) != len(paths):
+        raise SubstrateConfigError("node closure contains duplicate paths")
+    for path in paths:
+        if not _abs(path):
+            raise SubstrateConfigError(
+                f"node closure path must be canonical absolute: {path!r}")
+        if not any(path.startswith(prefix + "/")
+                   for prefix in SYSTEM_LIBRARY_PREFIXES):
+            raise SubstrateConfigError(
+                f"node closure path outside system prefixes: {path!r}")
+
+
+# ---------------------------------------------------------------------------
 # Sandbox specification + validation (fail-closed)
 # ---------------------------------------------------------------------------
 
@@ -268,22 +352,26 @@ def ensure_fixture_literal(spec: SandboxSpec, path: str) -> str:
 # bwrap contract
 # ---------------------------------------------------------------------------
 
-#: Scratch property claims and their ACTUAL state (B1). Only `size` is
-#: enforced in the argv; the rest are residual/unproven.
+#: Scratch property state. GATE 4 probe (bwrap 0.11.1) read the kernel-visible
+#: mount options for the sandboxed /tmp: `size` IS enforced, `nosuid`/`nodev`
+#: ARE present, and `noexec` is ABSENT (scratch remains executable). These are
+#: OBSERVED, not configured.
 SCRATCH_FLAGS = {
-    "size": "ENFORCED",
-    "noexec": "RESIDUAL_UNPROVEN",
-    "nosuid": "RESIDUAL_UNPROVEN",
-    "nodev": "RESIDUAL_UNPROVEN",
+    "size": "OBSERVED_ENFORCED",
+    "noexec": "OBSERVED_NOT_ENFORCED",
+    "nosuid": "OBSERVED_ENFORCED",
+    "nodev": "OBSERVED_ENFORCED",
 }
 
 
 def mount_contract(spec: SandboxSpec) -> Tuple[Dict[str, Any], ...]:
-    """Read-only mounts + the single bounded scratch + pinned runtime.
+    """Read-only mounts + the single bounded scratch + pinned runtime closure.
 
     The fixture is bound as the EXACT single file (B5C), not the whole root.
+    Every Node runtime path (GATE 1) is bound individually read-only.
     """
-    return (
+    closure = node_runtime_closure()
+    mounts = [
         {"kind": "ro-bind", "src": spec.provider.root, "dest": "/provider",
          "mode": "ro"},
         {"kind": "ro-bind", "src": spec.provider.node_modules,
@@ -293,11 +381,17 @@ def mount_contract(spec: SandboxSpec) -> Tuple[Dict[str, Any], ...]:
          "mode": "ro"},
         {"kind": "ro-bind", "src": spec.node_runtime,
          "dest": spec.node_runtime, "mode": "ro"},
+    ]
+    for path in (closure.interpreter,) + closure.libraries:
+        mounts.append({"kind": "ro-bind", "src": path, "dest": path,
+                       "mode": "ro"})
+    mounts += [
         {"kind": "dev", "src": "dev", "dest": "/dev", "mode": "minimal"},
         {"kind": "proc", "src": "proc", "dest": "/proc", "mode": "private"},
         {"kind": "tmpfs", "src": "tmpfs", "dest": "/tmp",
          "size": spec.scratch_bytes, "flags": dict(SCRATCH_FLAGS)},
-    )
+    ]
+    return tuple(mounts)
 
 
 def network_contract(spec: SandboxSpec) -> Dict[str, Any]:
@@ -310,7 +404,7 @@ def process_contract(spec: SandboxSpec) -> Dict[str, Any]:
     return {"unshare_user": True, "uid": spec.uid, "gid": spec.gid,
             "non_root": True, "cap_drop_all": True,
             "no_new_privs_required": True,
-            "no_new_privs_state": "NOT_YET_PROVEN",
+            "no_new_privs_state": NNP_STATE,
             "die_with_parent": True, "new_session": True,
             "unshare_pid": True, "unshare_ipc": True, "unshare_uts": True}
 
@@ -345,6 +439,13 @@ def build_bwrap_argv(spec: SandboxSpec) -> Tuple[str, ...]:
         "--chdir", "/provider",
         "--",
     ]
+    # GATE 1: explicit read-only runtime closure binds (no tree binds).
+    closure = node_runtime_closure()
+    validate_node_closure(closure)
+    binds: List[str] = []
+    for path in (closure.interpreter,) + closure.libraries:
+        binds += ["--ro-bind", path, path]
+    argv[argv.index("--chdir"):argv.index("--chdir")] = binds
     argv.extend(command_argv(spec))
     return tuple(argv)
 
@@ -422,10 +523,12 @@ def pid_starttime(stat_line: str) -> int:
 # no_new_privs (B4)
 # ---------------------------------------------------------------------------
 
-#: NNP is REQUIRED by contract; its OBSERVED state inside the sandbox is not
-#: yet proven and must be read from /proc/self/status before any live run.
+#: NNP is REQUIRED by contract. GATE 3 probe observed `NoNewPrivs: 1` from
+#: INSIDE the sandbox (`/proc/self/status` under bwrap 0.11.1). This proves
+#: NNP for the probe sandbox shape; the RAPHAEL launcher must still read and
+#: require it before any provider import.
 NNP_REQUIRED = True
-NNP_STATE = "NOT_YET_PROVEN"
+NNP_STATE = "OBSERVED_INSIDE_SANDBOX"
 
 
 def nnp_requirement() -> Dict[str, Any]:
@@ -577,9 +680,13 @@ __all__ = [
     "LauncherContract",
     "MAX_SCRATCH_BYTES",
     "MISSING_CANDIDATES",
+    "NODE_CLOSURE_LIBS",
+    "NODE_INTERPRETER",
     "NODE_RUNTIME",
     "NNP_REQUIRED",
     "NNP_STATE",
+    "NodeRuntimeClosure",
+    "SYSTEM_LIBRARY_PREFIXES",
     "PROVIDER_PIN",
     "ProviderRef",
     "SANDBOX_GID",
@@ -598,6 +705,7 @@ __all__ = [
     "mount_contract",
     "network_contract",
     "nnp_requirement",
+    "node_runtime_closure",
     "observe_no_new_privs",
     "pid_starttime",
     "process_contract",
@@ -605,5 +713,6 @@ __all__ = [
     "seccomp_install_description",
     "termination_observed",
     "validate_fixture_root",
+    "validate_node_closure",
     "validate_sandbox_spec",
 ]

@@ -22,22 +22,35 @@ Source of record: pinned T3MP3ST at `/home/moiz/audit-repos/T3MP3ST`
 | integrity info available locally | **YES** — 476 lockfile `integrity` (sha512) + `resolved` entries |
 | modifies provider source? | **NO** — `npm ci` writes only `node_modules/` + possibly playwright cache |
 
-### PROVIDER INSTALL REQUEST (do NOT execute)
+### PROVIDER INSTALL REQUEST — AUTHORIZED COMMAND (R1)
+
+Authorized (ChatGPT) exact command:
 
 ```
-COMMAND (eventual, not run):  cd /home/moiz/audit-repos/T3MP3ST && npm ci
-  (playwright browsers:       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1, unless the
-                               proof path requires a browser — C1A does not)
-EXPECTED NETWORK:             registry.npmjs.org (HTTPS/443) for ~476 packages;
-                              plus Playwright browser CDN (cdn.playwright.dev)
-                              unless skipped
-EXPECTED ARTIFACTS:           /home/moiz/audit-repos/T3MP3ST/node_modules/**
-                              (+ playwright browser cache if not skipped)
-EXPECTED RISKS:               supply-chain (npm lifecycle scripts), network
-                              egress from the build host, disk growth; the
-                              provider SOURCE tree is not modified
-REQUIRED AUTHORIZATION:       explicit ChatGPT authorization to run `npm ci`
-                              (network/package installation)
+cd /home/moiz/audit-repos/T3MP3ST
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --ignore-scripts
+```
+
+Rationale:
+- **`package-lock.json` is authoritative** (`lockfileVersion 3`, 477 packages,
+  476 `integrity` + 476 `resolved`). `npm ci` installs strictly from the lockfile.
+- **Playwright browser binaries are not required for C1A** — `binary_sink_scan`
+  inspects a file via `approvedLocalPath`; it does not open a browser. Hence
+  `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`.
+- **`--ignore-scripts` is intentional supply-chain hardening**: npm lifecycle
+  scripts (pre/post-install) do not run. The pinned provider's C1A path does not
+  need any postinstall.
+- This is **dependency installation only** — NOT provider execution, NOT a proof.
+  No provider code is invoked, no Arsenal, no `binary_sink_scan`, no server.
+
+```
+EXPECTED NETWORK:       registry.npmjs.org (HTTPS/443), package tarballs only;
+                        Playwright browser CDN NOT contacted (skipped)
+EXPECTED ARTIFACTS:     /home/moiz/audit-repos/T3MP3ST/node_modules/**
+EXPECTED RISKS:         network egress from the build host; disk growth; the
+                        provider SOURCE tree is not modified; no lifecycle
+                        scripts execute (--ignore-scripts)
+AUTHORIZATION:          GRANTED by ChatGPT for this exact command only
 ```
 
 ## 2. Execution-export channel design (Part 2)
@@ -70,6 +83,38 @@ captured in the same isolated process and correlated by RAPHAEL-assigned ids.
 RAPHAEL-observed boundary event stream; provider metadata never overrides it.
 **No clean *pure-HTTP* export exists without modifying/forking T3MP3ST** — stated
 explicitly.
+
+### 2b. Launcher specification (R2 — pinned contract)
+
+The RAPHAEL-owned launcher is a **single-purpose** executable, not a dispatcher:
+
+- **only hardcoded capability:** `binary_sink_scan` (no other tool is reachable)
+- **exactly one hardcoded fixture literal** (the C1A fixture path); no
+  caller-supplied path
+- **no caller-supplied tool name** — the tool is fixed in code
+- **no caller-supplied arbitrary path** — the target is fixed in code
+- **synthesizes exactly one RAPHAEL-owned `call_id`** and uses that **same
+  `call_id` consistently** across call / result / execution evidence
+- **serializes tool NAME strings only** — never function or object references
+  (no `toString`/serialized closures)
+- **emits a bounded transcript on ALL normal AND exception paths** (success,
+  scope denial, tool error, timeout, crash) — never a silent no-output exit
+- **must never become a generic command/tool dispatcher** (no argv tool, no argv
+  path, no shell)
+
+### 2c. Receipt parsing (R3 — closed pipeline only)
+
+The transport receipt (launcher transcript) MUST be consumed **only** through:
+
+```
+raw receipt bytes → parse_closed_payload → normalize_result → b4_attestation.attest
+```
+
+- No component may trust raw provider output directly.
+- Provider result text/fields are inert metadata; they are **never** promoted to
+  `VERIFIED`, `REFUTED`, `COMPLETE`, authorization, policy approval, or gate state.
+- Authority ownership is unchanged: the QualityGate remains the sole COMPLETE
+  authority; the provider contributes evidence only.
 
 ## 3. Fresh-instance lifecycle (Part 3, refined)
 
@@ -131,22 +176,45 @@ controls declaratively and is auditable.
 **M1/M2 remain OPEN**: this is a *specification*. Escape probes (M1) and egress
 probes (M2) are required before closure.
 
-## 5. M5 teardown design (Part 5)
+## 5. M5 teardown design (Part 5, R4 + R5)
+
+### 5.1 Teardown observation (R5)
 
 ```
 timeout / stop
   → RAPHAEL stops waiting                     (does NOT imply termination)
-  → orphan_possible = true  unless termination is OBSERVED
-  → cancellation_acknowledged = true ONLY after external observation:
-        (a) launcher PID reaped (waitpid → gone), AND
-        (b) sandbox process tree gone (no descendant PIDs), AND
-        (c) cgroup emptied (cgroup.events populated=0) — where used
-  → teardown evidence recorded (pids, cgroup state, monotonic times)
+  → orphan_possible = true  UNTIL termination is actually OBSERVED
+  → cancellation_acknowledged = true ONLY after INDEPENDENT observation:
+        (a) launcher PID reaped AND PID anti-reuse protected:
+              PID identity verified by /proc/<pid>/stat field 22 (starttime)
+              and/or pidfd_open(pid) — a recycled PID cannot be mistaken
+              for the original process
+        (b) descendant / double-fork coverage: the whole process TREE is
+              terminated, not just the direct child (setsid + kill the
+              process group; daemonised grandchildren must not survive)
+        (c) cgroup-based kill + empty verification: write cgroup.kill (or
+              kill the cgroup's PIDs), then require cgroup.events
+              `populated 0` (and/or empty cgroup.procs)
+  → teardown evidence recorded (pids, starttimes, process-group, cgroup
+        populated, monotonic timestamps)
 ```
 
-No "cancelled = terminated" claim. Late provider output after stop is cut off
-and recorded as `late_output:true`; it can never become success. Implemented
-only at the live stage.
+- No "cancelled = terminated" claim. `cancellation_acknowledged` stays `false`
+  unless (a)+(b)+(c) are observed.
+- `orphan_possible` remains `true` until that observation exists.
+
+### 5.2 Result acceptance window + late output (R4)
+
+- There is an **explicit timeout / acceptance window**: a result is accepted
+  only if it is received and attributable **inside** the window.
+- **Late output after timeout/stop is CUT OFF** and recorded as
+  `late_output: true` on the outcome; it is **never** accepted and can never
+  become `success`.
+- `late_output` is part of the evidence record (alongside `orphan_possible`),
+  and downstream consumers must treat `late_output: true` (or
+  `orphan_possible: true`) as non-success.
+- Implemented only at the live stage; the RAPHAEL-side `ProviderResult` already
+  carries `orphan_possible` and never yields success on timeout.
 
 ## 6. Checklist changes (Part 6)
 

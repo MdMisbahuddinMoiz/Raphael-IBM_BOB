@@ -26,7 +26,7 @@
       "invariant": "provider dependency state",
       "control": "package-lock.json installed",
       "status": "NOT_READY",
-      "evidence": "node_modules ABSENT; requires `npm ci` (network/package install) - not authorized",
+      "evidence": "node_modules ABSENT; npm ci --ignore-scripts AUTHORIZED but not yet executed",
       "ready_for_live_proof": false
     },
     {
@@ -121,5 +121,23 @@
     "live_proof": "NOT_READY"
   },
   "raphael_head_note": "pre-isolation-design docs commit",
-  "design_reference": "docs/integration/phase-2c-isolation-engineering-design.md"
+  "design_reference": "docs/integration/phase-2c-isolation-engineering-design.md",
+  "dependency_install": {
+    "authorized": true,
+    "command": "cd /home/moiz/audit-repos/T3MP3ST && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --ignore-scripts",
+    "scope": "dependency installation only; NOT provider execution/proof",
+    "executed": false
+  },
+  "launcher_contract": {
+    "reference": "phase-2c-isolation-engineering-design.md \u00a72b",
+    "hardcoded_capability": "binary_sink_scan",
+    "single_hardcoded_fixture_literal": true,
+    "caller_supplied_tool_or_path": false,
+    "single_raphael_call_id": true,
+    "serialize_tool_names_only": true,
+    "bounded_transcript_all_paths": true,
+    "generic_dispatcher": false
+  },
+  "receipt_pipeline": "parse_closed_payload -> normalize_result -> b4_attestation.attest",
+  "late_output_handling": "late_output=true after timeout; never success"
 }

@@ -221,7 +221,13 @@ evidence (`c1a_evidence`) and can never produce VERIFIED/REFUTED/COMPLETE.
 
 Honesty boundary (unchanged, explicit):
 
-- The **real T3MP3ST provider is absent**; `T3MP3STAdapter` fails closed.
+- The **real T3MP3ST provider executes only when the pinned checkout is
+  present**: `T3MP3STAdapter` with no `provider_dist` fails closed
+  (`ProviderUnavailableError`); nothing is fabricated. When the compiled
+  pinned checkout (`29824d5625ede419ac8cdae418c8f4c72c6270f7`) is present,
+  the canonical path `bwrap -> bridge ->
+  binarySinkScanTool.handler()` runs the real provider in the sandbox.
+  See `docs/integration/t3mp3st-integration.md`.
 - `InertProviderDouble` is test infrastructure and is never called
   "T3MP3ST".
 - Live proof is **BLOCKED** (`scripts/c1a_live_proof.py`,

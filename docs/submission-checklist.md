@@ -120,8 +120,10 @@ this file (see the M12 report for the exact hash).
   create VERIFIED/REFUTED/COMPLETE.
 - [x] **VERIFIED** — inert-provider end-to-end path reaches
   `Gate: COMPLETE` through the real QualityGate.
-- [ ] **BLOCKED** — live C1A proof: real T3MP3ST provider absent;
-  `scripts/c1a_live_proof.py` reports `BLOCKED`. M1/M2/M5 are **not**
+- [ ] **BLOCKED** — live C1A proof: `scripts/c1a_live_proof.py`
+  reports `BLOCKED` (`live_proof_authorized = false`). The real pinned
+  T3MP3ST provider executes in the sandbox when its compiled checkout is
+  present (`provider_execution = VERIFIED`, local); M1/M2/M5 are **not**
   claimed. See `docs/integration/c1a-release-gate.md`.
 - [ ] **DISCLOSED** — test-count discrepancy: this file states 357 tests
   (21-module command) while `README.md` states 209 (a shorter explicit

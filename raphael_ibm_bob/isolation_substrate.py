@@ -181,6 +181,11 @@ def _is_hex(value: Any, length: int) -> bool:
         all(ch in "0123456789abcdef" for ch in value)
 
 
+def _valid_id(value: Any) -> bool:
+    """A present, non-empty, non-whitespace identifier."""
+    return isinstance(value, str) and value.strip() != ""
+
+
 # ---------------------------------------------------------------------------
 # References + identity (static verification only)
 # ---------------------------------------------------------------------------
@@ -711,6 +716,163 @@ def launcher_contract(spec: SandboxSpec, proof_session_id: str,
                             call_id=call_id, command=command_argv(spec))
 
 
+# ---------------------------------------------------------------------------
+# T3MP3ST real-provider sandbox contract (Phase 2C integration)
+# ---------------------------------------------------------------------------
+#
+# Canonical execution path (one, only):
+#
+#     RAPHAEL -> bwrap -> RAPHAEL-owned bridge -> binarySinkScanTool.handler()
+#
+# The bridge imports ONLY T3MP3ST's compiled ``dist/arsenal/binary.js``
+# (direct handler), avoiding the full CLI/arsenal dispatcher and its
+# network-capable import chain. The provider source is mounted read-only and
+# is NEVER modified.
+
+#: Sandbox mount point for the T3MP3ST provider (read-only).
+T3MP3ST_PROVIDER_MOUNT = "/t3mp3st"
+#: In-sandbox path of the RAPHAEL-owned bridge (explicitly mounted).
+T3MP3ST_BRIDGE_DEST = "/provider/t3mp3st_bridge.js"
+#: In-sandbox approved analysis root passed to T3MP3ST.
+T3MP3ST_SOURCE_ROOT_MOUNT = "/fixture"
+#: The compiled provider module the bridge imports (direct handler).
+T3MP3ST_BINARY_MODULE = "/t3mp3st/dist/arsenal/binary.js"
+#: Minimum Node runtime required by T3MP3ST (package.json engines).
+MIN_NODE_VERSION: Tuple[int, int, int] = (22, 19, 0)
+
+
+def parse_node_version(version_text: str) -> Tuple[int, int, int]:
+    """Parse ``vMAJOR.MINOR.PATCH`` (tolerating a leading ``v``)."""
+    if not isinstance(version_text, str):
+        raise SubstrateConfigError("node version must be a string")
+    token = version_text.strip().lstrip("v")
+    core = token.split("-", 1)[0].split("+", 1)[0]
+    parts = core.split(".")
+    if len(parts) < 2:
+        raise SubstrateConfigError(f"unparseable node version: {version_text!r}")
+    try:
+        nums = [int(p) for p in parts[:3]]
+    except ValueError:
+        raise SubstrateConfigError(
+            f"unparseable node version: {version_text!r}") from None
+    while len(nums) < 3:
+        nums.append(0)
+    return (nums[0], nums[1], nums[2])
+
+
+def node_version_ok(version_text: str,
+                    minimum: Tuple[int, int, int] = MIN_NODE_VERSION) -> bool:
+    try:
+        return parse_node_version(version_text) >= minimum
+    except SubstrateConfigError:
+        return False
+
+
+def validate_provider_dist(dist_dir: str) -> None:
+    """Fail closed unless the compiled direct-handler module is present."""
+    if not _abs(dist_dir):
+        raise SubstrateConfigError("provider dist must be canonical absolute")
+    binary = os.path.join(dist_dir, "arsenal", "binary.js")
+    scope = os.path.join(dist_dir, "arsenal", "local-file-scope.js")
+    for path in (binary, scope):
+        if not os.path.isfile(path):
+            raise SubstrateConfigError(
+                f"provider dist missing compiled module: {path!r}")
+
+
+def validate_bridge(bridge_path: str, expected_sha256: str) -> None:
+    """Fail closed unless the RAPHAEL bridge exists and matches its pin."""
+    if not _abs(bridge_path):
+        raise SubstrateConfigError("bridge path must be canonical absolute")
+    if not _is_hex(expected_sha256, 64):
+        raise SubstrateConfigError("bridge sha256 must be 64 hex chars")
+    if not os.path.isfile(bridge_path):
+        raise SubstrateConfigError(f"bridge not found: {bridge_path!r}")
+    with open(bridge_path, "rb") as handle:
+        actual = hashlib.sha256(handle.read()).hexdigest()
+    if actual != expected_sha256:
+        raise SubstrateConfigError("bridge digest mismatch (fail closed)")
+
+
+def build_t3mp3st_bwrap_argv(
+    *,
+    provider_dist: str,
+    bridge_path: str,
+    fixture_path: str,
+    bridge_sha256: str,
+    run_id: str,
+    invocation_id: str,
+    node_runtime: str = NODE_RUNTIME,
+    uid: int = SANDBOX_UID,
+    gid: int = SANDBOX_GID,
+    scratch: bool = False,
+) -> Tuple[str, ...]:
+    """Concrete bwrap argv for the real T3MP3ST bridge. NOT executed here.
+
+    Mounts (all read-only except an optional scratch tmpfs):
+
+        * each Node runtime closure path, individually (GATE 1)
+        * ``<provider_dist>`` -> ``/t3mp3st/dist``
+        * the RAPHAEL bridge -> ``/provider/t3mp3st_bridge.js`` (explicit)
+        * the exact fixture file -> ``/fixture``
+        * ``--dev /dev``, ``--proc /proc``
+        * network + namespaces unshared; non-root; cap-drop ALL
+        * ``--remount-ro /`` so the sandbox root has NO writable filesystem
+        * environment cleared, then only the pinned variables are set
+
+    The provider source is mounted read-only; T3MP3ST is never modified.
+    ``T3MP3ST_SOURCE_ROOT`` is fixed to ``/fixture`` (correction 4).
+    """
+    if not _abs(provider_dist):
+        raise SubstrateConfigError("provider_dist must be canonical absolute")
+    if not _abs(bridge_path):
+        raise SubstrateConfigError("bridge_path must be canonical absolute")
+    if not _abs(fixture_path):
+        raise SubstrateConfigError("fixture_path must be canonical absolute")
+    validate_provider_dist(provider_dist)
+    validate_bridge(bridge_path, bridge_sha256)
+    if not _valid_id(run_id) or not _valid_id(invocation_id):
+        raise SubstrateConfigError("run_id and invocation_id required")
+    if uid == 0 or gid == 0:
+        raise SubstrateConfigError("sandbox uid/gid must be non-root")
+
+    closure = node_runtime_closure()
+    validate_node_closure(closure)
+
+    argv: List[str] = [
+        BWRAP,
+        "--ro-bind", node_runtime, node_runtime,
+        "--ro-bind", closure.interpreter, closure.interpreter,
+        "--ro-bind", "/etc/ld.so.cache", "/etc/ld.so.cache",
+        "--ro-bind", provider_dist, T3MP3ST_PROVIDER_MOUNT + "/dist",
+        "--ro-bind", bridge_path, T3MP3ST_BRIDGE_DEST,
+        "--ro-bind", fixture_path, T3MP3ST_SOURCE_ROOT_MOUNT,
+        "--dev", "/dev",
+        "--proc", "/proc",
+        "--unshare-user", "--unshare-pid", "--unshare-ipc",
+        "--unshare-uts", "--unshare-net",
+        "--die-with-parent", "--new-session",
+        "--cap-drop", "ALL",
+        "--uid", str(uid), "--gid", str(gid),
+    ]
+    for path in closure.libraries + closure.assets:
+        argv += ["--ro-bind", path, path]
+    if scratch:
+        argv += ["--tmpfs", "/tmp"]
+    argv += ["--remount-ro", "/"]
+    argv += [
+        "--clearenv",
+        "--setenv", "T3MP3ST_SOURCE_ROOT", T3MP3ST_SOURCE_ROOT_MOUNT,
+        "--setenv", "RAPHAEL_RUN_ID", run_id,
+        "--setenv", "RAPHAEL_INVOCATION_ID", invocation_id,
+        "--setenv", "NODE_ENV", "production",
+        "--chdir", "/",
+        node_runtime,
+        T3MP3ST_BRIDGE_DEST,
+    ]
+    return tuple(argv)
+
+
 __all__ = [
     "ArbitraryInputError",
     "BWRAP",
@@ -741,8 +903,14 @@ __all__ = [
     "SandboxSpec",
     "SeccompPolicy",
     "SubstrateConfigError",
+    "T3MP3ST_BINARY_MODULE",
+    "T3MP3ST_BRIDGE_DEST",
+    "T3MP3ST_PROVIDER_MOUNT",
+    "T3MP3ST_SOURCE_ROOT_MOUNT",
+    "MIN_NODE_VERSION",
     "build_bwrap_argv",
     "build_seccomp_policy",
+    "build_t3mp3st_bwrap_argv",
     "cgroup_plan",
     "command_argv",
     "ensure_fixture_literal",
@@ -752,14 +920,18 @@ __all__ = [
     "network_contract",
     "nnp_requirement",
     "node_runtime_closure",
+    "node_version_ok",
     "observe_no_new_privs",
+    "parse_node_version",
     "pid_starttime",
     "process_contract",
     "seccomp_curation_methodology",
     "seccomp_install_description",
     "termination_observed",
     "unsetenv_contract",
+    "validate_bridge",
     "validate_fixture_root",
     "validate_node_closure",
+    "validate_provider_dist",
     "validate_sandbox_spec",
 ]

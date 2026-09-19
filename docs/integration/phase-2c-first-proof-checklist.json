@@ -10,13 +10,16 @@
   "checklist_schema_note": "base_head = pre-correction base commit; raphael_semantic_head = the CODE commit this checklist attests to; checklist_commit = the commit that contains this checklist revision (self-resolving: the checklist cannot embed its own not-yet-existing hash). N3 clarification; the former ambiguous raphael_head field is removed.",
   "live_proof_authorized": false,
   "c1a_implementation": {
-    "status": "IMPLEMENTED_AND_TESTED_WITH_INERT_PROVIDER",
+    "status": "IMPLEMENTED_AND_TESTED_WITH_INERT_PROVIDER_AND_REAL_T3MP3ST",
     "live_proof_status": "BLOCKED",
-    "provider_status": "UNAVAILABLE (external dependency: pinned T3MP3ST not present)",
+    "provider_status": "REAL_T3MP3ST_EXECUTES_IN_SANDBOX_WHEN_CHECKOUT_PRESENT",
+    "provider_execution": "VERIFIED (local, pinned 29824d5625ede419ac8cdae418c8f4c72c6270f7)",
+    "live_proof_authorized": false,
     "m1_status": "NOT_EXECUTED",
     "m2_status": "NOT_EXECUTED",
     "m5_status": "NOT_EXECUTED",
-    "notes": "C1A authorization/transport/lifecycle/evidence/verification/falsification/replay implemented; inert-provider end-to-end reaches the real QualityGate; no provider-execution, M1, M2, or M5 claim is made. See docs/integration/c1a-release-gate.md."
+    "seccomp_status": "NOT_EXECUTED",
+    "notes": "C1A authorization/transport/lifecycle/evidence/verification/falsification/replay implemented; inert-provider end-to-end reaches the real QualityGate; real pinned T3MP3ST runs in the sandbox (bwrap -> bridge -> binarySinkScanTool.handler) when its compiled checkout is present; M1/M2/M5/seccomp not claimed. See docs/integration/t3mp3st-integration.md and docs/integration/c1a-release-gate.md."
   },
   "correction_package": {
     "prior_correction_commit": "f72e4d6e033d2e5b7166f5d6ec26e00552827195",

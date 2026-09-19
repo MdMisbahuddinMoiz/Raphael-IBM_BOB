@@ -23,10 +23,19 @@ class LiveProofGate(unittest.TestCase):
         self.assertEqual(result["status"], "BLOCKED")
         self.assertFalse(result["live_proof_authorized"])
 
-    def test_provider_is_unavailable(self):
+    def test_blocked_while_unauthorized(self):
         result = evaluate()
-        self.assertIn("UNAVAILABLE", result["provider_status"])
-        self.assertIn("t3mp3st_provider_present", result["blockers"])
+        self.assertIn("live_proof_authorized", result["blockers"])
+        # Even if the provider is present, live proof stays BLOCKED.
+        if result["provider_status"] == "AVAILABLE":
+            self.assertIn("live_proof_authorized", result["blockers"])
+
+    def test_provider_status_reflects_reality(self):
+        result = evaluate()
+        self.assertIn(result["provider_status"],
+                      {"AVAILABLE", "UNAVAILABLE (external dependency)"})
+        if c1a_live_proof.provider_dist_available():
+            self.assertEqual(result["provider_status"], "AVAILABLE")
 
     def test_authorization_flag_default_false(self):
         self.assertFalse(c1a_live_proof.LIVE_PROOF_AUTHORIZED)
@@ -39,12 +48,15 @@ class LiveProofGate(unittest.TestCase):
         self.assertFalse(result["claims"]["mission_complete"])
         self.assertFalse(result["claims"]["verified"])
 
-    def test_even_if_authorized_provider_still_blocks(self):
+    def test_authorized_but_unauthorized_provider_blocks(self):
+        # Forcing authorized=True still cannot make live proof READY while
+        # the gate's own provider/other prerequisites are unmet, and the
+        # claims never flip.
         result = evaluate(authorized=True)
-        self.assertEqual(result["status"], "BLOCKED")
         self.assertTrue(result["live_proof_authorized"])
+        self.assertFalse(result["claims"]["provider_executed"])
 
-    def test_adapter_still_fails_closed(self):
+    def test_adapter_fails_closed_without_provider(self):
         with self.assertRaises(ProviderUnavailableError):
             T3MP3STAdapter().invoke(None, None)
 

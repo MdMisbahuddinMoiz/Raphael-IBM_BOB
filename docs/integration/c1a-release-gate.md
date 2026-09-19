@@ -21,16 +21,39 @@ blocked. No claim is made beyond observed evidence.
   real QualityGate.
 - `LIVE_PROOF_AUTHORIZED = False`.
 
-## Blocked (external dependency)
+## Real T3MP3ST integration (provider execution verified locally)
 
-- Real T3MP3ST provider execution.
-- M1/M2/M5 live verification and the production isolation substrate.
-- `scripts/c1a_live_proof.py` returns `BLOCKED` until the provider is
-  provisioned, vetted, and explicitly authorized.
+When the compiled pinned checkout is present, the canonical path
+
+```
+RAPHAEL -> bwrap -> RAPHAEL bridge -> binarySinkScanTool.handler()
+```
+
+executes the REAL provider in the sandbox. Observed:
+
+- `provider_execution = VERIFIED` (local, pinned revision
+  `29824d5625ede419ac8cdae418c8f4c72c6270f7`).
+- The real `approvedLocalPath()` accepts the root/valid child and rejects
+  sibling prefix, traversal, outside path, and `fixture_evil`.
+- `--unshare-net` denies network; `--remount-ro /` leaves no writable
+  filesystem (the fixture and root are read-only).
+- The bridge excludes T3MP3ST's `findings` (severity/cwe/title/details);
+  RAPHAEL's closed schema independently rejects authority fields.
+- Node `v22.22.1` meets T3MP3ST's `>=22.19.0`.
+
+## Still blocked / not claimed
+
+- `live_proof_authorized = FALSE` (unchanged).
+- M1 / M2 / M5 are **NOT VERIFIED** — no kernel-observed M5 teardown probe
+  or production seccomp policy has been run. `seccomp_status` remains
+  `NOT_EXECUTED`.
+- The live proof is not marked successful. `scripts/c1a_live_proof.py`
+  returns `BLOCKED` while unauthorized.
 
 ## Release decision rule
 
-The C1A **implementation** may be released as an inert-provider-verified
-package while the **live proof** remains BLOCKED. Do not describe the live
-proof as passing, and do not mark M1/M2/M5 verified, until the gate reports
-`READY` on a real run.
+The C1A implementation may be described as **provider-execution verified**
+(real T3MP3ST ran in the sandbox) while the **live proof** remains BLOCKED
+and M1/M2/M5 remain NOT VERIFIED. Do not mark the live proof as passing, and
+do not mark M1/M2/M5 verified, until the corresponding probes pass and the
+operator explicitly authorizes the live proof.

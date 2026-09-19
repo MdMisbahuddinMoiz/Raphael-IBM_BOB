@@ -53,3 +53,14 @@ mission (`c1a_evidence.evidence_implies_verified/complete` return False).
 - The Falsifier transitions `VERIFIED -> REFUTED` only on a real
   contradiction (two differing result hashes).
 - Only the QualityGate can return `COMPLETE`.
+
+## Real T3MP3ST provider
+
+When the compiled pinned T3MP3ST checkout is present, the RAPHAEL bridge
+(`provider/t3mp3st_bridge.js`) runs the real `binarySinkScanTool.handler()`
+in the sandbox. The bridge emits only `success`/`output`/`error`/`tool`;
+T3MP3ST's `findings` array (`severity`/`cwe`/`title`/`details`) is excluded
+before it can reach RAPHAEL, and the closed schema rejects any authority
+field independently. `result_hash` is a deterministic SHA-256 of the
+bounded output — UNTRUSTED metadata used for independent-reproduction
+comparison, never a verdict. See `docs/integration/t3mp3st-integration.md`.

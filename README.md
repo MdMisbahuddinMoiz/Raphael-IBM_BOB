@@ -43,9 +43,14 @@ boundary (T3MP3ST `binary_sink_scan`). It is **not** an alias of `READ`.
   VERIFIED/REFUTED/COMPLETE.
 - `demos/c1a_live_hero.py` reaches `Gate: COMPLETE` via the real gate using
   the inert provider double (test infrastructure only).
-- **Live proof is BLOCKED**: the real T3MP3ST provider is absent. See
-  `scripts/c1a_live_proof.py` (`LIVE_PROOF_AUTHORIZED = False`) and
-  `docs/integration/c1a-release-gate.md`. M1/M2/M5 are **not** claimed.
+- **Real T3MP3ST provider integrated**: when the compiled pinned checkout
+  is present, the canonical path `bwrap -> RAPHAEL bridge ->
+  binarySinkScanTool.handler()` executes the real provider in the sandbox
+  (`provider_execution = VERIFIED`, local). Provider output stays untrusted.
+- **Live proof is BLOCKED**: `LIVE_PROOF_AUTHORIZED = False`. See
+  `scripts/c1a_live_proof.py` and
+  `docs/integration/c1a-release-gate.md`. M1/M2/M5 are **not** claimed
+  (seccomp `NOT_EXECUTED`).
 
 ## Quickstart (tested on Python 3.14.4, Ubuntu/WSL, stdlib only)
 

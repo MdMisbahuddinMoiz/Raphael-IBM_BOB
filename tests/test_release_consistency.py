@@ -45,8 +45,13 @@ class ReleaseConsistency(unittest.TestCase):
         self.assertFalse(data["live_proof_authorized"])
         self.assertEqual(data["c1a_implementation"]["live_proof_status"],
                          "BLOCKED")
-        self.assertEqual(data["c1a_implementation"]["provider_status"][:11],
-                         "UNAVAILABLE")
+        self.assertEqual(
+            data["c1a_implementation"]["provider_status"][:15],
+            "REAL_T3MP3ST_EX")
+        self.assertFalse(
+            data["c1a_implementation"]["live_proof_authorized"])
+        for key in ("m1_status", "m2_status", "m5_status", "seccomp_status"):
+            self.assertEqual(data["c1a_implementation"][key], "NOT_EXECUTED")
 
     def test_live_proof_authorized_false(self):
         self.assertFalse(c1a_live_proof.LIVE_PROOF_AUTHORIZED)

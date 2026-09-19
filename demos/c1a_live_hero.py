@@ -142,8 +142,8 @@ def run_demo(keep: bool = False) -> int:
               f"verdict={evaluation.verdict.value} "
               f"failed={list(evaluation.failed)}")
         print(f"Gate: {evaluation.verdict.value.upper()}")
-        print("Live proof: BLOCKED (real T3MP3ST provider unavailable; "
-              "inert double used)")
+        print("Live proof: BLOCKED (this demo uses the inert double; "
+              "live_proof_authorized=False)")
         ledger.close()
         return 0 if evaluation.verdict.value == "complete" else 1
     finally:

@@ -27,6 +27,26 @@ Mission → Plan A → Runtime → Broker → Policy → Evidence → Finding
 - Submission readiness is **not** claimed here; see
   `docs/submission-checklist.md` for the staged verification state.
 
+## C1A (Phase 2C) — governed out-of-process inspection
+
+`Capability.C1A_STATIC_FILE_INSPECT` is a first-class capability for
+out-of-process static-file inspection through the governed provider
+boundary (T3MP3ST `binary_sink_scan`). It is **not** an alias of `READ`.
+
+- Authorization is a single-use HMAC binding over the complete identity
+  (`c1a_authorization`); all mutation/replay/foreign-identity cases fail
+  closed.
+- Scope authorization and QualityGate Condition E share one canonical
+  component-boundary containment helper (`c1a_scope`).
+- Transport is bounded: timeout and late output never become success.
+- Provider output is **untrusted evidence** and can never create
+  VERIFIED/REFUTED/COMPLETE.
+- `demos/c1a_live_hero.py` reaches `Gate: COMPLETE` via the real gate using
+  the inert provider double (test infrastructure only).
+- **Live proof is BLOCKED**: the real T3MP3ST provider is absent. See
+  `scripts/c1a_live_proof.py` (`LIVE_PROOF_AUTHORIZED = False`) and
+  `docs/integration/c1a-release-gate.md`. M1/M2/M5 are **not** claimed.
+
 ## Quickstart (tested on Python 3.14.4, Ubuntu/WSL, stdlib only)
 
 No installation step: `raphael_ibm_bob`, the demo, and the tests are
@@ -74,14 +94,17 @@ named test is never reported as completion.
 raphael_ibm_bob/   governed core: contracts, seams, workspace, policy,
                    capabilities, broker, runtime, evidence ledger,
                    finding store, verifier, falsifier, replanner,
-                   runner, mission-driven planner, quality gate
-demos/             authkit_hero.py (raphael + baseline benchmark paths)
+                   runner, mission-driven planner, quality gate,
+                   C1A authorization/transport/lifecycle/evidence/
+                   verification/falsification/replay
+provider/          c1a_launcher.js (pinned, non-authoritative launcher)
+demos/             authkit_hero.py (raphael + baseline), c1a_live_hero.py
 probes/            independent behavior probe (external oracle)
 fixtures/          deterministic authkit scenario
-scripts/           audit_runs.py (evidence-backed metrics)
-tests/             209 tests incl. mock-free M9 recovery suite
-docs/              PROVENANCE.md, demo-runbook.md,
-                   submission-checklist.md, metrics.md, migration/
+scripts/           audit_runs.py (metrics), c1a_live_proof.py (gate)
+tests/             governed test suite incl. C1A + inert-provider e2e
+docs/              PROVENANCE.md, submission-checklist.md,
+                   integration/ (incl. C1A evidence contract/runbook/gate)
 runs/              durable run evidence (generated, git-ignored)
 ```
 

@@ -105,7 +105,32 @@ this file (see the M12 report for the exact hash).
   from history requires a history rewrite, which is out of scope for
   M12; disclose or rotate the affected keys before public release.
 
-## Documentation
+## C1A (Phase 2C)
+
+- [x] **VERIFIED** — C1A is a first-class capability; it is never aliased
+  to `READ` (identity tests).
+- [x] **VERIFIED** — authorization binding covers the full identity; every
+  field mutation, replay, and foreign-identity case fails closed.
+- [x] **VERIFIED** — canonical scope containment shared by Policy and
+  QualityGate Condition E; sibling prefix/traversal/malformed paths fail.
+- [x] **VERIFIED** — bounded transport: timeout and late output never
+  become success.
+- [x] **VERIFIED** — pinned launcher digest mismatch fails closed.
+- [x] **VERIFIED** — provider output is untrusted evidence and cannot
+  create VERIFIED/REFUTED/COMPLETE.
+- [x] **VERIFIED** — inert-provider end-to-end path reaches
+  `Gate: COMPLETE` through the real QualityGate.
+- [ ] **BLOCKED** — live C1A proof: real T3MP3ST provider absent;
+  `scripts/c1a_live_proof.py` reports `BLOCKED`. M1/M2/M5 are **not**
+  claimed. See `docs/integration/c1a-release-gate.md`.
+- [ ] **DISCLOSED** — test-count discrepancy: this file states 357 tests
+  (21-module command) while `README.md` states 209 (a shorter explicit
+  module list). The counts reflect different module lists, not
+  contradictory results; the authoritative count is the explicit
+  `unittest` command actually run. Reconcile the two numbers in a future
+  documentation pass.
+
+
 
 - [x] **VERIFIED** — `docs/live-model.md` (architecture, provider,
   live results, live-vs-deterministic, limitations).

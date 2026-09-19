@@ -210,3 +210,26 @@ Base: `7272880f7`. Per-milestone design notes:
 4. Mode provenance exists only for benchmark runs made after M10.3;
    the 40+ pre-mode hero observations stay `mode="unknown"` and are
    excluded from `by_mode` (never relabeled after the fact).
+
+## 15. Phase 2C C1A (out-of-process inspection)
+
+C1A (`Capability.C1A_STATIC_FILE_INSPECT`) extends the same governed
+boundary rather than bypassing it: an authorized, single-use binding
+(`c1a_authorization`) feeds a bounded transport and the pinned
+`provider/c1a_launcher.js`. Provider output is classified as UNTRUSTED
+evidence (`c1a_evidence`) and can never produce VERIFIED/REFUTED/COMPLETE.
+
+Honesty boundary (unchanged, explicit):
+
+- The **real T3MP3ST provider is absent**; `T3MP3STAdapter` fails closed.
+- `InertProviderDouble` is test infrastructure and is never called
+  "T3MP3ST".
+- Live proof is **BLOCKED** (`scripts/c1a_live_proof.py`,
+  `LIVE_PROOF_AUTHORIZED = False`). No M1/M2/M5 or provider-execution
+  claim is made.
+- The design substrate (`isolation_substrate`, `seccomp_policy`) is
+  ISOLATED/DECLARED; it is not launched by this implementation.
+
+See `docs/integration/c1a-evidence-contract.md`,
+`docs/integration/c1a-runbook.md`, and
+`docs/integration/c1a-release-gate.md`.

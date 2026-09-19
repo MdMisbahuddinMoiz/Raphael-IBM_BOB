@@ -5,21 +5,33 @@
   "provider": "T3MP3ST binary_sink_scan",
   "provider_pin": "29824d5625ede419ac8cdae418c8f4c72c6270f7",
   "base_head": "780f9bd99cf5973d61b1eba03316a30175202fac",
-  "raphael_semantic_head": "d81295825dc965cec43d789f7c66a61a4940617a",
+  "raphael_semantic_head": "ebeaf694dec23673a81adac365056f9077c3af6b",
   "checklist_commit": "self (resolve with: git log -1 --format=%H -- docs/integration/phase-2c-first-proof-checklist.json)",
   "checklist_schema_note": "base_head = pre-correction base commit; raphael_semantic_head = the CODE commit this checklist attests to; checklist_commit = the commit that contains this checklist revision (self-resolving: the checklist cannot embed its own not-yet-existing hash). N3 clarification; the former ambiguous raphael_head field is removed.",
   "live_proof_authorized": false,
   "correction_package": {
     "prior_correction_commit": "f72e4d6e033d2e5b7166f5d6ec26e00552827195",
-    "semantic_head": "d81295825dc965cec43d789f7c66a61a4940617a",
+    "prior_semantic_heads": [
+      "f72e4d6e033d2e5b7166f5d6ec26e00552827195",
+      "d81295825dc965cec43d789f7c66a61a4940617a"
+    ],
+    "semantic_head": "ebeaf694dec23673a81adac365056f9077c3af6b",
     "b4_lifecycle_R1_R7": "CLOSED (local); raphael_ibm_bob/b4_lifecycle.py + tests/test_b4_lifecycle.py",
     "b4_1_through_b4_7": {
       "B4-1": "observe_teardown() is DIRECT-only; m5-bound provenance is rejected there and can only be created by bind_m5_teardown()",
-      "B4-2": "M5 evidence authenticated against actual artifact bytes; caller-supplied digest/reference alone is never sufficient; to_dict/from_dict/attest/close re-authenticate",
-      "B4-3": "cgroup.events parsed as a field (no substring matching); malformed/duplicate/out-of-range values fail closed",
-      "B4-4_B4-5": "from_dict reapplies append invariants (ordinal at, bool pid, M5 digest format, provenance consistency, ordering/contiguity, CLOSED requires M5-bound) + authentication",
+      "B4-2": "M5 artifact AUTHENTICITY (not merely integrity): bind_m5_teardown requires an M5Observation minted by a live M5TrustAuthority whose verifier is the trusted producer; the observation is bound to THIS lifecycle (lifecycle_id/proof_session_id/sandbox_id/pid/starttime/cgroup/artifact digest); from_dict/attest require a live authority and FAIL CLOSED without one; a caller-authored file+digest cannot obtain M5-bound provenance",
+      "B4-3": "cgroup.events parsed as a field (no substring matching); canonical grammar populated 0/1 only; malformed/duplicate/non-canonical values fail closed",
+      "B4-4_B4-5": "from_dict reapplies append invariants (ordinal at, bool pid, M5 digest format, provenance consistency, ordering/contiguity, CLOSED requires M5-bound) + authority authentication",
       "B4-6": "transitions exposed read-only; __post_init__ rejects structurally impossible initial records; forged M5-bound direct construction cannot serialize/attest",
       "B4-7": "attestation evidence renamed to provider_execution_observed / live_proof_claimed (disjoint from FORBIDDEN_AUTHORITY_KEYS)"
+    },
+    "b4_2_authenticity": {
+      "trust_producer": "scripts/m5_teardown_probe.py (live cgroup kill -> populated 1->0 + PID starttime anti-reuse)",
+      "persistent_root": "NONE (seal.py is unkeyed by design); no committed secret/signing root exists",
+      "primitive": "process-local M5TrustAuthority minting an HMAC-sealed M5Observation; mint() requires an injected trusted verifier and defaults to fail-closed",
+      "identity_binding": "observation binds lifecycle_id/proof_session_id/sandbox_id/pid/starttime/cgroup/evidence digest; foreign/stale/copied artifacts are rejected",
+      "deserialization": "from_dict requires a live authority; a serialized record cannot regain ATTESTED from valid JSON/digest/lifecycle_sha256 (PART 6/7 fail closed)",
+      "residual": "in-process authority is a capability boundary, not cryptographic; cross-process/restart authenticity is unavailable and fails closed; a persistent cryptographic root is a FUTURE requirement"
     },
     "forensics": {
       "F1": "M1 evidence regenerated against the current 151-token builder; M1 argv parity regression test",
@@ -169,7 +181,7 @@
       "invariant": "fresh dedicated provider instance lifecycle",
       "control": "create/bind/execute/collect/attest/teardown/discard",
       "status": "IMPLEMENTED_NOT_PROVIDER_VERIFIED",
-      "evidence": "b4_lifecycle.py: ordered fail-closed lifecycle with R1-R7 and B4-1..B4-7 corrective closure: R1 explicit teardown provenance (direct|m5-bound, serialized + hash-covered); R2 fail-closed closure; R3 strict boolean M5 fields; R4 atomic rebind; R5 semantics docs; R6 sha256_file/verify_file_sha256; R7 regression tests; B4-1 observe_teardown is DIRECT-only (m5-bound provenance can only be created by bind_m5_teardown); B4-2 M5 evidence authenticated against actual artifact bytes (caller digest alone never sufficient; to_dict/from_dict/attest/close re-authenticate); B4-3 cgroup.events parsed as a field; B4-4/B4-5 from_dict reapplies append invariants + authentication; B4-6 read-only transitions + __post_init__ validation; B4-7 attestation evidence taxonomy disjoint from FORBIDDEN_AUTHORITY_KEYS. Attestation is lifecycle-integrity ONLY. Tests: tests/test_b4_lifecycle.py (53). Provider-instance creation remains a live-proof concern.",
+      "evidence": "b4_lifecycle.py: ordered fail-closed lifecycle with R1-R7, B4-1..B4-7, and the B4-2 AUTHENTICITY correction: R1 explicit teardown provenance (direct|m5-bound, serialized + hash-covered); R2 fail-closed closure; R3 strict boolean M5 fields; R4 atomic rebind; R5 semantics docs; R6 sha256_file/verify_file_sha256; R7 regression tests; B4-1 observe_teardown is DIRECT-only; B4-2 separates ARTIFACT INTEGRITY from ARTIFACT AUTHENTICITY: bind_m5_teardown requires an M5Observation minted by a live M5TrustAuthority (verifier = trusted producer, fail-closed by default) and bound to THIS lifecycle identity (lifecycle_id/proof_session_id/sandbox_id/pid/starttime/cgroup/evidence digest); from_dict/attest require a live authority and fail closed without one, so a caller-authored file+digest cannot obtain M5-bound provenance or ATTESTED; B4-3 canonical cgroup.events field parsing (populated 0/1 only); B4-4/B4-5 from_dict reapplies append invariants + authority authentication; B4-6 read-only transitions + __post_init__ validation; B4-7 attestation evidence taxonomy disjoint from FORBIDDEN_AUTHORITY_KEYS. Attestation is lifecycle-integrity ONLY. Tests: tests/test_b4_lifecycle.py (27, incl. attacker-authored-file regression). Provider-instance creation remains a live-proof concern.",
       "ready_for_live_proof": false
     },
     {

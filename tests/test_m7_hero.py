@@ -108,7 +108,8 @@ class AuthkitHeroIntegration(unittest.TestCase):
             capability=Capability.RUN_TEST,
             target="fixtures/authkit/login.py",
             purpose="runner:fc1-probe",
-        ), Mission(mission_id="M", description="x", scope="x", criteria=["x"]))
+        ), Mission(mission_id="M", description="x", scope="fixtures",
+                   criteria=["x"]))
         self.assertEqual(rt.broker_result.decision.decision.value, "deny")
         self.assertIn("name-pattern",
                       rt.broker_result.decision.reason)

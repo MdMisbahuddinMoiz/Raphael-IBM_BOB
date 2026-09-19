@@ -85,6 +85,8 @@ class BOBBroker:
         workspace: Workspace,
         ledger: Optional[EvidenceLedger] = None,
         default_timeouts: Optional[Dict[Capability, float]] = None,
+        c1a_provider: Optional[Any] = None,
+        c1a_authorization: Optional[Any] = None,
     ):
         self._policy = policy
         self._workspace = workspace
@@ -96,6 +98,10 @@ class BOBBroker:
                     f"got {seconds!r}")
         self._default_timeouts: Dict[Capability, float] = dict(
             default_timeouts or {})
+        # C1A out-of-process provider (defaults to the fail-closed adapter)
+        # and the authorization-binding authority (one per broker).
+        self._c1a_provider = c1a_provider
+        self._c1a_authorization = c1a_authorization
         self._lock = threading.Lock()
         self._sequence = 0
         # Diagnostic counters for tests/audit. Retained from M2.
@@ -115,6 +121,14 @@ class BOBBroker:
         """Attach (or replace) the EvidenceLedger after construction."""
         with self._lock:
             self._ledger = ledger
+
+    @property
+    def c1a_authorization(self) -> Any:
+        return self._c1a_authorization
+
+    @property
+    def c1a_provider(self) -> Any:
+        return self._c1a_provider
 
     # Broker.seam interface ----------------------------------------------------
 
@@ -213,6 +227,20 @@ class BOBBroker:
                 evidence_ids=tuple(evidence_ids),
             )
 
+        # On ALLOW: invoke the capability. C1A is a distinct,
+        # out-of-process path; every other capability uses the native
+        # in-process dispatch. C1A is NEVER aliased to READ.
+        if stamped.capability == Capability.C1A_STATIC_FILE_INSPECT:
+            return self._execute_c1a(
+                stamped=stamped,
+                mission=mission,
+                request_seq=request_seq,
+                decision_seq=decision_seq,
+                effective_timeout=effective_timeout,
+                evidence_ids=evidence_ids,
+                decision=decision,
+            )
+
         # On ALLOW: invoke the capability. We stamp the ExecutionResult
         # with the same sequence number so the linkage is unambiguous.
         # A timeout payload is an unsuccessful execution: the decision
@@ -276,6 +304,168 @@ class BOBBroker:
             self._ledger.append_evidence(
                 evidence_id=exec_ev_id,
                 producer="execution",
+                request_seq=request_seq,
+                decision_seq=decision_seq,
+                result_seq=result_seq,
+                payload=exec_payload,
+            )
+            evidence_ids.append(exec_ev_id)
+
+        return BrokerResult(
+            decision=decision,
+            execution=execution,
+            capability_invoked=True,
+            request_seq=request_seq,
+            decision_seq=decision_seq,
+            result_seq=result_seq,
+            evidence_ids=tuple(evidence_ids),
+        )
+
+    # C1A out-of-process path ------------------------------------------------
+
+    def _execute_c1a(
+        self,
+        *,
+        stamped: ActionRequest,
+        mission: Mission,
+        request_seq: int,
+        decision_seq: int,
+        effective_timeout: Optional[float],
+        evidence_ids: List[str],
+        decision: PolicyDecision,
+    ) -> BrokerResult:
+        """Execute the C1A capability through the governed provider boundary.
+
+        This is the ONLY path for C1A execution. It creates an authorization
+        binding from the ALLOW decision, validates scope, invokes the
+        provider through ``invoke_governed`` (which fails closed), converts
+        the ProviderResult into UNTRUSTED evidence, and persists the chain.
+        """
+        from dataclasses import replace as _replace
+
+        from raphael_ibm_bob.adapters.t3mp3st_adapter import T3MP3STAdapter
+        from raphael_ibm_bob.c1a_authorization import (
+            C1AAuthorizationBinding,
+            C1AAuthorizationError,
+        )
+        from raphael_ibm_bob.c1a_evidence import (
+            PROVIDER_UNTRUSTED,
+            provider_result_to_execution,
+        )
+        from raphael_ibm_bob.provider_runtime import (
+            ScopeViolation,
+            invoke_governed,
+        )
+
+        run_id = (self._ledger.run_dir().name
+                  if self._ledger is not None else "in-memory")
+        auth = (self._c1a_authorization
+                if self._c1a_authorization is not None
+                else C1AAuthorizationBinding())
+        provider = (self._c1a_provider
+                    if self._c1a_provider is not None
+                    else T3MP3STAdapter())
+
+        try:
+            binding = auth.create_binding(
+                decision=decision,
+                request=stamped,
+                run_id=run_id,
+                workspace_root=str(self._workspace.root),
+                timeout_seconds=effective_timeout,
+            )
+        except C1AAuthorizationError as exc:
+            execution = ExecutionResult(
+                sequence=stamped.sequence,
+                success=False,
+                output="",
+                error=f"C1AAuthorizationError:{exc}",
+                evidence={PROVIDER_UNTRUSTED: True,
+                          "authorization_failed": True},
+            )
+            return self._finalize_c1a_result(
+                stamped=stamped, decision=decision, execution=execution,
+                request_seq=request_seq, decision_seq=decision_seq,
+                evidence_ids=evidence_ids)
+
+        # validate_scope compares the request target against the canonical
+        # fixture literal; use the binding's canonical target so a relative
+        # request target can never be ambiguously interpreted.
+        scoped_request = _replace(
+            stamped, target=binding.handoff.fixture_path)
+
+        try:
+            provider_result = invoke_governed(
+                provider, binding.handoff, scoped_request)
+            execution = provider_result_to_execution(
+                provider_result, sequence=stamped.sequence)
+        except ScopeViolation as exc:
+            execution = ExecutionResult(
+                sequence=stamped.sequence, success=False, output="",
+                error=f"ScopeViolation:{exc}",
+                evidence={PROVIDER_UNTRUSTED: True})
+        except Exception as exc:  # noqa: BLE001 - fail closed
+            execution = ExecutionResult(
+                sequence=stamped.sequence, success=False, output="",
+                error=f"{type(exc).__name__}:{exc}",
+                evidence={PROVIDER_UNTRUSTED: True,
+                          "failure_type": type(exc).__name__})
+        finally:
+            # Single-use: the binding can never authorize a second call.
+            auth.invalidate_binding(binding.handoff.invocation_id)
+
+        return self._finalize_c1a_result(
+            stamped=stamped, decision=decision, execution=execution,
+            request_seq=request_seq, decision_seq=decision_seq,
+            evidence_ids=evidence_ids)
+
+    def _finalize_c1a_result(
+        self,
+        *,
+        stamped: ActionRequest,
+        decision: PolicyDecision,
+        execution: ExecutionResult,
+        request_seq: int,
+        decision_seq: int,
+        evidence_ids: List[str],
+    ) -> BrokerResult:
+        """Persist a C1A result as provider (untrusted) evidence."""
+        result_seq: Optional[int] = None
+
+        with self._lock:
+            self.capability_invocations += 1
+            self.audit.append({"stage": "execution", **execution.to_dict()})
+
+        if self._ledger is not None:
+            result_seq = self._ledger.append_result(
+                request_seq=request_seq,
+                decision_seq=decision_seq,
+                result=execution,
+            )
+            invocation_id = execution.evidence.get("invocation_id")
+            exec_ev_id = digest_id({
+                "request_seq": request_seq,
+                "decision_seq": decision_seq,
+                "result_seq": result_seq,
+                "success": execution.success,
+                "capability": "c1a_static_file_inspect",
+                "invocation_id": invocation_id,
+            }, prefix="X")
+            exec_payload = {
+                "success": execution.success,
+                "output": execution.output,
+                "error": execution.error,
+                "capability": "c1a_static_file_inspect",
+                "provider_untrusted": True,
+                "invocation_id": invocation_id,
+                "evidence_keys": sorted(execution.evidence.keys()),
+                "request_seq": request_seq,
+                "decision_seq": decision_seq,
+                "result_seq": result_seq,
+            }
+            self._ledger.append_evidence(
+                evidence_id=exec_ev_id,
+                producer="provider",
                 request_seq=request_seq,
                 decision_seq=decision_seq,
                 result_seq=result_seq,

@@ -243,10 +243,11 @@ def validate_scope(handoff: ScopeHandoff,
     if os.path.dirname(handoff.fixture_path) != handoff.fixture_root:
         raise ScopeViolation("single-file mode: fixture must be direct child "
                              "of the RAPHAEL-owned root")
-    if request.capability.value != "read":
-        # The C1A proof is expressed as a READ action over the fixture.
+    if request.capability.value != "c1a_static_file_inspect":
+        # Correction 2: C1A is a first-class capability. It is NEVER aliased
+        # to READ, and READ can never masquerade as C1A (or vice versa).
         raise ScopeViolation(
-            f"C1A requires a read-class ActionRequest, got "
+            f"C1A requires C1A_STATIC_FILE_INSPECT capability, got "
             f"{request.capability.value!r}")
     target = (request.target or "").replace("\\", "/")
     if not target or _canonical(target) != handoff.fixture_path:

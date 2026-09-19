@@ -30,12 +30,19 @@ class Capability(str, Enum):
     The brief restricts the MVP to these five capabilities. Anything outside
     this set is OUT OF SCOPE for the BOB MVP and must be requested through
     legacy adapters explicitly marked ISOLATE.
+
+    C1A_STATIC_FILE_INSPECT (Phase 2C) is a first-class capability for
+    OUT-OF-PROCESS provider execution (T3MP3ST ``binary_sink_scan``). It is
+    deliberately NOT aliased to READ: it has distinct semantics (sandboxed
+    provider boundary, closed ProviderResult schema, B4 lifecycle + M5
+    teardown). READ must never be substituted for it and vice versa.
     """
     READ = "read"
     LIST = "list"
     SEARCH = "search"
     WRITE = "write"
     RUN_TEST = "run_test"
+    C1A_STATIC_FILE_INSPECT = "c1a_static_file_inspect"
 
 
 class Decision(str, Enum):

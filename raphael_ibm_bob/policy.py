@@ -41,6 +41,7 @@ from raphael_ibm_bob.contracts import (
     Mission,
     PolicyDecision,
 )
+from raphael_ibm_bob.c1a_scope import scope_contains, within_root
 from raphael_ibm_bob.workspace import Workspace
 
 
@@ -58,6 +59,7 @@ class BOBPolicy:
             Capability.SEARCH,
             Capability.WRITE,
             Capability.RUN_TEST,
+            Capability.C1A_STATIC_FILE_INSPECT,
         }:
             cap_str = getattr(request.capability, "value", str(request.capability))
             return self._deny(request, f"capability-not-allowed:{cap_str}")
@@ -77,13 +79,17 @@ class BOBPolicy:
             # decide whether existence matters.
             resolved = None  # type: ignore[assignment]
 
-        # 4. Mission scope substring check.
-        if mission.scope:
-            target_norm = request.target.replace("\\", "/")
-            if mission.scope not in target_norm:
-                return self._deny(request, "scope-mismatch")
+        # 4. Mission scope containment check.
+        # Canonical component-boundary containment (raphael_ibm_bob.c1a_scope)
+        # — the SAME helper the QualityGate uses. This rejects sibling string
+        # prefixes, traversal, and malformed paths that a substring check
+        # would have accepted.
+        if mission.scope and not scope_contains(mission.scope, request.target):
+            return self._deny(request, "scope-mismatch")
 
         # 5. Capability-specific invariants.
+        if request.capability == Capability.C1A_STATIC_FILE_INSPECT:
+            return self._consult_c1a(request, resolved)
         if request.capability == Capability.READ:
             if resolved is None:
                 return self._deny(request, "read-target-missing")
@@ -128,6 +134,28 @@ class BOBPolicy:
 
         # Unreachable: capability allow-list is exhaustive above.
         return self._deny(request, f"unhandled-capability:{request.capability.value}")
+
+    def _consult_c1a(self, request: ActionRequest, resolved) -> PolicyDecision:
+        """C1A-specific authorization (fail closed).
+
+        The target must resolve to an existing regular file inside the
+        workspace, be canonically contained in the workspace root, and the
+        request MUST carry an explicit positive timeout (no unbounded
+        out-of-process execution). The mission-scope containment check has
+        already run using the shared canonical helper.
+        """
+        if resolved is None:
+            return self._deny(request, "c1a-target-missing")
+        if not resolved.is_file():
+            return self._deny(request, "c1a-target-not-file")
+        if not within_root(str(self._workspace.root), str(resolved)):
+            return self._deny(request, "c1a-target-outside-workspace")
+        if (request.timeout_seconds is None
+                or not isinstance(request.timeout_seconds, (int, float))
+                or isinstance(request.timeout_seconds, bool)
+                or request.timeout_seconds <= 0):
+            return self._deny(request, "c1a-timeout-required")
+        return self._allow(request)
 
     # Helpers -----------------------------------------------------------------
 

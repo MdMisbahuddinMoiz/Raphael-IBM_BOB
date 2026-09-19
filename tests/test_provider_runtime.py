@@ -64,7 +64,8 @@ def _handoff(root, fx, **over):
 
 def _request(target):
     return ActionRequest(sequence=0, requester="c1a",
-                         capability=Capability.READ, target=target,
+                         capability=Capability.C1A_STATIC_FILE_INSPECT,
+                         target=target,
                          purpose="c1a-proof")
 
 

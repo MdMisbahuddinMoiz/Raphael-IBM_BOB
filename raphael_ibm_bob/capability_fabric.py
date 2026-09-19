@@ -34,7 +34,7 @@ Future providers (DESIGN ONLY, not implemented here):
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Optional, Protocol, Tuple, runtime_checkable
 
 from raphael_ibm_bob.contracts import ActionRequest, Capability
@@ -47,6 +47,9 @@ from raphael_ibm_bob.skills import (
 
 #: The provider id of the first (and only) concrete provider.
 NATIVE_PROVIDER_ID = "raphael-native"
+
+#: The provider id of the C1A out-of-process provider.
+C1A_PROVIDER_ID = "t3mp3st"
 
 
 # ---------------------------------------------------------------------------
@@ -264,15 +267,108 @@ def default_fabric() -> CapabilityFabric:
     return fabric
 
 
+# ---------------------------------------------------------------------------
+# C1A provider (Phase 2C) — declared as a first-class capability
+# ---------------------------------------------------------------------------
+
+def c1a_capability_definition() -> CapabilityDefinition:
+    """The authoritative declaration of the C1A capability.
+
+    The definition grants NO authority; it is metadata used by the Fabric
+    to prepare an ordinary ActionRequest. Authorization and execution remain
+    with Broker -> Policy -> ProviderRuntime.
+    """
+    return CapabilityDefinition(
+        capability=Capability.C1A_STATIC_FILE_INSPECT,
+        description=("Out-of-process static file inspection via the governed "
+                     "C1A provider boundary (binary_sink_scan)."),
+        target_schema="absolute file path inside the workspace",
+        purpose_template="c1a:static-file-inspect:{target}",
+        verification_expectation=("bounded ProviderResult with no authority "
+                                  "fields; independent reproduction required"),
+        version="1.0",
+        timeout_seconds=10.0,
+        evidence_produced=("provider-receipt",),
+        evidence_consumed=("inspection",),
+    )
+
+
+@dataclass(frozen=True)
+class C1ACapabilityProvider:
+    """Provider declaration for the single C1A capability.
+
+    This provider DECLARES/PREPARES; it never authorizes or executes. The
+    execution boundary is the Broker + ProviderRuntime.
+    """
+    provider_id: str = C1A_PROVIDER_ID
+    definition: CapabilityDefinition = field(
+        default_factory=c1a_capability_definition)
+
+    def list_capabilities(self) -> Tuple[Capability, ...]:
+        return (Capability.C1A_STATIC_FILE_INSPECT,)
+
+    def declaration(self, capability: Capability) -> CapabilityDefinition:
+        if capability is not Capability.C1A_STATIC_FILE_INSPECT:
+            raise CapabilityNotProvidedError(
+                f"provider {self.provider_id!r} does not supply "
+                f"{getattr(capability, 'value', capability)!r}")
+        return self.definition
+
+    def build_action_request(
+        self,
+        capability: Capability,
+        target: str,
+        *,
+        purpose: Optional[str] = None,
+        requester: Optional[str] = None,
+        plan_id: Optional[str] = None,
+        finding_id: Optional[str] = None,
+        timeout_seconds: Optional[float] = None,
+    ) -> ActionRequest:
+        declaration = self.declaration(capability)
+        if not target:
+            raise ValueError("target is required")
+        resolved_purpose = purpose or \
+            declaration.purpose_template.format(target=target)
+        resolved_timeout = (timeout_seconds if timeout_seconds is not None
+                            else declaration.timeout_seconds)
+        return ActionRequest(
+            sequence=0,
+            requester=requester or f"provider:{self.provider_id}",
+            capability=capability,
+            target=target,
+            purpose=resolved_purpose,
+            plan_id=plan_id,
+            finding_id=finding_id,
+            timeout_seconds=resolved_timeout,
+        )
+
+
+def c1a_fabric() -> CapabilityFabric:
+    """Fabric with both the native provider and the C1A provider.
+
+    ``default_fabric()`` is intentionally left unchanged (the native
+    registry stays at its five authoritative capabilities); C1A is added
+    through this explicit, opt-in seam.
+    """
+    fabric = default_fabric()
+    fabric.register(C1ACapabilityProvider())
+    return fabric
+
+
 __all__ = [
     "AmbiguousCapabilityError",
+    "C1ACapabilityProvider",
     "CapabilityFabric",
     "CapabilityFabricError",
     "CapabilityNotProvidedError",
     "CapabilityProvider",
     "DuplicateProviderError",
     "NATIVE_PROVIDER_ID",
+    "C1A_PROVIDER_ID",
     "NativeCapabilityProvider",
     "ProviderNotFoundError",
+    "c1a_capability_definition",
+    "c1a_fabric",
     "default_fabric",
 ]

@@ -169,8 +169,14 @@ controls declaratively and is auditable.
 - hard wall-clock timeout; on expiry RAPHAEL stops waiting (see §5)
 
 **SECURITY**
-- seccomp filter (deny `socket`, `execve` beyond node, `ptrace`, mount) once
-  curated; `noexec,nosuid,nodev` on non-exec mounts; device policy: no host
+- seccomp filter once curated: deny `socket`, `ptrace`, `mount`;
+  `execve` is ALLOWED only for the curated runtime closure (bwrap execs the
+  pinned Node binary), `execveat` is DENIED, and arbitrary child-process
+  creation is constrained by the argument-filtered `clone` rule (thread-only
+  clones allowed; fork-like clones and every `CLONE_NEW*` bit rejected;
+  `clone3 -> ENOSYS`). See
+  `docs/integration/phase-2c-c1a-reconciliation-and-classification.md` (F5);
+  `noexec,nosuid,nodev` on non-exec mounts; device policy: no host
   devices; minimal `/dev` (`--dev /dev`)
 
 **M1/M2 remain OPEN**: this is a *specification*. Escape probes (M1) and egress

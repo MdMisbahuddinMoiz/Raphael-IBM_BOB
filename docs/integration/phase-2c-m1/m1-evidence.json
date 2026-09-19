@@ -3,17 +3,28 @@
   "stage": "M1",
   "freeze": {
     "allowlist_sha256": "8a7efc6f4d11bea59b60a9099dd88e287b8f46f300ba158befd6c922fb0ddaf2",
+    "allowlist_canonical_sha256": "ac16993da99d961f6066e2c0f6084418a52f42cc736623b526bb92c4edd053de",
     "bpf_sha256": "d1574a64643907e6c95ccafbfc74e7f04977781014ade214011e57994cb65242",
-    "builder_argv_len": 131,
+    "builder_argv_len": 151,
+    "builder_argv_sha256": "781c36b4eef7e41ccd4bd7fe9707b4f20ce943e4cbef70bc17a78e130d3171ac",
+    "probe_argv_len": 152,
     "cap_drop": "ALL",
     "closure_paths": 31,
-    "probe_argv_len": 132,
     "scratch_mode": "NO_SCRATCH",
     "seccomp_fd": "3",
     "uid_gid": [
       "65534",
       "65534"
-    ]
+    ],
+    "argv_recapture": {
+      "reason": "F1: the historical M1 freeze recorded 131 tokens from a builder that omitted the 10 --unsetenv proxy pairs; the current builder always emits them and produces 151",
+      "historical_builder_argv_len": 131,
+      "current_builder_argv_len": 151,
+      "delta_tokens": 20,
+      "delta": "10 x (--unsetenv NAME) = 20 tokens",
+      "effect": "egress-env hardening is orthogonal to filesystem containment; containment semantics are unchanged",
+      "note": "probe re-run against the current builder; freeze is current"
+    }
   },
   "host_ns": {
     "ipc": "ipc:[4026532208]",
@@ -34,49 +45,49 @@
       "status": "PASS",
       "expected": "host paths not visible",
       "actual": {
-        "etc_passwd": "ENOENT",
         "home": "ENOENT",
-        "repo_readme": "ENOENT",
+        "tmp": "ENOENT",
+        "etc_passwd": "ENOENT",
         "root_home": "ENOENT",
-        "tmp": "ENOENT"
+        "repo_readme": "ENOENT"
       },
-      "evidence": "{\"etc_passwd\": \"ENOENT\", \"home\": \"ENOENT\", \"repo_readme\": \"ENOENT\", \"root_home\": \"ENOENT\", \"tmp\": \"ENOENT\"}"
+      "evidence": "{\"home\": \"ENOENT\", \"tmp\": \"ENOENT\", \"etc_passwd\": \"ENOENT\", \"root_home\": \"ENOENT\", \"repo_readme\": \"ENOENT\"}"
     },
     {
       "probe_id": "M1-P2/p2_provider_dotdot",
       "status": "PASS",
       "expected": "traversal denied (ENOENT)",
       "actual": {
+        "ok": false,
         "code": "ENOENT",
         "errno": -2,
-        "msg": "ENOENT: no such file or directory, open '/provider/../../../etc/passwd'",
-        "ok": false
+        "msg": "ENOENT: no such file or directory, open '/provider/../../../etc/passwd'"
       },
-      "evidence": "{\"code\": \"ENOENT\", \"errno\": -2, \"msg\": \"ENOENT: no such file or directory, open '/provider/../../../etc/passwd'\", \"ok\": false}"
+      "evidence": "{\"ok\": false, \"code\": \"ENOENT\", \"errno\": -2, \"msg\": \"ENOENT: no such file or directory, open '/provider/../../../etc/passwd'\"}"
     },
     {
       "probe_id": "M1-P2/p2_node_dotdot",
       "status": "PASS",
       "expected": "traversal denied (ENOENT)",
       "actual": {
+        "ok": false,
         "code": "ENOENT",
         "errno": -2,
-        "msg": "ENOENT: no such file or directory, open '/usr/bin/../../../etc/passwd'",
-        "ok": false
+        "msg": "ENOENT: no such file or directory, open '/usr/bin/../../../etc/passwd'"
       },
-      "evidence": "{\"code\": \"ENOENT\", \"errno\": -2, \"msg\": \"ENOENT: no such file or directory, open '/usr/bin/../../../etc/passwd'\", \"ok\": false}"
+      "evidence": "{\"ok\": false, \"code\": \"ENOENT\", \"errno\": -2, \"msg\": \"ENOENT: no such file or directory, open '/usr/bin/../../../etc/passwd'\"}"
     },
     {
       "probe_id": "M1-P2/p2_normalized",
       "status": "PASS",
       "expected": "traversal denied (ENOENT)",
       "actual": {
+        "ok": false,
         "code": "ENOENT",
         "errno": -2,
-        "msg": "ENOENT: no such file or directory, stat '/provider/./../fixture/../../etc'",
-        "ok": false
+        "msg": "ENOENT: no such file or directory, stat '/provider/./../fixture/../../etc'"
       },
-      "evidence": "{\"code\": \"ENOENT\", \"errno\": -2, \"msg\": \"ENOENT: no such file or directory, stat '/provider/./../fixture/../../etc'\", \"ok\": false}"
+      "evidence": "{\"ok\": false, \"code\": \"ENOENT\", \"errno\": -2, \"msg\": \"ENOENT: no such file or directory, stat '/provider/./../fixture/../../etc'\"}"
     },
     {
       "probe_id": "M1-P2/fixture_dotdot_list",
@@ -94,12 +105,12 @@
       "status": "PASS",
       "expected": "read via /proc/self/root denied",
       "actual": {
+        "ok": false,
         "code": "ENOENT",
         "errno": -2,
-        "msg": "ENOENT: no such file or directory, open '/proc/self/root/etc/passwd'",
-        "ok": false
+        "msg": "ENOENT: no such file or directory, open '/proc/self/root/etc/passwd'"
       },
-      "evidence": "{\"code\": \"ENOENT\", \"errno\": -2, \"msg\": \"ENOENT: no such file or directory, open '/proc/self/root/etc/passwd'\", \"ok\": false}"
+      "evidence": "{\"ok\": false, \"code\": \"ENOENT\", \"errno\": -2, \"msg\": \"ENOENT: no such file or directory, open '/proc/self/root/etc/passwd'\"}"
     },
     {
       "probe_id": "M1-P3/symlink_targets",
@@ -116,72 +127,72 @@
       "status": "PASS",
       "expected": "write/unlink/mkdir denied",
       "actual": {
+        "ok": false,
         "code": "EROFS",
         "errno": -30,
-        "msg": "EROFS: read-only file system, open '/provider/m1_probe_marker'",
-        "ok": false
+        "msg": "EROFS: read-only file system, open '/provider/m1_probe_marker'"
       },
-      "evidence": "{\"code\": \"EROFS\", \"errno\": -30, \"msg\": \"EROFS: read-only file system, open '/provider/m1_probe_marker'\", \"ok\": false}"
+      "evidence": "{\"ok\": false, \"code\": \"EROFS\", \"errno\": -30, \"msg\": \"EROFS: read-only file system, open '/provider/m1_probe_marker'\"}"
     },
     {
       "probe_id": "M1-P4/p4_node_modules_write",
       "status": "PASS",
       "expected": "write/unlink/mkdir denied",
       "actual": {
+        "ok": false,
         "code": "EROFS",
         "errno": -30,
-        "msg": "EROFS: read-only file system, open '/provider/node_modules/m1_probe_marker'",
-        "ok": false
+        "msg": "EROFS: read-only file system, open '/provider/node_modules/m1_probe_marker'"
       },
-      "evidence": "{\"code\": \"EROFS\", \"errno\": -30, \"msg\": \"EROFS: read-only file system, open '/provider/node_modules/m1_probe_marker'\", \"ok\": false}"
+      "evidence": "{\"ok\": false, \"code\": \"EROFS\", \"errno\": -30, \"msg\": \"EROFS: read-only file system, open '/provider/node_modules/m1_probe_marker'\"}"
     },
     {
       "probe_id": "M1-P4/p4_node_write",
       "status": "PASS",
       "expected": "write/unlink/mkdir denied",
       "actual": {
+        "ok": false,
         "code": "EROFS",
         "errno": -30,
-        "msg": "EROFS: read-only file system, open '/usr/bin/node'",
-        "ok": false
+        "msg": "EROFS: read-only file system, open '/usr/bin/node'"
       },
-      "evidence": "{\"code\": \"EROFS\", \"errno\": -30, \"msg\": \"EROFS: read-only file system, open '/usr/bin/node'\", \"ok\": false}"
+      "evidence": "{\"ok\": false, \"code\": \"EROFS\", \"errno\": -30, \"msg\": \"EROFS: read-only file system, open '/usr/bin/node'\"}"
     },
     {
       "probe_id": "M1-P4/p4_lib_write",
       "status": "PASS",
       "expected": "write/unlink/mkdir denied",
       "actual": {
+        "ok": false,
         "code": "EROFS",
         "errno": -30,
-        "msg": "EROFS: read-only file system, open '/usr/lib/x86_64-linux-gnu/libc.so.6'",
-        "ok": false
+        "msg": "EROFS: read-only file system, open '/usr/lib/x86_64-linux-gnu/libc.so.6'"
       },
-      "evidence": "{\"code\": \"EROFS\", \"errno\": -30, \"msg\": \"EROFS: read-only file system, open '/usr/lib/x86_64-linux-gnu/libc.so.6'\", \"ok\": false}"
+      "evidence": "{\"ok\": false, \"code\": \"EROFS\", \"errno\": -30, \"msg\": \"EROFS: read-only file system, open '/usr/lib/x86_64-linux-gnu/libc.so.6'\"}"
     },
     {
       "probe_id": "M1-P4/p4_provider_unlink",
       "status": "PASS",
       "expected": "write/unlink/mkdir denied",
       "actual": {
+        "ok": false,
         "code": "EPERM",
         "errno": -1,
-        "msg": "EPERM: operation not permitted, unlink '/provider/package.json'",
-        "ok": false
+        "msg": "EPERM: operation not permitted, unlink '/provider/package.json'"
       },
-      "evidence": "{\"code\": \"EPERM\", \"errno\": -1, \"msg\": \"EPERM: operation not permitted, unlink '/provider/package.json'\", \"ok\": false}"
+      "evidence": "{\"ok\": false, \"code\": \"EPERM\", \"errno\": -1, \"msg\": \"EPERM: operation not permitted, unlink '/provider/package.json'\"}"
     },
     {
       "probe_id": "M1-P4/p4_provider_mkdir",
       "status": "PASS",
       "expected": "write/unlink/mkdir denied",
       "actual": {
+        "ok": false,
         "code": "EPERM",
         "errno": -1,
-        "msg": "EPERM: operation not permitted, mkdir '/provider/m1_dir'",
-        "ok": false
+        "msg": "EPERM: operation not permitted, mkdir '/provider/m1_dir'"
       },
-      "evidence": "{\"code\": \"EPERM\", \"errno\": -1, \"msg\": \"EPERM: operation not permitted, mkdir '/provider/m1_dir'\", \"ok\": false}"
+      "evidence": "{\"ok\": false, \"code\": \"EPERM\", \"errno\": -1, \"msg\": \"EPERM: operation not permitted, mkdir '/provider/m1_dir'\"}"
     },
     {
       "probe_id": "M1-P5",
@@ -191,55 +202,55 @@
         "exists": "PRESENT",
         "size": 376,
         "write": {
+          "ok": false,
           "code": "EROFS",
           "errno": -30,
-          "msg": "EROFS: read-only file system, open '/fixture/raphael_c1a_fixture.txt'",
-          "ok": false
+          "msg": "EROFS: read-only file system, open '/fixture/raphael_c1a_fixture.txt'"
         },
         "rename": {
+          "ok": false,
           "code": "EPERM",
           "errno": -1,
-          "msg": "EPERM: operation not permitted, rename '/fixture/raphael_c1a_fixture.txt' -> '/fixture/x'",
-          "ok": false
+          "msg": "EPERM: operation not permitted, rename '/fixture/raphael_c1a_fixture.txt' -> '/fixture/x'"
         }
       },
-      "evidence": "{\"fixture_exists\": \"PRESENT\", \"fixture_read_bytes\": 376}{\"code\": \"EROFS\", \"errno\": -30, \"msg\": \"EROFS: read-only file system, open '/fixture/raphael_c1a_fixture.txt'\", \"ok\": false}{\"code\": \"EPERM\", \"errno\": -1, \"msg\": \"EPERM: operation not permitted, rename '/fixture/raphael_c1a_fixture.txt' -> '/fixture/x'\", \"ok\": false}"
+      "evidence": "{\"fixture_exists\": \"PRESENT\", \"fixture_read_bytes\": 376}{\"ok\": false, \"code\": \"EROFS\", \"errno\": -30, \"msg\": \"EROFS: read-only file system, open '/fixture/raphael_c1a_fixture.txt'\"}{\"ok\": false, \"code\": \"EPERM\", \"errno\": -1, \"msg\": \"EPERM: operation not permitted, rename '/fixture/raphael_c1a_fixture.txt' -> '/fixture/x'\"}"
     },
     {
       "probe_id": "M1-P6",
       "status": "PASS",
       "expected": "host paths not visible",
       "actual": {
-        "git_head": "ENOENT",
         "substrate": "ENOENT",
+        "git_head": "ENOENT",
         "tests": "ENOENT"
       },
-      "evidence": "{\"git_head\": \"ENOENT\", \"substrate\": \"ENOENT\", \"tests\": \"ENOENT\"}"
+      "evidence": "{\"substrate\": \"ENOENT\", \"git_head\": \"ENOENT\", \"tests\": \"ENOENT\"}"
     },
     {
       "probe_id": "M1-P7",
       "status": "PASS",
       "expected": "host paths not visible",
       "actual": {
-        "bashrc": "ENOENT",
         "home": "ENOENT",
+        "ssh": "ENOENT",
+        "bashrc": "ENOENT",
         "local": "ENOENT",
-        "opencode_cfg": "ENOENT",
-        "ssh": "ENOENT"
+        "opencode_cfg": "ENOENT"
       },
-      "evidence": "{\"bashrc\": \"ENOENT\", \"home\": \"ENOENT\", \"local\": \"ENOENT\", \"opencode_cfg\": \"ENOENT\", \"ssh\": \"ENOENT\"}"
+      "evidence": "{\"home\": \"ENOENT\", \"ssh\": \"ENOENT\", \"bashrc\": \"ENOENT\", \"local\": \"ENOENT\", \"opencode_cfg\": \"ENOENT\"}"
     },
     {
       "probe_id": "M1-P8",
       "status": "PASS",
       "expected": "host paths not visible",
       "actual": {
-        "containerd": "ENOENT",
         "docker": "ENOENT",
         "podman": "ENOENT",
+        "containerd": "ENOENT",
         "systemd_private": "ENOENT"
       },
-      "evidence": "{\"containerd\": \"ENOENT\", \"docker\": \"ENOENT\", \"podman\": \"ENOENT\", \"systemd_private\": \"ENOENT\"}"
+      "evidence": "{\"docker\": \"ENOENT\", \"podman\": \"ENOENT\", \"containerd\": \"ENOENT\", \"systemd_private\": \"ENOENT\"}"
     },
     {
       "probe_id": "M1-P9",
@@ -286,20 +297,20 @@
       "status": "PASS",
       "expected": "uid/gid 65534, caps 0, NNP=1, seccomp active",
       "actual": {
-        "CapBnd": "0000000000000000",
+        "uid": 65534,
+        "gid": 65534,
+        "euid": 65534,
+        "egid": 65534,
         "CapEff": "0000000000000000",
         "CapPrm": "0000000000000000",
-        "Gid": "65534\t65534\t65534\t65534",
-        "Groups": "65534 65534 65534 65534 65534 65534 65534",
+        "CapBnd": "0000000000000000",
         "NoNewPrivs": "1",
         "Seccomp": "2",
         "Uid": "65534\t65534\t65534\t65534",
-        "egid": 65534,
-        "euid": 65534,
-        "gid": 65534,
-        "uid": 65534
+        "Gid": "65534\t65534\t65534\t65534",
+        "Groups": "65534 65534 65534 65534 65534 65534 65534"
       },
-      "evidence": "{\"CapBnd\": \"0000000000000000\", \"CapEff\": \"0000000000000000\", \"CapPrm\": \"0000000000000000\", \"Gid\": \"65534\\t65534\\t65534\\t65534\", \"Groups\": \"65534 65534 65534 65534 65534 65534 65534\", \"NoNewPrivs\": \"1\", \"Seccomp\": \"2\", \"Uid\": \"65534\\t65534\\t65534\\t65534\", \"egid\": 65534, \"euid\": 65534, \"gid\": 65534, \"uid\": 65534}"
+      "evidence": "{\"uid\": 65534, \"gid\": 65534, \"euid\": 65534, \"egid\": 65534, \"CapEff\": \"0000000000000000\", \"CapPrm\": \"0000000000000000\", \"CapBnd\": \"0000000000000000\", \"NoNewPrivs\": \"1\", \"Seccomp\": \"2\", \"Uid\": \"65534\\t65534\\t65534\\t65534\", \"Gid\": \"65534\\t65534\\t65534\\t65534\", \"Groups\": \"65534 65534 65534 65534 65534 65534 65534\"}"
     },
     {
       "probe_id": "M1-P11",
@@ -315,26 +326,26 @@
           "uts": true
         }
       },
-      "evidence": "{\"s\": {\"cgroup\": \"cgroup:[4026531835]\", \"ipc\": \"ipc:[4026532294]\", \"mnt\": \"mnt:[4026532292]\", \"net\": \"net:[4026532299]\", \"pid\": \"pid:[4026532295]\", \"pid_for_children\": \"pid:[4026532295]\", \"time\": \"time:[4026531834]\", \"user\": \"user:[4026532359]\", \"uts\": \"uts:[4026532293]\"}, \"h\": {\"ipc\": \"ipc:[4026532208]\", \"mnt\": \"mnt:[4026532219]\", \"net\": \"net:[4026531833]\", \"pid\": \"pid:[4026532221]\", \"user\": \"user:[4026531837]\", \"uts\": \"uts:[4026532220]\"}}"
+      "evidence": "{\"s\": {\"user\": \"user:[4026532292]\", \"pid\": \"pid:[4026532231]\", \"net\": \"net:[4026532232]\", \"ipc\": \"ipc:[4026532230]\", \"uts\": \"uts:[4026532229]\", \"mnt\": \"mnt:[4026532227]\", \"cgroup\": \"cgroup:[4026531835]\", \"time\": \"time:[4026531834]\", \"pid_for_children\": \"pid:[4026532231]\"}, \"h\": {\"ipc\": \"ipc:[4026532208]\", \"mnt\": \"mnt:[4026532219]\", \"net\": \"net:[4026531833]\", \"pid\": \"pid:[4026532221]\", \"user\": \"user:[4026531837]\", \"uts\": \"uts:[4026532220]\"}}"
     },
     {
       "probe_id": "M1-P12",
       "status": "PASS",
       "expected": "pidns isolated (pid1=bwrap, host pids absent)",
       "actual": {
-        "pid1_cmdline": "bwrap --unshare-user --uid 65534 --gid 65534 --unshare-pid --unshare-ipc --unshare-uts --unshare-net --die-with-parent --new-session --cap-drop ALL --dir /provider --dir /fixture --ro-bind /home/moiz/audit-repos/T3MP3ST /provider --ro-bind /home/moiz/audit-repos/T3MP3ST/node_modules /provider/node_modules --ro-bind /home/moiz/raphael-2.0-rbsv2r/fixtures/c1a_proof/raphael_c1a_fixture.txt /fixture/raphael_c1a_fixture.txt --ro-bind /usr/bin/node /usr/bin/node --dev /dev --proc /proc --seccomp 3 --ro-bind /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 --ro-bind /usr/lib/x86_64-linux-gnu/libada-url0.so.3 /usr/lib/x86_64-linux-gnu/libada-url0.so.3 --ro-bind /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1 /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1 /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libbrotlienc.so.1 /usr/lib/x86_64-linux-gnu/libbrotlienc.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libc.so.6 /usr/lib/x86_64-linux-gnu/libc.so.6 --ro-bind /usr/lib/x86_64-linux-gnu/libcares.so.2 /usr/lib/x86_64-linux-gnu/libcares.so.2 --ro-bind /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /usr/lib/x86_64-linux-gnu/libcrypto.so.3 --ro-bind /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libicudata.so.78 /usr/lib/x86_64-linux-gnu/libicudata.so.78 --ro-bind /usr/lib/x86_64-linux-gnu/libicui18n.so.78 /usr/lib/x86_64-linux-gnu/libicui18n.so.78 --ro-bind /usr/lib/x86_64-linux-gnu/libicuuc.so.78 /usr/lib/x86_64-linux-gnu/libicuuc.so.78 --ro-bind /usr/lib/x86_64-linux-gnu/libllhttp.so.9.3 /usr/lib/x86_64-linux-gnu/libllhttp.so.9.3 --ro-bind /usr/lib/x86_64-linux-gnu/libm.so.6 /usr/lib/x86_64-linux-gnu/libm.so.6 --ro-bind /usr/lib/x86_64-linux-gnu/libnghttp2.so.14 /usr/lib/x86_64-linux-gnu/libnghttp2.so.14 --ro-bind /usr/lib/x86_64-linux-gnu/libnode.so.127 /usr/lib/x86_64-linux-gnu/libnode.so.127 --ro-bind /usr/lib/x86_64-linux-gnu/libsimdjson.so.29 /usr/lib/x86_64-linux-gnu/libsimdjson.so.29 --ro-bind /usr/lib/x86_64-linux-gnu/libsimdutf.so.31 /usr/lib/x86_64-linux-gnu/libsimdutf.so.31 --ro-bind /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 --ro-bind /usr/lib/x86_64-linux-gnu/libssl.so.3 /usr/lib/x86_64-linux-gnu/libssl.so.3 --ro-bind /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6 --ro-bind /usr/lib/x86_64-linux-gnu/libuv.so.1 /usr/lib/x86_64-linux-gnu/libuv.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libz.so.1 /usr/lib/x86_64-linux-gnu/libz.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libzstd.so.1 /usr/lib/x86_64-linux-gnu/libzstd.so.1 --ro-bind /usr/share/nodejs/acorn-walk/dist/walk.js /usr/share/nodejs/acorn-walk/dist/walk.js --ro-bind /usr/share/nodejs/acorn/dist/acorn.js /usr/share/nodejs/acorn/dist/acorn.js --ro-bind /usr/share/nodejs/cjs-module-lexer/dist/lexer.js /usr/share/nodejs/cjs-module-lexer/dist/lexer.js --ro-bind /usr/share/nodejs/cjs-module-lexer/lexer.js /usr/share/nodejs/cjs-module-lexer/lexer.js --ro-bind /usr/share/nodejs/minimatch/dist/cjs/index.bundle.js /usr/share/nodejs/minimatch/dist/cjs/index.bundle.js --ro-bind /usr/share/nodejs/undici/undici-fetch.js /usr/share/nodejs/undici/undici-fetch.js --chdir /provider -- /usr/bin/node -e \nconst fs=require(\"fs\");\nconst R={};\nfunction at(id, fn){ try { R[id]={ok:true, value:String(fn()).slice(0,300)}; }\n  catch(e){ R[id]={ok:false, code:e.code||null, errno:(e.errno===undefined?null:e.errno), msg:String(e.message).slice(0,120)}; } }\nfunction ex(p){ try { fs.accessSync(p); return \"PRESENT\"; } catch(e){ return e.code; } }\nfunction rd(p){ try { return {ok:true, n:fs.readdirSync(p).length, entries:fs.readdirSync(p).slice(0,20).sort()}; }\n  catch(e){ return {ok:false, code:e.code||null, errno:(e.errno===undefined?null:e.errno)}; } }\n// P1 host filesystem visibility\nR.p1={home:ex(\"/home/moiz/.raphael_m1_host_sentinel\"), tmp:ex(\"/tmp/raphael_m1_host_sentinel\"),\n      etc_passwd:ex(\"/etc/passwd\"), root_home:ex(\"/root\"), repo_readme:ex(\"/home/moiz/raphael-2.0-rbsv2r/README.md\")};\n// P2 traversal\nat(\"p2_provider_dotdot\", ()=>fs.readFileSync(\"/provider/../../../etc/passwd\",\"utf8\"));\nat(\"p2_node_dotdot\", ()=>fs.readFileSync(\"/usr/bin/../../../etc/passwd\",\"utf8\"));\nat(\"p2_fixture_dotdot_list\", ()=>rd(\"/fixture/../..\"));\nat(\"p2_normalized\", ()=>fs.statSync(\"/provider/./../fixture/../../etc\"));\n// P3 symlink escape\nat(\"p3_proc_root_etc\", ()=>fs.readFileSync(\"/proc/self/root/etc/passwd\",\"utf8\"));\nat(\"p3_proc_exe\", ()=>fs.readlinkSync(\"/proc/self/exe\"));\nat(\"p3_proc_root\", ()=>fs.readlinkSync(\"/proc/self/root\"));\nat(\"p3_proc_cwd\", ()=>fs.readlinkSync(\"/proc/self/cwd\"));\n// P4 provider/runtime writability\nat(\"p4_provider_write\", ()=>fs.writeFileSync(\"/provider/m1_probe_marker\",\"x\"));\nat(\"p4_node_modules_write\", ()=>fs.writeFileSync(\"/provider/node_modules/m1_probe_marker\",\"x\"));\nat(\"p4_node_write\", ()=>fs.writeFileSync(\"/usr/bin/node\",\"x\"));\nat(\"p4_lib_write\", ()=>fs.writeFileSync(\"/usr/lib/x86_64-linux-gnu/libc.so.6\",\"x\"));\nat(\"p4_provider_unlink\", ()=>fs.unlinkSync(\"/provider/package.json\"));\nat(\"p4_provider_mkdir\", ()=>fs.mkdirSync(\"/provider/m1_dir\"));\n// P5 fixture\nR.p5={fixture_exists:ex(\"/fixture/raphael_c1a_fixture.txt\"), fixture_read_bytes:(()=>{try{return fs.statSync(\"/fixture/raphael_c1a_fixture.txt\").size;}catch(e){return e.code;}})()};\nat(\"p5_fixture_list\", ()=>rd(\"/fixture\"));\nat(\"p5_fixture_write\", ()=>fs.writeFileSync(\"/fixture/raphael_c1a_fixture.txt\",\"x\"));\nat(\"p5_fixture_rename\", ()=>fs.renameSync(\"/fixture/raphael_c1a_fixture.txt\",\"/fixture/x\"));\n// P6 RAPHAEL source exposure\nR.p6={substrate:ex(\"/home/moiz/raphael-2.0-rbsv2r/raphael_ibm_bob/isolation_substrate.py\"),\n      git_head:ex(\"/home/moiz/raphael-2.0-rbsv2r/.git/HEAD\"), tests:ex(\"/home/moiz/raphael-2.0-rbsv2r/tests\")};\n// P7 home/ssh/config\nR.p7={home:ex(\"/home/moiz\"), ssh:ex(\"/home/moiz/.ssh\"), bashrc:ex(\"/home/moiz/.bashrc\"),\n      local:ex(\"/home/moiz/.local\"), opencode_cfg:ex(\"/home/moiz/.config/opencode\")};\n// P8 sockets\nR.p8={docker:ex(\"/var/run/docker.sock\"), podman:ex(\"/run/podman/podman.sock\"),\n      containerd:ex(\"/run/containerd/containerd.sock\"), systemd_private:ex(\"/run/systemd/private\")};\n// P9 devices\nR.p9={dev_list:rd(\"/dev\"), sys:ex(\"/sys\"), proc:ex(\"/proc\"),\n      devs:{}};\nfor (const d of [\"sda\",\"nvme0n1\",\"mem\",\"kmem\",\"kmsg\",\"console\",\"null\",\"zero\",\"urandom\",\"tty\",\"pts\",\"shm\",\"core\",\"fuse\"]) R.p9.devs[d]=ex(\"/dev/\"+d);\n// P10 privilege boundary\nconst st=fs.readFileSync(\"/proc/self/status\",\"utf8\");\nfunction fld(n){const m=st.match(new RegExp(\"^\"+n+\":\\\\s*(.*)$\",\"m\"));return m?m[1].trim():null;}\nR.p10={uid:process.getuid(), gid:process.getgid(), euid:process.geteuid(), egid:process.getegid(),\n       CapEff:fld(\"CapEff\"), CapPrm:fld(\"CapPrm\"), CapBnd:fld(\"CapBnd\"), NoNewPrivs:fld(\"NoNewPrivs\"),\n       Seccomp:fld(\"Seccomp\"), Uid:fld(\"Uid\"), Gid:fld(\"Gid\"), Groups:fld(\"Groups\")};\n// P11 namespaces\nconst ns={}; for (const n of [\"user\",\"pid\",\"net\",\"ipc\",\"uts\",\"mnt\",\"cgroup\",\"time\",\"pid_for_children\",\"net\"]) {\n  try { ns[n]=fs.readlinkSync(\"/proc/self/ns/\"+n); } catch(e){ ns[n]=e.code||null; } }\nR.p11=ns;\n// P12 process boundary (no readdir needed)\nR.p12={proc1:ex(\"/proc/1\"), proc2:ex(\"/proc/2\"), proc_self:ex(\"/proc/self\"), proc_host_high:ex(\"/proc/99999\"),\n       pid1_cmdline:(()=>{try{return fs.readFileSync(\"/proc/1/cmdline\",\"utf8\").replace(/\\0/g,\" \").trim();}catch(e){return e.code;}})(),\n       self_pid:process.pid, proc_list:rd(\"/proc\")};\n// P13 clone semantics (JS-reachable)\nlet forkres; try { require(\"child_process\").execFileSync(\"/bin/true\"); forkres=\"SPAWN_OK\"; } catch(e){ forkres=\"DENIED/\"+e.code+\"/\"+e.errno; }\nR.p13={fork_like:forkres, thread_pool:\"pending\"};\n// P14 credential changes\nfunction tr(id,fn){ try { fn(); R[id]={ok:true,value:\"CHANGED\"}; } catch(e){ R[id]={ok:false,code:e.code||null,errno:(e.errno===undefined?null:e.errno)}; } }\ntr(\"p14_setuid0\",()=>process.setuid(0));\ntr(\"p14_setgid0\",()=>process.setgid(0));\nif (process.setgroups) tr(\"p14_setgroups\",()=>process.setgroups([0]));\n// P15 cgroup boundary\nat(\"p15_read_sys_fs_cgroup\", ()=>rd(\"/sys/fs/cgroup\"));\nat(\"p15_write_cgroup_procs\", ()=>fs.writeFileSync(\"/sys/fs/cgroup/cgroup.procs\",\"1\"));\nR.p15_sys_exists=ex(\"/sys\");\n// P16 double-fork preparation\nlet dbl; try { require(\"child_process\").spawn(\"/bin/true\"); dbl=\"SPAWN_OK\"; } catch(e){ dbl=\"DENIED/\"+e.code+\"/\"+e.errno; }\nR.p16={spawn:dbl, setsid_available:(typeof process.setsid)};\n// async fs => libuv threadpool => clone(thread)\nfs.readFile(\"/usr/share/nodejs/cjs-module-lexer/lexer.js\",\"utf8\",(e,d)=>{ R.p13.thread_pool = e ? (\"ERR/\"+e.code) : (\"OK/\"+String(d).length);\n  process.stdout.write(\"M1JSON \"+JSON.stringify(R)); });",
         "proc1": "PRESENT",
         "proc2": "PRESENT",
-        "proc_host_high": "ENOENT",
-        "proc_list": {
-          "code": "EPERM",
-          "errno": -1,
-          "ok": false
-        },
         "proc_self": "PRESENT",
-        "self_pid": 2
+        "proc_host_high": "ENOENT",
+        "pid1_cmdline": "bwrap --unshare-user --uid 65534 --gid 65534 --unshare-pid --unshare-ipc --unshare-uts --unshare-net --die-with-parent --new-session --cap-drop ALL --dir /provider --dir /fixture --ro-bind /home/moiz/audit-repos/T3MP3ST /provider --ro-bind /home/moiz/audit-repos/T3MP3ST/node_modules /provider/node_modules --ro-bind /home/moiz/raphael-2.0-rbsv2r/fixtures/c1a_proof/raphael_c1a_fixture.txt /fixture/raphael_c1a_fixture.txt --ro-bind /usr/bin/node /usr/bin/node --dev /dev --proc /proc --seccomp 3 --unsetenv HTTP_PROXY --unsetenv HTTPS_PROXY --unsetenv ALL_PROXY --unsetenv FTP_PROXY --unsetenv NO_PROXY --unsetenv http_proxy --unsetenv https_proxy --unsetenv all_proxy --unsetenv ftp_proxy --unsetenv no_proxy --ro-bind /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 --ro-bind /usr/lib/x86_64-linux-gnu/libada-url0.so.3 /usr/lib/x86_64-linux-gnu/libada-url0.so.3 --ro-bind /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1 /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1 /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libbrotlienc.so.1 /usr/lib/x86_64-linux-gnu/libbrotlienc.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libc.so.6 /usr/lib/x86_64-linux-gnu/libc.so.6 --ro-bind /usr/lib/x86_64-linux-gnu/libcares.so.2 /usr/lib/x86_64-linux-gnu/libcares.so.2 --ro-bind /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /usr/lib/x86_64-linux-gnu/libcrypto.so.3 --ro-bind /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libicudata.so.78 /usr/lib/x86_64-linux-gnu/libicudata.so.78 --ro-bind /usr/lib/x86_64-linux-gnu/libicui18n.so.78 /usr/lib/x86_64-linux-gnu/libicui18n.so.78 --ro-bind /usr/lib/x86_64-linux-gnu/libicuuc.so.78 /usr/lib/x86_64-linux-gnu/libicuuc.so.78 --ro-bind /usr/lib/x86_64-linux-gnu/libllhttp.so.9.3 /usr/lib/x86_64-linux-gnu/libllhttp.so.9.3 --ro-bind /usr/lib/x86_64-linux-gnu/libm.so.6 /usr/lib/x86_64-linux-gnu/libm.so.6 --ro-bind /usr/lib/x86_64-linux-gnu/libnghttp2.so.14 /usr/lib/x86_64-linux-gnu/libnghttp2.so.14 --ro-bind /usr/lib/x86_64-linux-gnu/libnode.so.127 /usr/lib/x86_64-linux-gnu/libnode.so.127 --ro-bind /usr/lib/x86_64-linux-gnu/libsimdjson.so.29 /usr/lib/x86_64-linux-gnu/libsimdjson.so.29 --ro-bind /usr/lib/x86_64-linux-gnu/libsimdutf.so.31 /usr/lib/x86_64-linux-gnu/libsimdutf.so.31 --ro-bind /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 --ro-bind /usr/lib/x86_64-linux-gnu/libssl.so.3 /usr/lib/x86_64-linux-gnu/libssl.so.3 --ro-bind /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6 --ro-bind /usr/lib/x86_64-linux-gnu/libuv.so.1 /usr/lib/x86_64-linux-gnu/libuv.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libz.so.1 /usr/lib/x86_64-linux-gnu/libz.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libzstd.so.1 /usr/lib/x86_64-linux-gnu/libzstd.so.1 --ro-bind /usr/share/nodejs/acorn-walk/dist/walk.js /usr/share/nodejs/acorn-walk/dist/walk.js --ro-bind /usr/share/nodejs/acorn/dist/acorn.js /usr/share/nodejs/acorn/dist/acorn.js --ro-bind /usr/share/nodejs/cjs-module-lexer/dist/lexer.js /usr/share/nodejs/cjs-module-lexer/dist/lexer.js --ro-bind /usr/share/nodejs/cjs-module-lexer/lexer.js /usr/share/nodejs/cjs-module-lexer/lexer.js --ro-bind /usr/share/nodejs/minimatch/dist/cjs/index.bundle.js /usr/share/nodejs/minimatch/dist/cjs/index.bundle.js --ro-bind /usr/share/nodejs/undici/undici-fetch.js /usr/share/nodejs/undici/undici-fetch.js --chdir /provider -- /usr/bin/node -e \nconst fs=require(\"fs\");\nconst R={};\nfunction at(id, fn){ try { R[id]={ok:true, value:String(fn()).slice(0,300)}; }\n  catch(e){ R[id]={ok:false, code:e.code||null, errno:(e.errno===undefined?null:e.errno), msg:String(e.message).slice(0,120)}; } }\nfunction ex(p){ try { fs.accessSync(p); return \"PRESENT\"; } catch(e){ return e.code; } }\nfunction rd(p){ try { return {ok:true, n:fs.readdirSync(p).length, entries:fs.readdirSync(p).slice(0,20).sort()}; }\n  catch(e){ return {ok:false, code:e.code||null, errno:(e.errno===undefined?null:e.errno)}; } }\n// P1 host filesystem visibility\nR.p1={home:ex(\"/home/moiz/.raphael_m1_host_sentinel\"), tmp:ex(\"/tmp/raphael_m1_host_sentinel\"),\n      etc_passwd:ex(\"/etc/passwd\"), root_home:ex(\"/root\"), repo_readme:ex(\"/home/moiz/raphael-2.0-rbsv2r/README.md\")};\n// P2 traversal\nat(\"p2_provider_dotdot\", ()=>fs.readFileSync(\"/provider/../../../etc/passwd\",\"utf8\"));\nat(\"p2_node_dotdot\", ()=>fs.readFileSync(\"/usr/bin/../../../etc/passwd\",\"utf8\"));\nat(\"p2_fixture_dotdot_list\", ()=>rd(\"/fixture/../..\"));\nat(\"p2_normalized\", ()=>fs.statSync(\"/provider/./../fixture/../../etc\"));\n// P3 symlink escape\nat(\"p3_proc_root_etc\", ()=>fs.readFileSync(\"/proc/self/root/etc/passwd\",\"utf8\"));\nat(\"p3_proc_exe\", ()=>fs.readlinkSync(\"/proc/self/exe\"));\nat(\"p3_proc_root\", ()=>fs.readlinkSync(\"/proc/self/root\"));\nat(\"p3_proc_cwd\", ()=>fs.readlinkSync(\"/proc/self/cwd\"));\n// P4 provider/runtime writability\nat(\"p4_provider_write\", ()=>fs.writeFileSync(\"/provider/m1_probe_marker\",\"x\"));\nat(\"p4_node_modules_write\", ()=>fs.writeFileSync(\"/provider/node_modules/m1_probe_marker\",\"x\"));\nat(\"p4_node_write\", ()=>fs.writeFileSync(\"/usr/bin/node\",\"x\"));\nat(\"p4_lib_write\", ()=>fs.writeFileSync(\"/usr/lib/x86_64-linux-gnu/libc.so.6\",\"x\"));\nat(\"p4_provider_unlink\", ()=>fs.unlinkSync(\"/provider/package.json\"));\nat(\"p4_provider_mkdir\", ()=>fs.mkdirSync(\"/provider/m1_dir\"));\n// P5 fixture\nR.p5={fixture_exists:ex(\"/fixture/raphael_c1a_fixture.txt\"), fixture_read_bytes:(()=>{try{return fs.statSync(\"/fixture/raphael_c1a_fixture.txt\").size;}catch(e){return e.code;}})()};\nat(\"p5_fixture_list\", ()=>rd(\"/fixture\"));\nat(\"p5_fixture_write\", ()=>fs.writeFileSync(\"/fixture/raphael_c1a_fixture.txt\",\"x\"));\nat(\"p5_fixture_rename\", ()=>fs.renameSync(\"/fixture/raphael_c1a_fixture.txt\",\"/fixture/x\"));\n// P6 RAPHAEL source exposure\nR.p6={substrate:ex(\"/home/moiz/raphael-2.0-rbsv2r/raphael_ibm_bob/isolation_substrate.py\"),\n      git_head:ex(\"/home/moiz/raphael-2.0-rbsv2r/.git/HEAD\"), tests:ex(\"/home/moiz/raphael-2.0-rbsv2r/tests\")};\n// P7 home/ssh/config\nR.p7={home:ex(\"/home/moiz\"), ssh:ex(\"/home/moiz/.ssh\"), bashrc:ex(\"/home/moiz/.bashrc\"),\n      local:ex(\"/home/moiz/.local\"), opencode_cfg:ex(\"/home/moiz/.config/opencode\")};\n// P8 sockets\nR.p8={docker:ex(\"/var/run/docker.sock\"), podman:ex(\"/run/podman/podman.sock\"),\n      containerd:ex(\"/run/containerd/containerd.sock\"), systemd_private:ex(\"/run/systemd/private\")};\n// P9 devices\nR.p9={dev_list:rd(\"/dev\"), sys:ex(\"/sys\"), proc:ex(\"/proc\"),\n      devs:{}};\nfor (const d of [\"sda\",\"nvme0n1\",\"mem\",\"kmem\",\"kmsg\",\"console\",\"null\",\"zero\",\"urandom\",\"tty\",\"pts\",\"shm\",\"core\",\"fuse\"]) R.p9.devs[d]=ex(\"/dev/\"+d);\n// P10 privilege boundary\nconst st=fs.readFileSync(\"/proc/self/status\",\"utf8\");\nfunction fld(n){const m=st.match(new RegExp(\"^\"+n+\":\\\\s*(.*)$\",\"m\"));return m?m[1].trim():null;}\nR.p10={uid:process.getuid(), gid:process.getgid(), euid:process.geteuid(), egid:process.getegid(),\n       CapEff:fld(\"CapEff\"), CapPrm:fld(\"CapPrm\"), CapBnd:fld(\"CapBnd\"), NoNewPrivs:fld(\"NoNewPrivs\"),\n       Seccomp:fld(\"Seccomp\"), Uid:fld(\"Uid\"), Gid:fld(\"Gid\"), Groups:fld(\"Groups\")};\n// P11 namespaces\nconst ns={}; for (const n of [\"user\",\"pid\",\"net\",\"ipc\",\"uts\",\"mnt\",\"cgroup\",\"time\",\"pid_for_children\",\"net\"]) {\n  try { ns[n]=fs.readlinkSync(\"/proc/self/ns/\"+n); } catch(e){ ns[n]=e.code||null; } }\nR.p11=ns;\n// P12 process boundary (no readdir needed)\nR.p12={proc1:ex(\"/proc/1\"), proc2:ex(\"/proc/2\"), proc_self:ex(\"/proc/self\"), proc_host_high:ex(\"/proc/99999\"),\n       pid1_cmdline:(()=>{try{return fs.readFileSync(\"/proc/1/cmdline\",\"utf8\").replace(/\\0/g,\" \").trim();}catch(e){return e.code;}})(),\n       self_pid:process.pid, proc_list:rd(\"/proc\")};\n// P13 clone semantics (JS-reachable)\nlet forkres; try { require(\"child_process\").execFileSync(\"/bin/true\"); forkres=\"SPAWN_OK\"; } catch(e){ forkres=\"DENIED/\"+e.code+\"/\"+e.errno; }\nR.p13={fork_like:forkres, thread_pool:\"pending\"};\n// P14 credential changes\nfunction tr(id,fn){ try { fn(); R[id]={ok:true,value:\"CHANGED\"}; } catch(e){ R[id]={ok:false,code:e.code||null,errno:(e.errno===undefined?null:e.errno)}; } }\ntr(\"p14_setuid0\",()=>process.setuid(0));\ntr(\"p14_setgid0\",()=>process.setgid(0));\nif (process.setgroups) tr(\"p14_setgroups\",()=>process.setgroups([0]));\n// P15 cgroup boundary\nat(\"p15_read_sys_fs_cgroup\", ()=>rd(\"/sys/fs/cgroup\"));\nat(\"p15_write_cgroup_procs\", ()=>fs.writeFileSync(\"/sys/fs/cgroup/cgroup.procs\",\"1\"));\nR.p15_sys_exists=ex(\"/sys\");\n// P16 double-fork preparation\nlet dbl; try { require(\"child_process\").spawn(\"/bin/true\"); dbl=\"SPAWN_OK\"; } catch(e){ dbl=\"DENIED/\"+e.code+\"/\"+e.errno; }\nR.p16={spawn:dbl, setsid_available:(typeof process.setsid)};\n// async fs => libuv threadpool => clone(thread)\nfs.readFile(\"/usr/share/nodejs/cjs-module-lexer/lexer.js\",\"utf8\",(e,d)=>{ R.p13.thread_pool = e ? (\"ERR/\"+e.code) : (\"OK/\"+String(d).length);\n  process.stdout.write(\"M1JSON \"+JSON.stringify(R)); });",
+        "self_pid": 2,
+        "proc_list": {
+          "ok": false,
+          "code": "EPERM",
+          "errno": -1
+        }
       },
-      "evidence": "{\"pid1_cmdline\": \"bwrap --unshare-user --uid 65534 --gid 65534 --unshare-pid --unshare-ipc --unshare-uts --unshare-net --die-with-parent --new-session --cap-drop ALL --dir /provider --dir /fixture --ro-bind /home/moiz/audit-repos/T3MP3ST /provider --ro-bind /home/moiz/audit-repos/T3MP3ST/node_modules /provider/node_modules --ro-bind /home/moiz/raphael-2.0-rbsv2r/fixtures/c1a_proof/raphael_c1a_fixture.txt /fixture/raphael_c1a_fixture.txt --ro-bind /usr/bin/node /usr/bin/node --dev /dev --proc /proc --seccomp 3 --ro-bind /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 --ro-bind /usr/lib/x86_64-linux-gnu/libada-url0.so.3 /usr/lib/x86_64-linux-gnu/libada-url0.so.3 --ro-bind /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1 /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1 /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libbrotlienc.so.1 /usr/lib/x86_64-linux-gnu/libbrotlienc.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libc.so.6 /usr/lib/x86_64-linux-gnu/libc.so.6 --ro-bind /usr/lib/x86_64-linux-gnu/libcares.so.2 /usr/lib/x86_64-linux-gnu/libcares.so.2 --ro-bind /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /usr/lib/x86_64-linux-gnu/libcrypto.so.3 --ro-bind /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libicudata.so.78 /usr/lib/x86_64-linux-gnu/libicudata.so.78 --ro-bind /usr/lib/x86_64-linux-gnu/libicui18n.so.78 /usr/lib/x86_64-linux-gnu/libicui18n.so.78 --ro-bind /usr/lib/x86_64-linux-gnu/libicuuc.so.78 /usr/lib/x86_64-linux-gnu/libicuuc.so.78 --ro-bind /usr/lib/x86_64-linux-gnu/libllhttp.so.9.3 /usr/lib/x86_64-linux-gnu/libllhttp.so.9.3 --ro-bind /usr/lib/x86_64-linux-gnu/libm.so.6 /usr/lib/x86_64-linux-gnu/libm.so.6 --ro-bind /usr/lib/x86_64-linux-gnu/libnghttp2.so.14 /usr/lib/x86_64-linux-gnu/libnghttp2.so.14 --ro-bind /usr/lib/x86_64-linux-gnu/libnode.so.127 /usr/lib/x86_64-linux-gnu/libnode.so.127 --ro-bind /usr/lib/x86_64-linux-gnu/libsimdjson.so.29 /usr/lib/x86_64-linux-gnu/libsimdjson.so.29 --ro-bind /usr/lib/x86_64-linux-gnu/libsimdutf.so.31 /usr/lib/x86_64-linux-gnu/libsimdutf.so.31 --ro-bind /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 --ro-bind /usr/lib/x86_64-linux-gnu/libssl.so.3 /usr/lib/x86_64-linux-gnu/libssl.so.3 --ro-bind /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6 --ro-bind /usr/lib/x86_64-linux-gnu/libuv.so.1 /usr/lib/x86_64-linux-gnu/libuv.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libz.so.1 /usr/lib/x86_64-linux-gnu/libz.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libzstd.so.1 /usr/lib/x86_64-linux-gnu/libzstd.so.1 --ro-bind /usr/share/nodejs/acorn-walk/dist/walk.js /usr/share/nodejs/acorn-walk/dist/walk.js --ro-bind /usr/share/nodejs/acorn/dist/acorn.js /usr/share/nodejs/acorn/dist/acorn.js --ro-bind /usr/share/nodejs/cjs-module-lexer/dist/lexer.js /usr/share/nodejs/cjs-module-lexer/dist/lexer.js --ro-bind /usr/share/nodejs/cjs-module-lexer/lexer.js /usr/share/nodejs/cjs-module-lexer/lexer.js --ro-bind /usr/share/nodejs/minimatch/dist/cjs/index.bundle.js /usr/share/nodejs/minimatch/dist/cjs/index.bundle.js --ro-bind /usr/share/nodejs/undici/undici-fetch.js /usr/share/nodejs/undici/undici-fetch.js --chdir /provider -- /usr/bin/node -e \\nconst fs=require(\\\"fs\\\");\\nconst R={};\\nfunction at(id, fn){ try { R[id]={ok:true, value:String(fn()).slice(0,300)}; }\\n  catch(e){ R[id]={ok:false, code:e.code||null, errno:(e.errno===undefined?null:e.errno), msg:String(e.message).slice(0,120)}; } }\\nfunction ex(p){ try { fs.accessSync(p); return \\\"PRESENT\\\"; } catch(e){ return e.code; } }\\nfunction rd(p){ try { return {ok:true, n:fs.readdirSync(p).length, entries:fs.readdirSync(p).slice(0,20).sort()}; }\\n  catch(e){ return {ok:false, code:e.code||null, errno:(e.errno===undefined?null:e.errno)}; } }\\n// P1 host filesystem visibility\\nR.p1={home:ex(\\\"/home/moiz/.raphael_m1_host_sentinel\\\"), tmp:ex(\\\"/tmp/raphael_m1_host_sentinel\\\"),\\n      etc_passwd:ex(\\\"/etc/passwd\\\"), root_home:ex(\\\"/root\\\"), repo_readme:ex(\\\"/home/moiz/raphael-2.0-rbsv2r/README.md\\\")};\\n// P2 traversal\\nat(\\\"p2_provider_dotdot\\\", ()=>fs.readFileSync(\\\"/provider/../../../etc/passwd\\\",\\\"utf8\\\"));\\nat(\\\"p2_node_dotdot\\\", ()=>fs.readFileSync(\\\"/usr/bin/../../../etc/passwd\\\",\\\"utf8\\\"));\\nat(\\\"p2_fixture_dotdot_list\\\", ()=>rd(\\\"/fixture/../..\\\"));\\nat(\\\"p2_normalized\\\", ()=>fs.statSync(\\\"/provider/./../fixture/../../etc\\\"));\\n// P3 symlink escape\\nat(\\\"p3_proc_root_etc\\\", ()=>fs.readFileSync(\\\"/proc/self/root/etc/passwd\\\",\\\"utf8\\\"));\\nat(\\\"p3_proc_exe\\\", ()=>fs.readlinkSync(\\\"/proc/self/exe\\\"));\\nat(\\\"p3_proc_root\\\", ()=>fs.readlinkSync(\\\"/proc/self/root\\\"));\\nat(\\\"p3_proc_cwd\\\", ()=>fs.readlinkSync(\\\"/proc/self/cwd\\\"));\\n// P4 provider/runtime writability\\nat(\\\"p4_provider_write\\\", ()=>fs.writeFileSync(\\\"/provider/m1_probe_marker\\\",\\\"x\\\"));\\nat(\\\"p4_node_modules_write\\\", ()=>fs.writeFileSync(\\\"/provider/node_modules/m1_probe_marker\\\",\\\"x\\\"));\\nat(\\\"p4_node_write\\\", ()=>fs.writeFileSync(\\\"/usr/bin/node\\\",\\\"x\\\"));\\nat(\\\"p4_lib_write\\\", ()=>fs.writeFileSync(\\\"/usr/lib/x86_64-linux-gnu/libc.so.6\\\",\\\"x\\\"));\\nat(\\\"p4_provider_unlink\\\", ()=>fs.unlinkSync(\\\"/provider/package.json\\\"));\\nat(\\\"p4_provider_mkdir\\\", ()=>fs.mkdirSync(\\\"/provider/m1_dir\\\"));\\n// P5 fixture\\nR.p5={fixture_exists:ex(\\\"/fixture/raphael_c1a_fixture.txt\\\"), fixture_read_bytes:(()=>{try{return fs.statSync(\\\"/fixture/raphael_c1a_fixture.txt\\\").size;}catch(e){return e.code;}})()};\\nat(\\\"p5_fixture_list\\\", ()=>rd(\\\"/fixture\\\"));\\nat(\\\"p5_fixture_write\\\", ()=>fs.writeFileSync(\\\"/fixture/raphael_c1a_fixture.txt\\\",\\\"x\\\"));\\nat(\\\"p5_fixture_rename\\\", ()=>fs.renameSync(\\\"/fixture/raphael_c1a_fixture.txt\\\",\\\"/fixture/x\\\"));\\n// P6 RAPHAEL source exposure\\nR.p6={substrate:ex(\\\"/home/moiz/raphael-2.0-rbsv2r/raphael_ibm_bob/isolation_substrate.py\\\"),\\n      git_head:ex(\\\"/home/moiz/raphael-2.0-rbsv2r/.git/HEAD\\\"), tests:ex(\\\"/home/moiz/raphael-2.0-rbsv2r/tests\\\")};\\n// P7 home/ssh/config\\nR.p7={home:ex(\\\"/home/moiz\\\"), ssh:ex(\\\"/home/moiz/.ssh\\\"), bashrc:ex(\\\"/home/moiz/.bashrc\\\"),\\n      local:ex(\\\"/home/moiz/.local\\\"), opencode_cfg:ex(\\\"/home/moiz/.config/opencode\\\")};\\n// P8 sockets\\nR.p8={docker:ex(\\\"/var/run/docker.sock\\\"), podman:ex(\\\"/run/podman/podman.sock\\\"),\\n      containerd:ex(\\\"/run/containerd/containerd.sock\\\"), systemd_private:ex(\\\"/run/systemd/private\\\")};\\n// P9 devices\\nR.p9={dev_list:rd(\\\"/dev\\\"), sys:ex(\\\"/sys\\\"), proc:ex(\\\"/proc\\\"),\\n      devs:{}};\\nfor (const d of [\\\"sda\\\",\\\"nvme0n1\\\",\\\"mem\\\",\\\"kmem\\\",\\\"kmsg\\\",\\\"console\\\",\\\"null\\\",\\\"zero\\\",\\\"urandom\\\",\\\"tty\\\",\\\"pts\\\",\\\"shm\\\",\\\"core\\\",\\\"fuse\\\"]) R.p9.devs[d]=ex(\\\"/dev/\\\"+d);\\n// P10 privilege boundary\\nconst st=fs.readFileSync(\\\"/proc/self/status\\\",\\\"utf8\\\");\\nfunction fld(n){const m=st.match(new RegExp(\\\"^\\\"+n+\\\":\\\\\\\\s*(.*)$\\\",\\\"m\\\"));return m?m[1].trim():null;}\\nR.p10={uid:process.getuid(), gid:process.getgid(), euid:process.geteuid(), egid:process.getegid(),\\n       CapEff:fld(\\\"CapEff\\\"), CapPrm:fld(\\\"CapPrm\\\"), CapBnd:fld(\\\"CapBnd\\\"), NoNewPrivs:fld(\\\"NoNewPrivs\\\"),\\n       Seccomp:fld(\\\"Seccomp\\\"), Uid:fld(\\\"Uid\\\"), Gid:fld(\\\"Gid\\\"), Groups:fld(\\\"Groups\\\")};\\n// P11 namespaces\\nconst ns={}; for (const n of [\\\"user\\\",\\\"pid\\\",\\\"net\\\",\\\"ipc\\\",\\\"uts\\\",\\\"mnt\\\",\\\"cgroup\\\",\\\"time\\\",\\\"pid_for_children\\\",\\\"net\\\"]) {\\n  try { ns[n]=fs.readlinkSync(\\\"/proc/self/ns/\\\"+n); } catch(e){ ns[n]=e.code||null; } }\\nR.p11=ns;\\n// P12 process boundary (no readdir needed)\\nR.p12={proc1:ex(\\\"/proc/1\\\"), proc2:ex(\\\"/proc/2\\\"), proc_self:ex(\\\"/proc/self\\\"), proc_host_high:ex(\\\"/proc/99999\\\"),\\n       pid1_cmdline:(()=>{try{return fs.readFileSync(\\\"/proc/1/cmdline\\\",\\\"utf8\\\").replace(/\\\\0/g,\\\" \\\").trim();}catch(e){return e.code;}})(),\\n       self_pid:process.pid, proc_list:rd(\\\"/proc\\\")};\\n// P13 clone semantics (JS-reachable)\\nlet forkres; try { require(\\\"child_process\\\").execFileSync(\\\"/bin/true\\\"); forkres=\\\"SPAWN_OK\\\"; } catch(e){ forkres=\\\"DENIED/\\\"+e.code+\\\"/\\\"+e.errno; }\\nR.p13={fork_like:forkres, thread_pool:\\\"pending\\\"};\\n// P14 credential changes\\nfunction tr(id,fn){ try { fn(); R[id]={ok:true,value:\\\"CHANGED\\\"}; } catch(e){ R[id]={ok:false,code:e.code||null,errno:(e.errno===undefined?null:e.errno)}; } }\\ntr(\\\"p14_setuid0\\\",()=>process.setuid(0));\\ntr(\\\"p14_setgid0\\\",()=>process.setgid(0));\\nif (process.setgroups) tr(\\\"p14_setgroups\\\",()=>process.setgroups([0]));\\n// P15 cgroup boundary\\nat(\\\"p15_read_sys_fs_cgroup\\\", ()=>rd(\\\"/sys/fs/cgroup\\\"));\\nat(\\\"p15_write_cgroup_procs\\\", ()=>fs.writeFileSync(\\\"/sys/fs/cgroup/cgroup.procs\\\",\\\"1\\\"));\\nR.p15_sys_exists=ex(\\\"/sys\\\");\\n// P16 double-fork preparation\\nlet dbl; try { require(\\\"child_process\\\").spawn(\\\"/bin/true\\\"); dbl=\\\"SPAWN_OK\\\"; } catch(e){ dbl=\\\"DENIED/\\\"+e.code+\\\"/\\\"+e.errno; }\\nR.p16={spawn:dbl, setsid_available:(typeof process.setsid)};\\n// async fs => libuv threadpool => clone(thread)\\nfs.readFile(\\\"/usr/share/nodejs/cjs-module-lexer/lexer.js\\\",\\\"utf8\\\",(e,d)=>{ R.p13.thread_pool = e ? (\\\"ERR/\\\"+e.code) : (\\\"OK/\\\"+String(d).length);\\n  process.stdout.write(\\\"M1JSON \\\"+JSON.stringify(R)); });\", \"proc1\": \"PRESENT\", \"proc2\": \"PRESENT\", \"proc_host_high\": \"ENOENT\", \"proc_list\": {\"code\": \"EPERM\", \"errno\": -1, \"ok\": false}, \"proc_self\": \"PRESENT\", \"self_pid\": 2}"
+      "evidence": "{\"proc1\": \"PRESENT\", \"proc2\": \"PRESENT\", \"proc_self\": \"PRESENT\", \"proc_host_high\": \"ENOENT\", \"pid1_cmdline\": \"bwrap --unshare-user --uid 65534 --gid 65534 --unshare-pid --unshare-ipc --unshare-uts --unshare-net --die-with-parent --new-session --cap-drop ALL --dir /provider --dir /fixture --ro-bind /home/moiz/audit-repos/T3MP3ST /provider --ro-bind /home/moiz/audit-repos/T3MP3ST/node_modules /provider/node_modules --ro-bind /home/moiz/raphael-2.0-rbsv2r/fixtures/c1a_proof/raphael_c1a_fixture.txt /fixture/raphael_c1a_fixture.txt --ro-bind /usr/bin/node /usr/bin/node --dev /dev --proc /proc --seccomp 3 --unsetenv HTTP_PROXY --unsetenv HTTPS_PROXY --unsetenv ALL_PROXY --unsetenv FTP_PROXY --unsetenv NO_PROXY --unsetenv http_proxy --unsetenv https_proxy --unsetenv all_proxy --unsetenv ftp_proxy --unsetenv no_proxy --ro-bind /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 --ro-bind /usr/lib/x86_64-linux-gnu/libada-url0.so.3 /usr/lib/x86_64-linux-gnu/libada-url0.so.3 --ro-bind /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1 /usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1 /usr/lib/x86_64-linux-gnu/libbrotlidec.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libbrotlienc.so.1 /usr/lib/x86_64-linux-gnu/libbrotlienc.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libc.so.6 /usr/lib/x86_64-linux-gnu/libc.so.6 --ro-bind /usr/lib/x86_64-linux-gnu/libcares.so.2 /usr/lib/x86_64-linux-gnu/libcares.so.2 --ro-bind /usr/lib/x86_64-linux-gnu/libcrypto.so.3 /usr/lib/x86_64-linux-gnu/libcrypto.so.3 --ro-bind /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libicudata.so.78 /usr/lib/x86_64-linux-gnu/libicudata.so.78 --ro-bind /usr/lib/x86_64-linux-gnu/libicui18n.so.78 /usr/lib/x86_64-linux-gnu/libicui18n.so.78 --ro-bind /usr/lib/x86_64-linux-gnu/libicuuc.so.78 /usr/lib/x86_64-linux-gnu/libicuuc.so.78 --ro-bind /usr/lib/x86_64-linux-gnu/libllhttp.so.9.3 /usr/lib/x86_64-linux-gnu/libllhttp.so.9.3 --ro-bind /usr/lib/x86_64-linux-gnu/libm.so.6 /usr/lib/x86_64-linux-gnu/libm.so.6 --ro-bind /usr/lib/x86_64-linux-gnu/libnghttp2.so.14 /usr/lib/x86_64-linux-gnu/libnghttp2.so.14 --ro-bind /usr/lib/x86_64-linux-gnu/libnode.so.127 /usr/lib/x86_64-linux-gnu/libnode.so.127 --ro-bind /usr/lib/x86_64-linux-gnu/libsimdjson.so.29 /usr/lib/x86_64-linux-gnu/libsimdjson.so.29 --ro-bind /usr/lib/x86_64-linux-gnu/libsimdutf.so.31 /usr/lib/x86_64-linux-gnu/libsimdutf.so.31 --ro-bind /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 --ro-bind /usr/lib/x86_64-linux-gnu/libssl.so.3 /usr/lib/x86_64-linux-gnu/libssl.so.3 --ro-bind /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6 --ro-bind /usr/lib/x86_64-linux-gnu/libuv.so.1 /usr/lib/x86_64-linux-gnu/libuv.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libz.so.1 /usr/lib/x86_64-linux-gnu/libz.so.1 --ro-bind /usr/lib/x86_64-linux-gnu/libzstd.so.1 /usr/lib/x86_64-linux-gnu/libzstd.so.1 --ro-bind /usr/share/nodejs/acorn-walk/dist/walk.js /usr/share/nodejs/acorn-walk/dist/walk.js --ro-bind /usr/share/nodejs/acorn/dist/acorn.js /usr/share/nodejs/acorn/dist/acorn.js --ro-bind /usr/share/nodejs/cjs-module-lexer/dist/lexer.js /usr/share/nodejs/cjs-module-lexer/dist/lexer.js --ro-bind /usr/share/nodejs/cjs-module-lexer/lexer.js /usr/share/nodejs/cjs-module-lexer/lexer.js --ro-bind /usr/share/nodejs/minimatch/dist/cjs/index.bundle.js /usr/share/nodejs/minimatch/dist/cjs/index.bundle.js --ro-bind /usr/share/nodejs/undici/undici-fetch.js /usr/share/nodejs/undici/undici-fetch.js --chdir /provider -- /usr/bin/node -e \\nconst fs=require(\\\"fs\\\");\\nconst R={};\\nfunction at(id, fn){ try { R[id]={ok:true, value:String(fn()).slice(0,300)}; }\\n  catch(e){ R[id]={ok:false, code:e.code||null, errno:(e.errno===undefined?null:e.errno), msg:String(e.message).slice(0,120)}; } }\\nfunction ex(p){ try { fs.accessSync(p); return \\\"PRESENT\\\"; } catch(e){ return e.code; } }\\nfunction rd(p){ try { return {ok:true, n:fs.readdirSync(p).length, entries:fs.readdirSync(p).slice(0,20).sort()}; }\\n  catch(e){ return {ok:false, code:e.code||null, errno:(e.errno===undefined?null:e.errno)}; } }\\n// P1 host filesystem visibility\\nR.p1={home:ex(\\\"/home/moiz/.raphael_m1_host_sentinel\\\"), tmp:ex(\\\"/tmp/raphael_m1_host_sentinel\\\"),\\n      etc_passwd:ex(\\\"/etc/passwd\\\"), root_home:ex(\\\"/root\\\"), repo_readme:ex(\\\"/home/moiz/raphael-2.0-rbsv2r/README.md\\\")};\\n// P2 traversal\\nat(\\\"p2_provider_dotdot\\\", ()=>fs.readFileSync(\\\"/provider/../../../etc/passwd\\\",\\\"utf8\\\"));\\nat(\\\"p2_node_dotdot\\\", ()=>fs.readFileSync(\\\"/usr/bin/../../../etc/passwd\\\",\\\"utf8\\\"));\\nat(\\\"p2_fixture_dotdot_list\\\", ()=>rd(\\\"/fixture/../..\\\"));\\nat(\\\"p2_normalized\\\", ()=>fs.statSync(\\\"/provider/./../fixture/../../etc\\\"));\\n// P3 symlink escape\\nat(\\\"p3_proc_root_etc\\\", ()=>fs.readFileSync(\\\"/proc/self/root/etc/passwd\\\",\\\"utf8\\\"));\\nat(\\\"p3_proc_exe\\\", ()=>fs.readlinkSync(\\\"/proc/self/exe\\\"));\\nat(\\\"p3_proc_root\\\", ()=>fs.readlinkSync(\\\"/proc/self/root\\\"));\\nat(\\\"p3_proc_cwd\\\", ()=>fs.readlinkSync(\\\"/proc/self/cwd\\\"));\\n// P4 provider/runtime writability\\nat(\\\"p4_provider_write\\\", ()=>fs.writeFileSync(\\\"/provider/m1_probe_marker\\\",\\\"x\\\"));\\nat(\\\"p4_node_modules_write\\\", ()=>fs.writeFileSync(\\\"/provider/node_modules/m1_probe_marker\\\",\\\"x\\\"));\\nat(\\\"p4_node_write\\\", ()=>fs.writeFileSync(\\\"/usr/bin/node\\\",\\\"x\\\"));\\nat(\\\"p4_lib_write\\\", ()=>fs.writeFileSync(\\\"/usr/lib/x86_64-linux-gnu/libc.so.6\\\",\\\"x\\\"));\\nat(\\\"p4_provider_unlink\\\", ()=>fs.unlinkSync(\\\"/provider/package.json\\\"));\\nat(\\\"p4_provider_mkdir\\\", ()=>fs.mkdirSync(\\\"/provider/m1_dir\\\"));\\n// P5 fixture\\nR.p5={fixture_exists:ex(\\\"/fixture/raphael_c1a_fixture.txt\\\"), fixture_read_bytes:(()=>{try{return fs.statSync(\\\"/fixture/raphael_c1a_fixture.txt\\\").size;}catch(e){return e.code;}})()};\\nat(\\\"p5_fixture_list\\\", ()=>rd(\\\"/fixture\\\"));\\nat(\\\"p5_fixture_write\\\", ()=>fs.writeFileSync(\\\"/fixture/raphael_c1a_fixture.txt\\\",\\\"x\\\"));\\nat(\\\"p5_fixture_rename\\\", ()=>fs.renameSync(\\\"/fixture/raphael_c1a_fixture.txt\\\",\\\"/fixture/x\\\"));\\n// P6 RAPHAEL source exposure\\nR.p6={substrate:ex(\\\"/home/moiz/raphael-2.0-rbsv2r/raphael_ibm_bob/isolation_substrate.py\\\"),\\n      git_head:ex(\\\"/home/moiz/raphael-2.0-rbsv2r/.git/HEAD\\\"), tests:ex(\\\"/home/moiz/raphael-2.0-rbsv2r/tests\\\")};\\n// P7 home/ssh/config\\nR.p7={home:ex(\\\"/home/moiz\\\"), ssh:ex(\\\"/home/moiz/.ssh\\\"), bashrc:ex(\\\"/home/moiz/.bashrc\\\"),\\n      local:ex(\\\"/home/moiz/.local\\\"), opencode_cfg:ex(\\\"/home/moiz/.config/opencode\\\")};\\n// P8 sockets\\nR.p8={docker:ex(\\\"/var/run/docker.sock\\\"), podman:ex(\\\"/run/podman/podman.sock\\\"),\\n      containerd:ex(\\\"/run/containerd/containerd.sock\\\"), systemd_private:ex(\\\"/run/systemd/private\\\")};\\n// P9 devices\\nR.p9={dev_list:rd(\\\"/dev\\\"), sys:ex(\\\"/sys\\\"), proc:ex(\\\"/proc\\\"),\\n      devs:{}};\\nfor (const d of [\\\"sda\\\",\\\"nvme0n1\\\",\\\"mem\\\",\\\"kmem\\\",\\\"kmsg\\\",\\\"console\\\",\\\"null\\\",\\\"zero\\\",\\\"urandom\\\",\\\"tty\\\",\\\"pts\\\",\\\"shm\\\",\\\"core\\\",\\\"fuse\\\"]) R.p9.devs[d]=ex(\\\"/dev/\\\"+d);\\n// P10 privilege boundary\\nconst st=fs.readFileSync(\\\"/proc/self/status\\\",\\\"utf8\\\");\\nfunction fld(n){const m=st.match(new RegExp(\\\"^\\\"+n+\\\":\\\\\\\\s*(.*)$\\\",\\\"m\\\"));return m?m[1].trim():null;}\\nR.p10={uid:process.getuid(), gid:process.getgid(), euid:process.geteuid(), egid:process.getegid(),\\n       CapEff:fld(\\\"CapEff\\\"), CapPrm:fld(\\\"CapPrm\\\"), CapBnd:fld(\\\"CapBnd\\\"), NoNewPrivs:fld(\\\"NoNewPrivs\\\"),\\n       Seccomp:fld(\\\"Seccomp\\\"), Uid:fld(\\\"Uid\\\"), Gid:fld(\\\"Gid\\\"), Groups:fld(\\\"Groups\\\")};\\n// P11 namespaces\\nconst ns={}; for (const n of [\\\"user\\\",\\\"pid\\\",\\\"net\\\",\\\"ipc\\\",\\\"uts\\\",\\\"mnt\\\",\\\"cgroup\\\",\\\"time\\\",\\\"pid_for_children\\\",\\\"net\\\"]) {\\n  try { ns[n]=fs.readlinkSync(\\\"/proc/self/ns/\\\"+n); } catch(e){ ns[n]=e.code||null; } }\\nR.p11=ns;\\n// P12 process boundary (no readdir needed)\\nR.p12={proc1:ex(\\\"/proc/1\\\"), proc2:ex(\\\"/proc/2\\\"), proc_self:ex(\\\"/proc/self\\\"), proc_host_high:ex(\\\"/proc/99999\\\"),\\n       pid1_cmdline:(()=>{try{return fs.readFileSync(\\\"/proc/1/cmdline\\\",\\\"utf8\\\").replace(/\\\\0/g,\\\" \\\").trim();}catch(e){return e.code;}})(),\\n       self_pid:process.pid, proc_list:rd(\\\"/proc\\\")};\\n// P13 clone semantics (JS-reachable)\\nlet forkres; try { require(\\\"child_process\\\").execFileSync(\\\"/bin/true\\\"); forkres=\\\"SPAWN_OK\\\"; } catch(e){ forkres=\\\"DENIED/\\\"+e.code+\\\"/\\\"+e.errno; }\\nR.p13={fork_like:forkres, thread_pool:\\\"pending\\\"};\\n// P14 credential changes\\nfunction tr(id,fn){ try { fn(); R[id]={ok:true,value:\\\"CHANGED\\\"}; } catch(e){ R[id]={ok:false,code:e.code||null,errno:(e.errno===undefined?null:e.errno)}; } }\\ntr(\\\"p14_setuid0\\\",()=>process.setuid(0));\\ntr(\\\"p14_setgid0\\\",()=>process.setgid(0));\\nif (process.setgroups) tr(\\\"p14_setgroups\\\",()=>process.setgroups([0]));\\n// P15 cgroup boundary\\nat(\\\"p15_read_sys_fs_cgroup\\\", ()=>rd(\\\"/sys/fs/cgroup\\\"));\\nat(\\\"p15_write_cgroup_procs\\\", ()=>fs.writeFileSync(\\\"/sys/fs/cgroup/cgroup.procs\\\",\\\"1\\\"));\\nR.p15_sys_exists=ex(\\\"/sys\\\");\\n// P16 double-fork preparation\\nlet dbl; try { require(\\\"child_process\\\").spawn(\\\"/bin/true\\\"); dbl=\\\"SPAWN_OK\\\"; } catch(e){ dbl=\\\"DENIED/\\\"+e.code+\\\"/\\\"+e.errno; }\\nR.p16={spawn:dbl, setsid_available:(typeof process.setsid)};\\n// async fs => libuv threadpool => clone(thread)\\nfs.readFile(\\\"/usr/share/nodejs/cjs-module-lexer/lexer.js\\\",\\\"utf8\\\",(e,d)=>{ R.p13.thread_pool = e ? (\\\"ERR/\\\"+e.code) : (\\\"OK/\\\"+String(d).length);\\n  process.stdout.write(\\\"M1JSON \\\"+JSON.stringify(R)); });\", \"self_pid\": 2, \"proc_list\": {\"ok\": false, \"code\": \"EPERM\", \"errno\": -1}}"
     },
     {
       "probe_id": "M1-P13",
@@ -352,22 +363,22 @@
       "expected": "identity changes denied",
       "actual": {
         "p14_setuid0": {
+          "ok": false,
           "code": "EPERM",
-          "errno": 1,
-          "ok": false
+          "errno": 1
         },
         "p14_setgid0": {
+          "ok": false,
           "code": "EPERM",
-          "errno": 1,
-          "ok": false
+          "errno": 1
         },
         "p14_setgroups": {
+          "ok": false,
           "code": "EPERM",
-          "errno": 1,
-          "ok": false
+          "errno": 1
         }
       },
-      "evidence": "{\"p14_setuid0\": {\"code\": \"EPERM\", \"errno\": 1, \"ok\": false}, \"p14_setgid0\": {\"code\": \"EPERM\", \"errno\": 1, \"ok\": false}, \"p14_setgroups\": {\"code\": \"EPERM\", \"errno\": 1, \"ok\": false}}"
+      "evidence": "{\"p14_setuid0\": {\"ok\": false, \"code\": \"EPERM\", \"errno\": 1}, \"p14_setgid0\": {\"ok\": false, \"code\": \"EPERM\", \"errno\": 1}, \"p14_setgroups\": {\"ok\": false, \"code\": \"EPERM\", \"errno\": 1}}"
     },
     {
       "probe_id": "M1-P15",
@@ -393,10 +404,10 @@
       "status": "PASS",
       "expected": "no child process can be created",
       "actual": {
-        "setsid_available": "undefined",
-        "spawn": "DENIED/EPERM/-1"
+        "spawn": "DENIED/EPERM/-1",
+        "setsid_available": "undefined"
       },
-      "evidence": "{\"setsid_available\": \"undefined\", \"spawn\": \"DENIED/EPERM/-1\"}"
+      "evidence": "{\"spawn\": \"DENIED/EPERM/-1\", \"setsid_available\": \"undefined\"}"
     }
   ],
   "observations": {

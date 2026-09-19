@@ -43,6 +43,15 @@ class C1AIdentifiers(unittest.TestCase):
         # historical subject explicitly distinguished
         self.assertIn("runSubprocess", text)
 
+    def test_2b_historical_design_doc_marks_c1_superseded(self):
+        design = (REPO / "docs" / "integration" /
+                  "phase-2b-provider-runtime-scope-result-design.md")
+        text = design.read_text()
+        self.assertIn("static_file_manifest", text)
+        self.assertIn("HISTORICAL / SUPERSEDED", text)
+        self.assertIn("C1A static_file_inspect", text)
+        self.assertIn("binary_sink_scan", text)
+
 
 class RunTestClassificationF4(unittest.TestCase):
     def test_3_document_freezes_run_test_classification(self):
@@ -61,6 +70,13 @@ class RunTestClassificationF4(unittest.TestCase):
         src = (REPO / "raphael_ibm_bob" / "capabilities.py").read_text()
         self.assertIn("subprocess.run", src)
         self.assertIn("Capability.RUN_TEST: _run_test", src)
+
+    def test_5b_no_overstated_structural_isolation(self):
+        text = DOC.read_text()
+        # corrected wording: availability, not structural isolation
+        self.assertIn("no current provider transport", text)
+        self.assertIn("not a structural guarantee", text)
+        self.assertNotIn("is not reachable from `RUN_TEST`", text)
 
 
 class SeccompExecveSemanticsF5(unittest.TestCase):

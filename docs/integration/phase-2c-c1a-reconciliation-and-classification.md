@@ -78,9 +78,17 @@ Frozen facts:
   the RAPHAEL host, not inside the bwrap/M2 sandbox.
 - Environment/network are inherited: the child receives `dict(os.environ)`
   (including any credentials) and the host network path.
-- `RUN_TEST` is **outside Class A** and **outside C1A**. The C1A provider
-  boundary (`ProviderRuntime` / `T3MP3STAdapter`) is a separate,
-  out-of-process path and is not reachable from `RUN_TEST`.
+- `RUN_TEST` is **outside Class A** and **outside C1A**.
+- **No stronger structural isolation is claimed.** Because `RUN_TEST` executes
+  arbitrary host Python under the workspace/Policy constraints, the executed
+  code can `import` and use available RAPHAEL modules (including
+  `raphael_ibm_bob.provider_runtime` / `raphael_ibm_bob.adapters`). There is,
+  however, **no current provider transport**: `ProviderRuntime.invoke_governed`
+  is not wired to any runtime entry point, and `T3MP3STAdapter.invoke` fails
+  closed with `ProviderUnavailableError`. `RUN_TEST` therefore cannot currently
+  realize a provider invocation — but that is an **availability fact (transport
+  absent), not a structural guarantee enforced by `RUN_TEST`**. Documentation
+  must not assert a stronger isolation property than the code enforces.
 
 | capability | class | execution primitive | network | filesystem | authority | provider | status |
 |---|---|---|---|---|---|---|---|

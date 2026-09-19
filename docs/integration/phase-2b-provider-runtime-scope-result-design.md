@@ -2,6 +2,18 @@
 
 **STATUS: DESIGN ONLY — AUTHORIZED. IMPLEMENTATION: PROHIBITED. PROVIDER EXECUTION: PROHIBITED.**
 
+> **HISTORICAL DESIGN NOTICE — first proof SUPERSEDED.** This Phase 2B
+> document selected **`C1 static_file_manifest`** (mapped to the T3MP3ST
+> **`file` catalog adapter**, i.e. a `runSubprocess`/`execFile('file')`
+> subprocess) as the first-proof candidate. That selection is **HISTORICAL /
+> SUPERSEDED**. The OPERATIVE Phase 2C first proof is
+> **`C1A static_file_inspect` → T3MP3ST `binary_sink_scan`** (pure-JS,
+> execution-free), defined in
+> `docs/integration/phase-2c-c1a-reconciliation-and-classification.md` and
+> `raphael_ibm_bob/provider_runtime.py`. Sections below are retained as
+> history; wherever they name `C1 static_file_manifest` as the first proof,
+> read that as the superseded candidate.
+
 Labels: **VERIFIED FROM SOURCE** (local/remote as noted), **INFERRED**,
 **UNKNOWN / NOT VERIFIED**, **BLOCKED**, **REQUIRES LEGAL REVIEW**.
 
@@ -67,9 +79,14 @@ implemented or enabled.
 | — | full `Arsenal` / `Tempest` / AgentLoop / MissionControl | — | T3MP3ST | — | — | — | — | — | — | no | **NOT SUITABLE** | orchestrator/authority surface |
 | — | exploitation / C2 / credential / persistence / exfiltration | — | both | — | — | — | — | — | — | no | **NOT SUITABLE** | explicitly excluded |
 
-**First-proof candidate: `C1 static_file_manifest`** — read-only, non-networked,
-bounded, deterministic, incapable of becoming generic command execution, and
-incapable of changing RAPHAEL authority. **INFERRED (design selection).**
+**First-proof candidate (HISTORICAL / SUPERSEDED): `C1 static_file_manifest`** —
+read-only, non-networked, bounded, deterministic, incapable of becoming generic
+command execution, and incapable of changing RAPHAEL authority.
+**INFERRED (design selection).** This candidate is **SUPERSEDED** by the
+operative `C1A static_file_inspect` → T3MP3ST `binary_sink_scan` (pure JS);
+the `file`-adapter mapping below is retained as history. Authority on the
+operative capability rests with
+`docs/integration/phase-2c-c1a-reconciliation-and-classification.md`.
 
 ## 4. Scope hand-off schema (field-level, design)
 
@@ -287,7 +304,12 @@ RAPHAEL Capability Fabric (unchanged)
 - **`Tempest` / `MissionControl` / `AgentLoop` / operator-cell semantics must not
   be imported into RAPHAEL authority.** **VERIFIED FROM SOURCE + policy.**
 
-## 13. First-proof capability design — `C1 static_file_manifest`
+## 13. First-proof capability design — `C1 static_file_manifest` (HISTORICAL / SUPERSEDED)
+
+**HISTORICAL DESIGN ONLY — SUPERSEDED.** The operative Phase 2C first proof is
+`C1A static_file_inspect` → T3MP3ST `binary_sink_scan` (pure JS). The table
+below documents the older `C1 static_file_manifest` / `file`-adapter selection
+and is retained for history; it is **not** the operative capability definition.
 
 Design selection only (nothing executed).
 
@@ -340,7 +362,7 @@ Design selection only (nothing executed).
 
 ## 16. Preconditions for Phase 2C (implementation)
 
-1. Approved closed capability allow-list (proposed: C1 first).
+1. Approved closed capability allow-list (historical proposal: `C1`; operative first proof: `C1A static_file_inspect`).
 2. Approved `ScopeHandoff` schema.
 3. Approved `ProviderRuntime.invoke` contract.
 4. Approved `ProviderResult` contract + status enum.

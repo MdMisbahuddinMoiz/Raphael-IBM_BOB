@@ -28,6 +28,43 @@ from raphael_ibm_bob.contracts import ActionRequest, Capability
 from raphael_ibm_bob.workspace import Workspace
 
 
+# -----------------------------------------------------------------------------
+# Resource bounds (Phase 1 hardening)
+# -----------------------------------------------------------------------------
+
+#: Maximum number of files SEARCH will inspect in one invocation.
+MAX_SEARCH_FILES = 5000
+#: Maximum number of matching lines SEARCH will return.
+MAX_SEARCH_MATCHES = 1000
+#: Maximum size (bytes) of a single file SEARCH will read.
+MAX_SEARCH_FILE_BYTES = 1_000_000
+#: Maximum length of a returned matching line (characters).
+MAX_SEARCH_LINE = 200
+
+#: Environment variables RUN_TEST is allowed to pass to the child process.
+#: Everything else (credentials, tokens, proxies, cloud keys) is scrubbed.
+_RUN_TEST_ENV_ALLOWLIST = frozenset({
+    "PATH", "HOME", "LANG", "TMPDIR", "TEMP", "TMP", "USER", "LOGNAME",
+    "SHELL", "TERM", "SYSTEMROOT", "WINDIR", "PYTHONIOENCODING",
+    "PYTHONHASHSEED", "PYTHONUTF8",
+})
+
+
+def _scrubbed_env(workspace: Workspace) -> Dict[str, str]:
+    """Build a minimal, secret-free environment for the RUN_TEST child.
+
+    Only an explicit allow-list (plus any ``LC_*`` locale variable) is
+    inherited. ``PYTHONPATH`` is set explicitly to the workspace root so
+    the named test module is importable without inheriting an ambient one.
+    """
+    env: Dict[str, str] = {}
+    for key, value in os.environ.items():
+        if key in _RUN_TEST_ENV_ALLOWLIST or key.startswith("LC_"):
+            env[key] = value
+    env["PYTHONPATH"] = str(workspace.root)
+    return env
+
+
 def _read(workspace: Workspace, request: ActionRequest) -> Dict[str, Any]:
     p = workspace.resolve(request.target)
     return {"path": str(p), "content": p.read_text(encoding="utf-8", errors="replace")}
@@ -40,23 +77,54 @@ def _list(workspace: Workspace, request: ActionRequest) -> Dict[str, Any]:
 
 
 def _search(workspace: Workspace, request: ActionRequest) -> Dict[str, Any]:
+    """Regex-search a directory with explicit resource bounds.
+
+    Bound (Phase 1 hardening): at most ``MAX_SEARCH_FILES`` files are
+    inspected, files larger than ``MAX_SEARCH_FILE_BYTES`` are skipped,
+    and at most ``MAX_SEARCH_MATCHES`` matching lines are returned. When
+    any bound is hit the payload is marked ``truncated=True`` so callers
+    never mistake a partial sweep for an exhaustive one.
+    """
     p = workspace.resolve(request.target)
     pattern = request.purpose  # SEARCH uses `purpose` as the search pattern
     if not pattern:
-        return {"path": str(p), "matches": []}
+        return {"path": str(p), "matches": [], "truncated": False,
+                "scanned_files": 0, "skipped_files": 0}
     rx = re.compile(pattern)
     matches: list[Dict[str, Any]] = []
+    scanned_files = 0
+    skipped_files = 0
+    truncated = False
     for path in p.rglob("*"):
         if not path.is_file():
             continue
+        if scanned_files >= MAX_SEARCH_FILES:
+            truncated = True
+            break
+        try:
+            if path.stat().st_size > MAX_SEARCH_FILE_BYTES:
+                skipped_files += 1
+                continue
+        except OSError:
+            skipped_files += 1
+            continue
+        scanned_files += 1
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
         for i, line in enumerate(text.splitlines(), start=1):
             if rx.search(line):
-                matches.append({"file": str(path), "line": i, "text": line[:200]})
-    return {"path": str(p), "matches": matches}
+                matches.append({"file": str(path), "line": i,
+                                "text": line[:MAX_SEARCH_LINE]})
+                if len(matches) >= MAX_SEARCH_MATCHES:
+                    truncated = True
+                    break
+        if truncated and len(matches) >= MAX_SEARCH_MATCHES:
+            break
+    return {"path": str(p), "matches": matches, "truncated": truncated,
+            "scanned_files": scanned_files, "skipped_files": skipped_files}
+
 
 
 def _write(workspace: Workspace, request: ActionRequest) -> Dict[str, Any]:
@@ -92,8 +160,10 @@ def _run_test(workspace: Workspace, request: ActionRequest) -> Dict[str, Any]:
     module = ".".join(rel.parts)
     timeout = (request.timeout_seconds
                if request.timeout_seconds is not None else 30.0)
-    env = dict(os.environ)
-    env["PYTHONPATH"] = str(workspace.root) + os.pathsep + env.get("PYTHONPATH", "")
+    # Phase 1 hardening: never inherit the ambient process environment
+    # (credentials, tokens, proxy config). Only a small allow-list plus an
+    # explicit PYTHONPATH reaches the child.
+    env = _scrubbed_env(workspace)
     try:
         proc = subprocess.run(
             [sys.executable, "-m", "unittest", module, "-v"],

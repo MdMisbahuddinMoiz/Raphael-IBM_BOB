@@ -64,6 +64,7 @@ from raphael_ibm_bob.contracts import (
     GateVerdict,
     Mission,
 )
+from raphael_ibm_bob.c1a_scope import scope_contains, within_root
 from raphael_ibm_bob.evidence_ledger import (
     EvidenceLedger,
     RecordKind,
@@ -280,17 +281,28 @@ class BOBQualityGate:
                 )
 
         # ---- Condition E: scope ----
-        # Every recorded request target must contain the mission scope
-        # substring (when scope is non-empty). All decisions must be
-        # ALLOW; no DENY records that actually executed (result after DENY).
+        # Every recorded request target must be canonically contained in
+        # the mission scope (component boundary, not substring prefix) and,
+        # when a workspace_root is supplied, inside that root as well. All
+        # decisions must be ALLOW; no DENY records that actually executed
+        # (result after DENY). Uses the SINGLE canonical helper shared with
+        # the Policy (raphael_ibm_bob.c1a_scope).
         scope_ok = True
-        if inputs.mission.scope:
-            for r in request_records:
-                tgt = (r.get("target") or "").replace("\\", "/")
-                if inputs.mission.scope not in tgt:
+        for r in request_records:
+            tgt = r.get("target") or ""
+            if not scope_contains(inputs.mission.scope, tgt):
+                scope_ok = False
+                reasons.append(
+                    f"scope violation: target '{tgt}' not in mission scope "
+                    f"'{inputs.mission.scope}'"
+                )
+                break
+            if inputs.workspace_root and tgt.startswith("/"):
+                if not within_root(inputs.workspace_root, tgt):
                     scope_ok = False
                     reasons.append(
-                        f"scope violation: target '{tgt}' not in mission scope '{inputs.mission.scope}'"
+                        f"scope violation: target '{tgt}' escapes workspace "
+                        f"'{inputs.workspace_root}'"
                     )
                     break
         for r in decision_records:

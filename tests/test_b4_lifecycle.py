@@ -288,6 +288,94 @@ class CriticalAttackerRegression(unittest.TestCase, _ArtifactMixin):
         self.assertEqual(rec.state, LifecycleState.TEARDOWN_INITIATED)
 
 
+class A3bSealBypass(unittest.TestCase, _ArtifactMixin):
+    """A3b: bind must re-derive semantic M5 invariants, not trust the seal."""
+
+    def _sealed(self, auth, ref, sha, **over):
+        pid, start, cg = _m5_identity(_m5()[0])
+        p = {"authority_id": auth.authority_id, "lifecycle_id": "lc-m5",
+             "proof_session_id": "ps-m5", "sandbox_id": "sbx-m5",
+             "pid": pid, "pid_starttime": start, "cgroup": cg,
+             "evidence_reference": ref, "evidence_sha256": sha,
+             "no_provider_execution": True, "target_terminated": True}
+        p.update(over)
+        return M5Observation(**p, seal=auth._core.seal(p))
+
+    def _since_bad_before(self):
+        ev = _copy(_m5()[0]); ev["teardown"]["events_before"] = "populated 0"
+        return ev
+
+    def test_A_populated_before_rejected(self):
+        ev = self._since_bad_before()
+        _ev, path, digest = self.temp_artifact(ev)
+        auth = _auth()
+        obs = self._sealed(auth, path, digest)
+        rec = _full_for_m5(ev)
+        with self.assertRaises(LifecycleError):
+            bind_m5_teardown(rec, ev, path, digest, observation=obs, authority=auth)
+
+    def test_B_populated_after_rejected(self):
+        ev = _copy(_m5()[0]); ev["teardown"]["events_after"] = "populated 1"
+        _ev, path, digest = self.temp_artifact(ev)
+        auth = _auth()
+        obs = self._sealed(auth, path, digest)
+        rec = _full_for_m5(ev)
+        with self.assertRaises(LifecycleError):
+            bind_m5_teardown(rec, ev, path, digest, observation=obs, authority=auth)
+
+    def test_C_target_terminated_false_rejected(self):
+        ev, ref, sha = _m5(); auth = _auth()
+        obs = self._sealed(auth, ref, sha, target_terminated=False)
+        rec = _full_for_m5(ev)
+        with self.assertRaises(LifecycleError):
+            bind_m5_teardown(rec, ev, ref, sha, observation=obs, authority=auth)
+
+    def test_D_no_provider_execution_false_rejected(self):
+        ev, ref, sha = _m5(); auth = _auth()
+        obs = self._sealed(auth, ref, sha, no_provider_execution=False)
+        rec = _full_for_m5(ev)
+        with self.assertRaises(LifecycleError):
+            bind_m5_teardown(rec, ev, ref, sha, observation=obs, authority=auth)
+
+    def test_E_identity_mismatch_rejected(self):
+        ev, ref, sha = _m5(); auth = _auth()
+        obs = self._sealed(auth, ref, sha, lifecycle_id="lc-other")
+        rec = _full_for_m5(ev)
+        with self.assertRaises(LifecycleError):
+            bind_m5_teardown(rec, ev, ref, sha, observation=obs, authority=auth)
+
+    def test_F_valid_sealed_observation_still_succeeds(self):
+        ev, ref, sha = _m5(); auth = _auth()
+        obs = self._sealed(auth, ref, sha)   # semantically valid + sealed
+        rec = _full_for_m5(ev)
+        bind_m5_teardown(rec, ev, ref, sha, observation=obs, authority=auth)
+        rec.close()
+        res = attest_lifecycle(rec, m5_evidence=ev, authority=auth)
+        self.assertIs(res.status, AttestationStatus.ATTESTED, res.failures)
+
+    def test_G_sealed_contradiction_cannot_serialize_or_attest(self):
+        ev, ref, sha = _m5(); auth = _auth()
+        pid, start, cg = _m5_identity(ev)
+        obs = self._sealed(auth, ref, sha, target_terminated=False).to_dict()
+        trans = []
+        for i, s in enumerate(LifecycleState):
+            t = LifecycleTransition(seq=i, state=s, at=float(i))
+            if s is LifecycleState.TEARDOWN_OBSERVED:
+                t = LifecycleTransition(
+                    seq=i, state=s, at=float(i), evidence_ref=ref,
+                    evidence_sha256=sha, provenance=TEARDOWN_PROVENANCE_M5_BOUND,
+                    m5_reference=ref, m5_sha256=sha, m5_observation=obs)
+            trans.append(t)
+        rec = LifecycleRecord(lifecycle_id="lc-m5", proof_session_id="ps-m5",
+                              sandbox_id="sbx-m5", pid=pid, pid_starttime=start,
+                              cgroup=cg, _transitions=trans)
+        with self.assertRaises(LifecycleError):
+            rec.to_dict()
+        res = attest_lifecycle(rec, authority=auth)
+        self.assertIs(res.status, AttestationStatus.INVALID)
+        self.assertIn("m5-observation-authenticated", res.failures)
+
+
 class DirectAndParser(unittest.TestCase, _ArtifactMixin):
     def test_26_direct_cannot_close(self):
         rec = LifecycleRecord.create("lc", "ps"); rec.bind_sandbox("s")

@@ -19,8 +19,17 @@ authenticator. A fully compromised Python process can obtain and use the
 capability (Q8 = yes, accepted and documented). What is removed are the
 *accidental* and unnecessary weaknesses: there is no public constructor that
 accepts a caller-supplied verifier, no caller-supplied HMAC secret, no
-module-global signing secret, no overridable trust decision, and no
-unattached lookalike authority that can satisfy the trust path.
+module-global signing secret, and no overridable trust decision. An
+*equivalent lookalike authority* cannot authenticate the singleton's
+observations (exact-type + authority id + seal), but an in-process caller that
+already possesses trusted-core capability remains within the accepted
+threat-model envelope — that is not claimed otherwise.
+
+SEAL AUTHENTICITY != M5 SEMANTIC VALIDITY. The seal proves a payload was
+produced by the trusted-core authority; it does not prove the payload obeys
+the M5 contract. :func:`bind_m5_teardown` (the closure authority) therefore
+re-derives the semantic M5 invariants itself, and close/attest/to_dict/from_dict
+re-validate them as defense-in-depth.
 
 Three properties stay separate:
 
@@ -182,6 +191,31 @@ def resolve_reference_path(reference: str) -> str:
     return reference.split("#", 1)[0]
 
 
+def _semantic_m5_valid(evidence: Any) -> None:
+    """Independently re-derive the semantic M5 content invariants.
+
+    SEAL AUTHENTICITY != M5 SEMANTIC VALIDITY. This enforces the latter and is
+    applied at BOTH the mint boundary and the bind/close/attest boundary (PART
+    1/2/3), so a sealed-but-contradictory payload is rejected.
+    """
+    if not isinstance(evidence, dict):
+        raise M5AuthorityError("M5 evidence must be a JSON object")
+    teardown = evidence.get("teardown", {})
+    post = evidence.get("post_kill", {})
+    tracked = evidence.get("tracked", {})
+    if not isinstance(teardown, dict) or not isinstance(post, dict) \
+            or not isinstance(tracked, dict):
+        raise M5AuthorityError("malformed teardown/post/tracked")
+    if cgroup_populated(teardown.get("events_before")) != 1:
+        raise M5AuthorityError("requires pre-teardown populated == 1")
+    if cgroup_populated(teardown.get("events_after")) != 0:
+        raise M5AuthorityError("requires post-teardown populated == 0")
+    if post.get("target_terminated") is not True:
+        raise M5AuthorityError("target_terminated must be boolean True")
+    if evidence.get("no_provider_execution") is not True:
+        raise M5AuthorityError("no_provider_execution must be boolean True")
+
+
 # ---------------------------------------------------------------------------
 # PART 1/3 — trusted-core M5 authority (capability, closure-held secret)
 # ---------------------------------------------------------------------------
@@ -280,6 +314,13 @@ class M5TrustAuthority:
     decisions go through the module-level, non-polymorphic
     :func:`_verify_observation` which requires the EXACT authority type.
     Obtained only via :func:`trusted_m5_authority` (the trusted producer).
+
+    Construction is gated by a **module-unexported construction token**. The
+    token is NOT the cryptographic trust anchor (it is an introspectable
+    Python object); the HMAC secret is closure-held inside the authority and
+    is the sealing primitive. The process-local capability is a trusted-core
+    capability, not process isolation; arbitrary code already running in the
+    RAPHAEL process is outside the capability threat boundary.
     """
 
     __slots__ = ("_core", "_authority_id")
@@ -334,20 +375,10 @@ class M5TrustAuthority:
         if not isinstance(evidence, dict):
             raise M5AuthorityError("M5 artifact must be a JSON object")
 
-        teardown = evidence.get("teardown", {})
-        post = evidence.get("post_kill", {})
+        _semantic_m5_valid(evidence)
         tracked = evidence.get("tracked", {})
-        if not isinstance(teardown, dict) or not isinstance(post, dict) \
-                or not isinstance(tracked, dict):
-            raise M5AuthorityError("malformed teardown/post/tracked")
-        if cgroup_populated(teardown.get("events_before")) != 1:
-            raise M5AuthorityError("requires pre-teardown populated == 1")
-        if cgroup_populated(teardown.get("events_after")) != 0:
-            raise M5AuthorityError("requires post-teardown populated == 0")
-        if post.get("target_terminated") is not True:
-            raise M5AuthorityError("target_terminated must be boolean True")
-        if evidence.get("no_provider_execution") is not True:
-            raise M5AuthorityError("no_provider_execution must be boolean True")
+        if not isinstance(tracked, dict):
+            raise M5AuthorityError("malformed tracked block")
         if tracked.get("pid") != pid:
             raise M5AuthorityError("artifact PID != claimed PID")
         if str(tracked.get("starttime")) != str(pid_starttime):
@@ -488,6 +519,18 @@ def _validate_structure(rec: "LifecycleRecord", *, authenticate: bool) -> None:
                 if sha256_file(resolve_reference_path(t.m5_reference)) != t.m5_sha256:
                     raise LifecycleError(
                         "M5 artifact replaced/tampered after binding")
+                # A3b defense-in-depth — re-derive semantic validity too.
+                if obs.target_terminated is not True or \
+                        obs.no_provider_execution is not True:
+                    raise LifecycleError("M5 observation asserts invalid semantics")
+                try:
+                    with open(resolve_reference_path(t.m5_reference), "r",
+                              encoding="utf-8") as _fh:
+                        _artifact = json.loads(_fh.read())
+                except (OSError, ValueError) as exc:
+                    raise LifecycleError(
+                        "M5 artifact unreadable/invalid at boundary") from None
+                _semantic_m5_valid(_artifact)
             else:  # direct
                 if t.m5_reference is not None or t.m5_sha256 is not None \
                         or t.m5_observation is not None:
@@ -735,6 +778,12 @@ def bind_m5_teardown(rec: LifecycleRecord, m5_evidence: Dict[str, Any],
     if not isinstance(m5_evidence, dict) or \
             not _evidence_equals(reference, m5_evidence):
         raise LifecycleError("caller M5 evidence does not match the artifact")
+    # A3b — BIND re-derives its OWN semantic invariants (mint + bind, not mint
+    # only). A sealed-but-contradictory payload is rejected here.
+    _semantic_m5_valid(m5_evidence)
+    if observation.target_terminated is not True or \
+            observation.no_provider_execution is not True:
+        raise LifecycleError("observation asserts invalid M5 semantics")
     rec._authority = authority
     rec._append_m5_bound(observation)
 
@@ -773,6 +822,15 @@ def _m5_observation_status(rec: LifecycleRecord,
             return False, "artifact replaced/deleted after binding"
     except LifecycleError:
         return False, "artifact unavailable"
+    try:
+        with open(resolve_reference_path(tev.m5_reference), "r",
+                  encoding="utf-8") as _fh:
+            _artifact = json.loads(_fh.read())
+        _semantic_m5_valid(_artifact)
+    except (OSError, ValueError, LifecycleError):
+        return False, "artifact semantics invalid"
+    if obs.target_terminated is not True or obs.no_provider_execution is not True:
+        return False, "observation semantics invalid"
     return True, ""
 
 

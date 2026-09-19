@@ -17,8 +17,12 @@ out of contract and refused.
 """
 from __future__ import annotations
 
+import hashlib
 import json
-from typing import Any, Dict, Tuple
+import os
+import shutil
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 
 from raphael_ibm_bob.contracts import ActionRequest
 from raphael_ibm_bob.provider_runtime import (
@@ -31,6 +35,15 @@ from raphael_ibm_bob.provider_runtime import (
 
 #: The only tool this adapter may expose.
 EXPOSED_TOOLS: Tuple[str, ...] = (C1A_TOOL,)
+
+#: Pinned SHA-256 of the single-purpose C1A launcher. A mismatch fails
+#: closed; the launcher is never executed from an unpinned copy.
+LAUNCHER_SHA256 = (
+    "f3af9fff319b8dc0ee96c91bf5b9e7ebde9fbccfcf9873d93fae695c5adaf303")
+
+#: Default pinned launcher path (repository-relative, resolved by callers).
+DEFAULT_LAUNCHER_PATH = os.path.join("provider", "c1a_launcher.js")
+DEFAULT_NODE_PATH = "/usr/bin/node"
 
 
 class ProviderUnavailableError(Exception):
@@ -115,10 +128,137 @@ class InertProviderDouble:
         return normalize_result(handoff, raw)
 
 
+class LauncherIntegrityError(Exception):
+    """The pinned launcher digest did not match (fail closed)."""
+
+
+def file_sha256(path: os.PathLike | str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def launcher_digest_ok(path: os.PathLike | str,
+                       expected: str = LAUNCHER_SHA256) -> bool:
+    try:
+        return file_sha256(path) == expected
+    except OSError:
+        return False
+
+
+def _bounded_result(state: ProviderState, handoff: ScopeHandoff,
+                    *, error: str = "", truncated: bool = False,
+                    orphan_possible: bool = False) -> ProviderResult:
+    return ProviderResult(
+        state=state,
+        run_id=handoff.run_id,
+        action_request_id=handoff.action_request_id,
+        invocation_id=handoff.invocation_id,
+        proof_session_id=handoff.proof_session_id,
+        capability_id=handoff.capability_id,
+        provider_id=handoff.provider_id,
+        truncated=truncated,
+        cancellation_acknowledged=False,
+        orphan_possible=orphan_possible,
+        error=error[:512],
+    )
+
+
+class SandboxedLauncherAdapter:
+    """Runs the PINNED launcher through the bounded transport.
+
+    This is the transport adapter for the local launcher. It is NOT
+    T3MP3ST and NOT a test double. The real T3MP3ST provider is absent, so
+    this adapter can only run the pinned launcher; it never fabricates a
+    provider result and never claims the provider was executed.
+    """
+
+    provider_id = C1A_PROVIDER_ID
+    is_real_provider = False
+
+    def __init__(
+        self,
+        *,
+        launcher_path: Optional[str] = None,
+        expected_sha256: str = LAUNCHER_SHA256,
+        node_path: str = DEFAULT_NODE_PATH,
+        transport: Optional[Any] = None,
+    ) -> None:
+        self.launcher_path = launcher_path or os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__)))),
+            DEFAULT_LAUNCHER_PATH)
+        self.expected_sha256 = expected_sha256
+        self.node_path = node_path
+        self._transport = transport
+
+    def invoke(self, handoff: ScopeHandoff,
+               request: ActionRequest) -> ProviderResult:
+        from raphael_ibm_bob.c1a_transport import BoundedTransport
+
+        launcher = Path(self.launcher_path)
+        if not launcher.is_file():
+            raise ProviderUnavailableError(
+                f"pinned C1A launcher not found: {launcher}")
+        if not launcher_digest_ok(launcher, self.expected_sha256):
+            raise LauncherIntegrityError(
+                "launcher digest mismatch (fail closed)")
+
+        node = (self.node_path if os.path.isfile(self.node_path)
+                else shutil.which(self.node_path))
+        if not node:
+            raise ProviderUnavailableError(
+                f"pinned node runtime not found: {self.node_path!r}")
+
+        env = {
+            "RAPHAEL_RUN_ID": handoff.run_id,
+            "RAPHAEL_INVOCATION_ID": handoff.invocation_id,
+            "RAPHAEL_PROOF_SESSION_ID": handoff.proof_session_id,
+            "RAPHAEL_FIXTURE_PATH": handoff.fixture_path,
+        }
+        transport = self._transport or BoundedTransport(
+            max_stdout_bytes=max(int(handoff.max_response_bytes), 4096) + 4096,
+            max_stderr_bytes=8192)
+        result = transport.execute(
+            [node, str(launcher)],
+            timeout_seconds=float(handoff.timeout_seconds),
+            env=env,
+            cwd=str(launcher.parent),
+        )
+        if result.timed_out or result.late_output:
+            return _bounded_result(
+                ProviderState.TIMEOUT, handoff,
+                error="launcher transport timed out", orphan_possible=True)
+        if not result.process_exited:
+            return _bounded_result(
+                ProviderState.UNAVAILABLE, handoff,
+                error="launcher process not observed to exit",
+                orphan_possible=True)
+        if result.exit_code != 0:
+            return _bounded_result(
+                ProviderState.FAILURE, handoff,
+                error=f"launcher exit code {result.exit_code}")
+        if result.stdout_truncated:
+            return _bounded_result(
+                ProviderState.PARTIAL, handoff, truncated=True,
+                error="launcher stdout truncated")
+        from raphael_ibm_bob.provider_runtime import normalize_result
+        return normalize_result(handoff, result.stdout_bytes)
+
+
 __all__ = [
+    "DEFAULT_LAUNCHER_PATH",
+    "DEFAULT_NODE_PATH",
     "EXPOSED_TOOLS",
     "InertProviderDouble",
+    "LAUNCHER_SHA256",
+    "LauncherIntegrityError",
     "OutOfContractToolError",
     "ProviderUnavailableError",
+    "SandboxedLauncherAdapter",
     "T3MP3STAdapter",
+    "file_sha256",
+    "launcher_digest_ok",
 ]

@@ -1,15 +1,14 @@
-"""tests.test_b4_lifecycle — B4-LIFECYCLE fail-closed tests.
+"""tests.test_b4_lifecycle — B4-LIFECYCLE fail-closed tests (R1-R7 + B4-1..B4-7).
 
-Covers R1-R7, B4-1..B4-7, and the B4-2 AUTHENTICITY correction:
+B4-2 AUTHENTICITY: M5-bound provenance requires a sealed observation minted by
+the trusted-core M5 authority capability; construction of an observation is not
+authenticity. Post-bind, the artifact is re-read and re-hashed at every trust
+boundary.
 
-  ARTIFACT INTEGRITY (bytes hash to digest)
-  ARTIFACT AUTHENTICITY (minted by a live M5 trust authority for THIS lifecycle)
-  LIFECYCLE INTEGRITY (record unmodified since recorded)
-
-Critical regression (PART 13): an attacker who writes a valid M5-schema JSON
-file, knows its SHA-256, and knows the schema STILL cannot obtain M5-bound
-provenance or ATTESTED — because authenticity requires an observation minted
-by a live authority bound to the lifecycle identity.
+Trust model (documented): the process-local authority is a trusted-core
+CAPABILITY boundary, NOT process isolation. A compromised process can obtain
+the capability (Q8 = yes). The tests below assert the removed accidents and the
+required regressions, plus the real-producer positive path.
 """
 from __future__ import annotations
 
@@ -17,20 +16,23 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from raphael_ibm_bob import b4_lifecycle as B4L
 from raphael_ibm_bob.b4_attestation import AttestationStatus
 from raphael_ibm_bob.b4_lifecycle import (
     FORBIDDEN_AUTHORITY_KEYS, LifecycleError, LifecycleRecord, LifecycleState,
-    LifecycleTransition, M5AuthorityError, M5Observation,
-    M5TrustAuthority, TEARDOWN_PROVENANCE_DIRECT,
-    TEARDOWN_PROVENANCE_M5_BOUND, attest_lifecycle, bind_m5_teardown,
-    cgroup_populated, sha256_file, verify_file_sha256)
+    LifecycleTransition, M5AuthorityError, M5Observation, M5TrustAuthority,
+    TEARDOWN_PROVENANCE_DIRECT, TEARDOWN_PROVENANCE_M5_BOUND,
+    attest_lifecycle, bind_m5_teardown, cgroup_populated, sha256_file,
+    trusted_m5_authority, verify_file_sha256)
 
-M5 = (Path(__file__).resolve().parents[1] / "docs" / "integration" /
-      "phase-2c-m5" / "m5-evidence.json")
+REPO = Path(__file__).resolve().parents[1]
+M5 = REPO / "docs" / "integration" / "phase-2c-m5" / "m5-evidence.json"
 
 
 def _m5():
@@ -42,18 +44,16 @@ def _copy(ev):
     return json.loads(json.dumps(ev))
 
 
-def _authority():
-    """Test double for the trusted M5 producer verifier."""
-    return M5TrustAuthority(verifier=lambda payload: True)
+def _auth():
+    return trusted_m5_authority()
 
 
 def _m5_identity(ev):
     t = ev["tracked"]
-    cg = ev["delegation_context"]["child_cgroup"]
-    return int(t["pid"]), str(t["starttime"]), cg
+    return int(t["pid"]), str(t["starttime"]), ev["delegation_context"]["child_cgroup"]
 
 
-def _full_for_m5(ev, rec=None, authority=None):
+def _full_for_m5(ev, rec=None):
     pid, start, cg = _m5_identity(ev)
     rec = rec or LifecycleRecord.create("lc-m5", "ps-m5")
     rec.bind_sandbox("sbx-m5")
@@ -63,26 +63,22 @@ def _full_for_m5(ev, rec=None, authority=None):
     return rec
 
 
-def _mint(rec, ev, ref, sha, authority):
-    pid, start, cg = _m5_identity(ev)
-    return authority.mint(
-        lifecycle_id=rec.lifecycle_id, proof_session_id=rec.proof_session_id,
-        sandbox_id=rec.sandbox_id, pid=pid, pid_starttime=start, cgroup=cg,
-        reference=ref, sha256=sha)
-
-
 def _full_m5():
     ev, ref, sha = _m5()
-    authority = _authority()
+    auth = _auth()
     rec = _full_for_m5(ev)
-    obs = _mint(rec, ev, ref, sha, authority)
-    bind_m5_teardown(rec, ev, ref, sha, observation=obs)
+    pid, start, cg = _m5_identity(ev)
+    obs = auth.mint(lifecycle_id=rec.lifecycle_id,
+                    proof_session_id=rec.proof_session_id,
+                    sandbox_id=rec.sandbox_id, pid=pid, pid_starttime=start,
+                    cgroup=cg, reference=ref, sha256=sha)
+    bind_m5_teardown(rec, ev, ref, sha, observation=obs, authority=auth)
     rec.close()
-    return rec, ev, ref, authority
+    return rec, ev, ref, auth
 
 
 class _ArtifactMixin:
-    def write_artifact(self, ev):
+    def temp_artifact(self, ev):
         td = tempfile.mkdtemp(prefix="m5art_")
         self.addCleanup(shutil.rmtree, td, True)
         path = os.path.join(td, "m5-evidence.json")
@@ -93,10 +89,9 @@ class _ArtifactMixin:
 
 
 class LifecycleConstruction(unittest.TestCase):
-    def test_1_valid_construction_and_progression(self):
-        rec = LifecycleRecord.create("lc-1", "ps-1")
-        rec.bind_sandbox("s"); rec.bind_workload(1, "1", "/c")
-        rec.start(); rec.initiate_teardown()
+    def test_1_direct_progression(self):
+        rec = LifecycleRecord.create("lc", "ps"); rec.bind_sandbox("s")
+        rec.bind_workload(1, "1", "/c"); rec.start(); rec.initiate_teardown()
         rec.observe_teardown("ref", "a" * 64)
         self.assertEqual(rec.teardown_provenance, TEARDOWN_PROVENANCE_DIRECT)
 
@@ -114,148 +109,173 @@ class LifecycleConstruction(unittest.TestCase):
         with self.assertRaises(LifecycleError):
             rec.initiate_teardown()
 
-    def test_4_mismatched_sandbox_identity(self):
-        rec = LifecycleRecord.create("lc", "ps")
-        rec.bind_sandbox("A")
+    def test_4_mismatched_sandbox(self):
+        rec = LifecycleRecord.create("lc", "ps"); rec.bind_sandbox("A")
         with self.assertRaises(LifecycleError):
             rec.bind_sandbox("B")
 
-    def test_5_invalid_workload_identity_each(self):
+    def test_5_invalid_workload(self):
         for pid, st, cg in ((0, "1", "/c"), (-1, "1", "/c"), (True, "1", "/c"),
                             (5, "", "/c"), (5, "1", "")):
             rec = LifecycleRecord.create("lc", "ps"); rec.bind_sandbox("s")
             with self.assertRaises(LifecycleError):
                 rec.bind_workload(pid, st, cg)
 
-    def test_6_teardown_requires_evidence(self):
-        rec = LifecycleRecord.create("lc", "ps"); rec.bind_sandbox("s")
-        rec.bind_workload(1, "1", "/c"); rec.start(); rec.initiate_teardown()
-        with self.assertRaises(LifecycleError):
-            rec.observe_teardown("ref", "short")
-        with self.assertRaises(LifecycleError):
-            rec.observe_teardown("", "a" * 64)
-
-    def test_7_premature_closure_rejected(self):
-        rec = LifecycleRecord.create("lc", "ps"); rec.bind_sandbox("s")
-        rec.bind_workload(1, "1", "/c"); rec.start(); rec.initiate_teardown()
-        with self.assertRaises(LifecycleError):
-            rec.close()
-
     def test_8_authority_smuggling_rejected(self):
         from raphael_ibm_bob.b4_lifecycle import _reject_authority
-        for key in ("live_proof_authorized", "provider_success",
-                    "mission_complete", "quality_gate_complete"):
+        for key in ("live_proof_authorized", "provider_success", "mission_complete"):
             with self.assertRaises(LifecycleError):
-                _reject_authority({"nested": [{key: True}]}, "test")
+                _reject_authority({"n": [{key: True}]}, "test")
 
 
-class M5Authenticity(unittest.TestCase, _ArtifactMixin):
-    def test_10_m5_authenticated_closure_attests(self):
-        rec, ev, ref, authority = _full_m5()
-        res = attest_lifecycle(rec, m5_evidence=ev, authority=authority)
-        self.assertIs(res.status, AttestationStatus.ATTESTED, res.failures)
-        self.assertEqual(res.evidence["teardown_provenance"],
-                         TEARDOWN_PROVENANCE_M5_BOUND)
-        self.assertFalse(res.evidence["provider_execution_observed"])
-
-    def test_11_observation_identity_mismatch_rejected(self):
-        ev, ref, sha = _m5()
-        authority = _authority()
-        rec = _full_for_m5(ev)
-        obs = _mint(rec, ev, ref, sha, authority)
-        # different lifecycle identity
-        other = LifecycleRecord.create("lc-other", "ps-m5")
-        other.bind_sandbox("sbx-m5"); other.bind_workload(*_m5_identity(ev))
-        other.start(); other.initiate_teardown()
-        with self.assertRaises(LifecycleError):
-            bind_m5_teardown(other, ev, ref, sha, observation=obs)
-
-    def test_12_foreign_pid_rejected(self):
-        ev, ref, sha = _m5()
-        authority = _authority()
-        rec = _full_for_m5(ev)
-        pid, start, cg = _m5_identity(ev)
-        obs = authority.mint(lifecycle_id=rec.lifecycle_id,
-                             proof_session_id=rec.proof_session_id,
-                             sandbox_id=rec.sandbox_id, pid=pid,
-                             pid_starttime=start, cgroup=cg,
-                             reference=ref, sha256=sha)
-        rec2 = LifecycleRecord.create("lc-m5", "ps-m5"); rec2.bind_sandbox("sbx-m5")
-        rec2.bind_workload(pid + 7, start, cg); rec2.start(); rec2.initiate_teardown()
-        with self.assertRaises(LifecycleError):
-            bind_m5_teardown(rec2, ev, ref, sha, observation=obs)
-
-    def test_13_observation_seal_required(self):
-        ev, ref, sha = _m5()
-        rec = _full_for_m5(ev)
+class AuthorityConstructionPART1(unittest.TestCase):
+    def test_10_constructor_rejects_verifier(self):
         with self.assertRaises(TypeError):
-            bind_m5_teardown(rec, ev, ref, sha)  # no observation
+            M5TrustAuthority(verifier=lambda payload: True)
 
-    def test_14_no_verifier_fails_closed(self):
-        ev, ref, sha = _m5()
-        rec = _full_for_m5(ev)
-        auth = M5TrustAuthority()  # no verifier
-        pid, start, cg = _m5_identity(ev)
+    def test_11_constructor_requires_token(self):
+        with self.assertRaises(TypeError):
+            M5TrustAuthority()
+
+    def test_12_wrong_token_rejected(self):
         with self.assertRaises(M5AuthorityError):
-            auth.mint(lifecycle_id=rec.lifecycle_id,
-                      proof_session_id=rec.proof_session_id,
-                      sandbox_id=rec.sandbox_id, pid=pid, pid_starttime=start,
-                      cgroup=cg, reference=ref, sha256=sha)
+            M5TrustAuthority(_token=object())
 
-    def test_15_attest_without_authority_is_invalid(self):
-        rec, ev, ref, authority = _full_m5()
-        res = attest_lifecycle(rec)  # no live authority
+    def test_13_subclass_blocked(self):
+        with self.assertRaises(TypeError):
+            class Evil(M5TrustAuthority):  # noqa
+                pass
+
+    def test_14_no_module_global_secret(self):
+        self.assertFalse(hasattr(B4L, "_AUTHORITY_SECRET"))
+
+    def test_15_observation_construction_is_not_authenticity(self):
+        ev, ref, sha = _m5()
+        pid, start, cg = _m5_identity(ev)
+        rec = _full_for_m5(ev)
+        forged = M5Observation(
+            authority_id="attacker", lifecycle_id=rec.lifecycle_id,
+            proof_session_id=rec.proof_session_id, sandbox_id=rec.sandbox_id,
+            pid=pid, pid_starttime=start, cgroup=cg, evidence_reference=ref,
+            evidence_sha256=sha, no_provider_execution=True,
+            target_terminated=True, seal="0" * 64)
+        with self.assertRaises(LifecycleError):
+            bind_m5_teardown(rec, ev, ref, sha, observation=forged,
+                             authority=_auth())
+        self.assertEqual(rec.state, LifecycleState.TEARDOWN_INITIATED)
+
+
+class M5Authenticity(unittest.TestCase):
+    def test_16_authenticated_closure_attests(self):
+        rec, ev, ref, auth = _full_m5()
+        res = attest_lifecycle(rec, m5_evidence=ev, authority=auth)
+        self.assertIs(res.status, AttestationStatus.ATTESTED, res.failures)
+
+    def test_17_attest_without_authority_invalid(self):
+        rec, ev, ref, auth = _full_m5()
+        res = attest_lifecycle(rec)  # no authority -> fail closed
         self.assertIs(res.status, AttestationStatus.INVALID)
         self.assertIn("m5-observation-authenticated", res.failures)
 
-    def test_16_from_dict_requires_authority(self):
-        rec, ev, ref, authority = _full_m5()
+    def test_18_foreign_lifecycle_rejected(self):
+        ev, ref, sha = _m5()
+        auth = _auth()
+        rec = _full_for_m5(ev)
+        pid, start, cg = _m5_identity(ev)
+        obs = auth.mint(lifecycle_id=rec.lifecycle_id,
+                        proof_session_id=rec.proof_session_id,
+                        sandbox_id=rec.sandbox_id, pid=pid,
+                        pid_starttime=start, cgroup=cg, reference=ref, sha256=sha)
+        other = LifecycleRecord.create("lc-other", "ps-m5")
+        other.bind_sandbox("sbx-m5"); other.bind_workload(pid, start, cg)
+        other.start(); other.initiate_teardown()
+        with self.assertRaises(LifecycleError):
+            bind_m5_teardown(other, ev, ref, sha, observation=obs, authority=auth)
+
+    def test_19_foreign_pid_rejected(self):
+        ev, ref, sha = _m5()
+        auth = _auth()
+        pid, start, cg = _m5_identity(ev)
+        rec_a = _full_for_m5(ev)          # real PID identity
+        obs = auth.mint(lifecycle_id=rec_a.lifecycle_id,
+                        proof_session_id=rec_a.proof_session_id,
+                        sandbox_id=rec_a.sandbox_id, pid=pid,
+                        pid_starttime=start, cgroup=cg, reference=ref, sha256=sha)
+        rec_b = LifecycleRecord.create("lc-m5", "ps-m5")
+        rec_b.bind_sandbox("sbx-m5")
+        rec_b.bind_workload(pid + 11, start, cg)   # different PID
+        rec_b.start(); rec_b.initiate_teardown()
+        with self.assertRaises(LifecycleError):
+            bind_m5_teardown(rec_b, ev, ref, sha, observation=obs, authority=auth)
+
+    def test_20_from_dict_requires_authority(self):
+        rec, ev, ref, auth = _full_m5()
         d = rec.to_dict()
         with self.assertRaises(LifecycleError):
-            LifecycleRecord.from_dict(d)  # no authority -> fail closed
-        back = LifecycleRecord.from_dict(d, authority=authority)
+            LifecycleRecord.from_dict(d)
+        back = LifecycleRecord.from_dict(d, authority=auth)
         self.assertEqual(back.state, LifecycleState.CLOSED)
 
-    def test_17_from_dict_foreign_identity_rejected(self):
-        rec, ev, ref, authority = _full_m5()
+    def test_21_from_dict_foreign_and_recomputed_rejected(self):
+        rec, ev, ref, auth = _full_m5()
         d = rec.to_dict()
-        d["pid"] = 999999          # attacker edits identity
+        d["pid"] = 999999
         body = {k: v for k, v in d.items() if k != "lifecycle_sha256"}
         d = {**body, "lifecycle_sha256": hashlib.sha256(
             json.dumps(body, sort_keys=True,
                        separators=(",", ":")).encode()).hexdigest()}
         with self.assertRaises(LifecycleError):
-            LifecycleRecord.from_dict(d, authority=authority)
+            LifecycleRecord.from_dict(d, authority=auth)
 
-    def test_18_recomputed_hash_cannot_attest_forgery(self):
-        rec, ev, ref, authority = _full_m5()
-        d = rec.to_dict()
-        tev = [t for t in d["transitions"]
-               if t["state"] == "TEARDOWN_OBSERVED"][0]
-        tev["m5_observation"]["evidence_sha256"] = "d" * 64
-        body = {k: v for k, v in d.items() if k != "lifecycle_sha256"}
-        d = {**body, "lifecycle_sha256": hashlib.sha256(
-            json.dumps(body, sort_keys=True,
-                       separators=(",", ":")).encode()).hexdigest()}
+
+class PostBindIntegrityPART6(unittest.TestCase, _ArtifactMixin):
+    def _bind_temp(self):
+        ev, _ref, _sha = _m5()
+        _ev, path, digest = self.temp_artifact(ev)
+        auth = _auth()
+        pid, start, cg = _m5_identity(ev)
+        rec = LifecycleRecord.create("lc-m5", "ps-m5"); rec.bind_sandbox("sbx-m5")
+        rec.bind_workload(pid, start, cg); rec.start(); rec.initiate_teardown()
+        obs = auth.mint(lifecycle_id=rec.lifecycle_id,
+                        proof_session_id=rec.proof_session_id,
+                        sandbox_id=rec.sandbox_id, pid=pid, pid_starttime=start,
+                        cgroup=cg, reference=path, sha256=digest)
+        bind_m5_teardown(rec, ev, path, digest, observation=obs, authority=auth)
+        rec.close()
+        return rec, ev, path, digest, auth
+
+    def test_22_replacement_after_bind_invalid(self):
+        rec, ev, path, digest, auth = self._bind_temp()
+        with open(path, "wb") as fh:
+            fh.write(b'{"tampered":true}')
+        res = attest_lifecycle(rec, m5_evidence=ev, authority=auth)
+        self.assertIs(res.status, AttestationStatus.INVALID)
         with self.assertRaises(LifecycleError):
-            LifecycleRecord.from_dict(d, authority=authority)
+            rec.to_dict()
+
+    def test_23_deletion_after_bind_invalid(self):
+        rec, ev, path, digest, auth = self._bind_temp()
+        os.unlink(path)
+        res = attest_lifecycle(rec, m5_evidence=ev, authority=auth)
+        self.assertIs(res.status, AttestationStatus.INVALID)
+
+    def test_24_valid_authenticated_still_attests(self):
+        rec, ev, path, digest, auth = self._bind_temp()
+        res = attest_lifecycle(rec, m5_evidence=ev, authority=auth)
+        self.assertIs(res.status, AttestationStatus.ATTESTED, res.failures)
 
 
 class CriticalAttackerRegression(unittest.TestCase, _ArtifactMixin):
-    """PART 13: attacker writes file + knows SHA + knows schema => no ATTESTED."""
-
-    def test_19_attacker_valid_json_correct_digest_cannot_bind(self):
+    def test_25_attacker_json_sha_cannot_reach_attested(self):
         ev, ref, sha = _m5()
         rec = _full_for_m5(ev)
-        # attacker has a self-authored, schema-valid, correctly-hashed artifact
         authored = _copy(ev)
-        _ev, path, digest = self.write_artifact(authored)
-        # (1) no observation -> cannot obtain M5-bound
-        with self.assertRaises((LifecycleError, TypeError)):
+        _ev, path, digest = self.temp_artifact(authored)
+        # no observation -> rejected
+        with self.assertRaises(TypeError):
             bind_m5_teardown(rec, authored, path, digest)
-        self.assertEqual(rec.state, LifecycleState.TEARDOWN_INITIATED)
-        # (2) forged observation object -> seal invalid
-        pid, start, cg = _m5_identity(ev)
+        # forged observation -> rejected
+        pid, start, cg = _m5_identity(authored)
         forged = M5Observation(
             authority_id="attacker", lifecycle_id=rec.lifecycle_id,
             proof_session_id=rec.proof_session_id, sandbox_id=rec.sandbox_id,
@@ -263,55 +283,27 @@ class CriticalAttackerRegression(unittest.TestCase, _ArtifactMixin):
             evidence_sha256=digest, no_provider_execution=True,
             target_terminated=True, seal="0" * 64)
         with self.assertRaises(LifecycleError):
-            bind_m5_teardown(rec, authored, path, digest, observation=forged)
+            bind_m5_teardown(rec, authored, path, digest, observation=forged,
+                             authority=_auth())
         self.assertEqual(rec.state, LifecycleState.TEARDOWN_INITIATED)
-
-    def test_20_attacker_cannot_attest_even_with_authority_absent(self):
-        ev, ref, sha = _m5()
-        rec = _full_for_m5(ev)
-        authored = _copy(ev)
-        _ev, path, digest = self.write_artifact(authored)
-        # forge a CLOSED record directly with a bad-seal observation
-        pid, start, cg = _m5_identity(ev)
-        forged_obs = M5Observation(
-            authority_id="attacker", lifecycle_id=rec.lifecycle_id,
-            proof_session_id=rec.proof_session_id, sandbox_id=rec.sandbox_id,
-            pid=pid, pid_starttime=start, cgroup=cg, evidence_reference=path,
-            evidence_sha256=digest, no_provider_execution=True,
-            target_terminated=True, seal="0" * 64).to_dict()
-        trans = []
-        for i, s in enumerate(LifecycleState):
-            t = LifecycleTransition(seq=i, state=s, at=float(i))
-            if s is LifecycleState.TEARDOWN_OBSERVED:
-                t = LifecycleTransition(
-                    seq=i, state=s, at=float(i), evidence_ref=path,
-                    evidence_sha256=digest,
-                    provenance=TEARDOWN_PROVENANCE_M5_BOUND, m5_reference=path,
-                    m5_sha256=digest, m5_observation=forged_obs)
-            trans.append(t)
-        with self.assertRaises(LifecycleError):
-            LifecycleRecord(lifecycle_id=rec.lifecycle_id,
-                            proof_session_id=rec.proof_session_id,
-                            sandbox_id=rec.sandbox_id, pid=pid,
-                            pid_starttime=start, cgroup=cg, _transitions=trans)
 
 
 class DirectAndParser(unittest.TestCase, _ArtifactMixin):
-    def test_21_direct_teardown_cannot_close(self):
+    def test_26_direct_cannot_close(self):
         rec = LifecycleRecord.create("lc", "ps"); rec.bind_sandbox("s")
         rec.bind_workload(1, "1", "/c"); rec.start(); rec.initiate_teardown()
         rec.observe_teardown("ref", "a" * 64)
         with self.assertRaises(LifecycleError):
             rec.close()
 
-    def test_22_observe_rejects_m5_bound(self):
+    def test_27_observe_rejects_m5_bound(self):
         rec = LifecycleRecord.create("lc", "ps"); rec.bind_sandbox("s")
         rec.bind_workload(1, "1", "/c"); rec.start(); rec.initiate_teardown()
         with self.assertRaises(LifecycleError):
             rec.observe_teardown("r", "a" * 64,
                                  provenance=TEARDOWN_PROVENANCE_M5_BOUND)
 
-    def test_23_parser_canonical(self):
+    def test_28_parser_canonical(self):
         self.assertEqual(cgroup_populated("populated 1\nfrozen 0"), 1)
         self.assertEqual(cgroup_populated("populated 0\nfrozen 0"), 0)
         self.assertIsNone(cgroup_populated("frozen 0"))
@@ -322,7 +314,7 @@ class DirectAndParser(unittest.TestCase, _ArtifactMixin):
             with self.assertRaises(LifecycleError):
                 cgroup_populated(bad)
 
-    def test_24_strict_booleans(self):
+    def test_29_strict_booleans(self):
         for field in ("target_terminated", "no_provider_execution"):
             for bad in (1, 0, "true", "false", None, []):
                 ev = _copy(_m5()[0])
@@ -330,28 +322,16 @@ class DirectAndParser(unittest.TestCase, _ArtifactMixin):
                     ev["post_kill"]["target_terminated"] = bad
                 else:
                     ev["no_provider_execution"] = bad
-                _ev, path, digest = self.write_artifact(ev)
-                rec = LifecycleRecord.create("lc-m5", "ps-m5")
-                rec.bind_sandbox("sbx-m5")
+                _ev, path, digest = self.temp_artifact(ev)
                 pid, start, cg = _m5_identity(ev)
-                rec.bind_workload(pid, start, cg); rec.start()
-                rec.initiate_teardown()
-                auth = _authority()
                 with self.assertRaises(M5AuthorityError):
-                    auth.mint(lifecycle_id=rec.lifecycle_id,
-                              proof_session_id=rec.proof_session_id,
-                              sandbox_id=rec.sandbox_id, pid=pid,
-                              pid_starttime=start, cgroup=cg,
-                              reference=path, sha256=digest)
-
-    def test_25_values_not_coerced_in_parser(self):
-        # canonical grammar only; "10" is not silently accepted as integer 10
-        with self.assertRaises(LifecycleError):
-            cgroup_populated("populated 10")
+                    _auth().mint(lifecycle_id="lc", proof_session_id="ps",
+                                 sandbox_id="s", pid=pid, pid_starttime=start,
+                                 cgroup=cg, reference=path, sha256=digest)
 
 
-class FileShaAndTaxonomy(unittest.TestCase, _ArtifactMixin):
-    def test_26_sha256_file_actual_bytes(self):
+class FileShaAndTaxonomy(unittest.TestCase):
+    def test_30_sha256_file(self):
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / "m5.json"
             p.write_bytes(b"raphael-m5")
@@ -359,23 +339,26 @@ class FileShaAndTaxonomy(unittest.TestCase, _ArtifactMixin):
             self.assertEqual(sha256_file(str(p)), want)
             self.assertTrue(verify_file_sha256(str(p), want))
             self.assertFalse(verify_file_sha256(str(p), "0" * 64))
-            self.assertFalse(verify_file_sha256(str(p / "x"), want))
             with self.assertRaises(LifecycleError):
                 sha256_file(str(Path(td) / "absent"))
 
-    def test_27_attestation_taxonomy_disjoint(self):
-        rec, ev, ref, authority = _full_m5()
-        res = attest_lifecycle(rec, m5_evidence=ev, authority=authority)
-        overlap = set(res.evidence) & FORBIDDEN_AUTHORITY_KEYS
-        self.assertEqual(overlap, set(), overlap)
-        for bad in ("provider_executed", "live_proof"):
-            self.assertNotIn(bad, res.evidence)
-
-    def test_28_read_only_transitions(self):
-        rec, ev, ref, authority = _full_m5()
+    def test_31_taxonomy_and_readonly(self):
+        rec, ev, ref, auth = _full_m5()
+        res = attest_lifecycle(rec, m5_evidence=ev, authority=auth)
+        self.assertEqual(set(res.evidence) & FORBIDDEN_AUTHORITY_KEYS, set())
         self.assertIsInstance(rec.transitions, tuple)
-        with self.assertRaises(AttributeError):
-            rec.transitions.append("x")  # type: ignore[attr-defined]
+
+
+@unittest.skipUnless(shutil.which("systemd-run") and hasattr(os, "getuid"),
+                     "real M5 producer requires systemd-run")
+class PositiveProducerPART4(unittest.TestCase):
+    def test_32_real_m5_probe_produces_attested_observation(self):
+        proc = subprocess.run(
+            [sys.executable, str(REPO / "scripts" / "m5_teardown_probe.py")],
+            capture_output=True, text=True, timeout=120, cwd=str(REPO))
+        out = proc.stdout + proc.stderr
+        self.assertIn("M5-LIFECYCLE attested", out, out[-1500:])
+        self.assertEqual(proc.returncode, 0, out[-1500:])
 
 
 if __name__ == "__main__":

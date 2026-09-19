@@ -91,3 +91,63 @@ print("populated_zero_after_polls",res["steps"].get("populated_zero_after_polls"
 print("pid_after",res["steps"].get("pid_after"),"same_process",res["steps"].get("same_process"))
 print("leftover",res["steps"].get("leftover_observation"),res["steps"].get("leftover_sleep300"))
 print("child_rmdir",res["steps"].get("child_rmdir"),"scope_gone",res["scope_gone"])
+
+# --- PART 4/5: trusted-core M5 authority wiring (the REAL producer path) ------
+import sys as _sys
+_sys.path.insert(0, "/home/moiz/raphael-2.0-rbsv2r")
+from raphael_ibm_bob.b4_lifecycle import (
+    LifecycleRecord, bind_m5_teardown, attest_lifecycle, trusted_m5_authority)
+from raphael_ibm_bob.b4_attestation import AttestationStatus
+
+if res.get("target_pid") and res["steps"].get("target_terminated") is True:
+    evidence = {
+        "artifact": "phase-2c-m5-probe-evidence",
+        "tracked": {"pid": res["target_pid"],
+                    "starttime": res["steps"].get("starttime_before"),
+                    "state_before": res["steps"].get("state_before"),
+                    "cmdline": res["steps"].get("cmdline_before")},
+        "teardown": {"action": "cgroup.kill (write 1)",
+                     "events_before": res["steps"].get("events_before"),
+                     "events_after": res["steps"].get("events_after"),
+                     "populated_zero_after_polls": res["steps"].get("populated_zero_after_polls"),
+                     "seconds": res["steps"].get("kill_to_populated_zero_s")},
+        "post_kill": {"pid_after": res["steps"].get("pid_after"),
+                      "state_after": res["steps"].get("state_after"),
+                      "starttime_after": res["steps"].get("starttime_after"),
+                      "same_process": res["steps"].get("same_process"),
+                      "target_terminated": res["steps"].get("target_terminated")},
+        "delegation_context": {"scope_cgroup": res["scope_cgroup"],
+                               "child_cgroup": res["child_cgroup"]},
+        "no_provider_execution": True,
+    }
+    ev_path = OUT + "/m5-probe-evidence.json"
+    open(ev_path, "w").write(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
+    ev_digest = hashlib.sha256(open(ev_path, "rb").read()).hexdigest()
+    rec = LifecycleRecord.create("m5-live-" + res["unit"], "ps-" + res["unit"])
+    rec.bind_sandbox("sbx-" + res["unit"])
+    rec.bind_workload(res["target_pid"],
+                      str(res["steps"].get("starttime_before")),
+                      res["child_cgroup"])
+    rec.start(); rec.initiate_teardown()
+    auth = trusted_m5_authority()
+    obs = auth.mint(lifecycle_id=rec.lifecycle_id,
+                    proof_session_id=rec.proof_session_id,
+                    sandbox_id=rec.sandbox_id, pid=res["target_pid"],
+                    pid_starttime=str(res["steps"].get("starttime_before")),
+                    cgroup=res["child_cgroup"], reference=ev_path,
+                    sha256=ev_digest)
+    bind_m5_teardown(rec, evidence, ev_path, ev_digest,
+                     observation=obs, authority=auth)
+    rec.close()
+    att = attest_lifecycle(rec, m5_evidence=evidence, authority=auth)
+    res["lifecycle"] = {"attestation": att.status.value,
+                        "failures": att.failures, "evidence": ev_path,
+                        "sha256": ev_digest}
+    print("M5-LIFECYCLE", att.status.value, "failures", att.failures)
+    if att.status is not AttestationStatus.ATTESTED:
+        open(G2 + "/out/m5_raw.json", "w").write(json.dumps(res, indent=2, sort_keys=True))
+        _sys.exit(3)
+else:
+    res["lifecycle"] = {"skipped": "target_terminated not observed"}
+
+open(G2 + "/out/m5_raw.json", "w").write(json.dumps(res, indent=2, sort_keys=True))

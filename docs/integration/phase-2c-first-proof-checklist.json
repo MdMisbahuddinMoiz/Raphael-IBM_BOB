@@ -4,8 +4,23 @@
   "capability": "C1A static_file_inspect",
   "provider": "T3MP3ST binary_sink_scan",
   "provider_pin": "29824d5625ede419ac8cdae418c8f4c72c6270f7",
-  "raphael_head": "893494149",
+  "raphael_head": "f72e4d6e033d2e5b7166f5d6ec26e00552827195",
+  "raphael_head_note": "correction commit (B4-LIFECYCLE R1-R7 + forensic F1/F3/F4/F5); replaces the stale pre-isolation-design hash 893494149",
   "live_proof_authorized": false,
+  "correction_package": {
+    "base_head": "780f9bd99cf5973d61b1eba03316a30175202fac",
+    "correction_commit": "f72e4d6e033d2e5b7166f5d6ec26e00552827195",
+    "b4_lifecycle_R1_R7": "CLOSED (local); see raphael_ibm_bob/b4_lifecycle.py + tests/test_b4_lifecycle.py",
+    "forensics": {
+      "F1": "M1 evidence regenerated against the current 151-token builder; scripts/m1_escape_probe.py is self-contained; M1 argv parity regression test added",
+      "F2": "this checklist refreshed (raphael_head/probe_stage/blockers/milestone rows)",
+      "F3": "docs/integration/phase-2c-c1a-reconciliation-and-classification.md",
+      "F4": "RUN_TEST frozen as GOVERNED UNSANDBOXED HOST EXECUTION (not Class A/B/C1A); tests/test_class_ab_inventory.py",
+      "F5": "seccomp execve documentation corrected to implementation semantics (execve allowed for runtime closure; execveat denied; clone arg-filtered)"
+    },
+    "provider_execution": false,
+    "live_proof": false
+  },
   "probe_stage": {
     "evidence": "docs/integration/phase-2c-probe-stage-evidence.md",
     "date": "2026-09-17",
@@ -14,9 +29,9 @@
     "gate2_seccomp_curation": "CURATED + VERIFIED for plain Node (positive + negative probes; BPF/allowlist hashes recorded) — see phase-2c-g2/gate-evidence.md",
     "gate3_nnp": "PASS (NoNewPrivs: 1 observed inside sandbox)",
     "gate4_tmpfs": "SUPERSEDED by Gate H D1: scratch ELIMINATED (no /tmp in either trace); no writable fs mounted",
-    "gate5_M1": "NOT STARTED (predecessor gate set now G2-complete; awaiting explicit ChatGPT authorization for the M1 escape-probe suite)",
-    "gate6_M2": "NOT STARTED (M1 not accepted)",
-    "gate7_M5": "PREREQUISITE VERIFIED (systemd user scope: create/limits/kill/termination/cleanup) but populated=0 not directly observed (systemd reaps the scope) — M5 NOT_READY"
+    "gate5_M1": "PROBED_PASS (25/25 over 16 families; F1 recaptured against the current 151-token builder; evidence docs/integration/phase-2c-m1/m1-evidence.json)",
+    "gate6_M2": "PROBED_PASS (8 PASS / 0 FAIL / 5 BLOCKED; direct syscall evidence under the 151-token builder; evidence docs/integration/phase-2c-m2/m2-evidence.json)",
+    "gate7_M5": "PROBED_PASS (7/7; RAPHAEL-owned child cgroup populated 1 -> 0 observed; evidence docs/integration/phase-2c-m5/m5-evidence.json)"
   },
   "g2_seccomp": {
     "evidence": "docs/integration/phase-2c-g2/gate-evidence.md",
@@ -24,12 +39,16 @@
     "trace_io_shape_sha256": "1aad8e17eaad52ae5bc32850455e09931a6ca202031f9e7ece8b8b41f68d6922",
     "syscall_inventory_sha256": "48bc29c41cb4ed6512ab9601726a70cec7d2c398d5c5f5e43ab566fb4ae4bb1f",
     "curated_allowlist_sha256": "8a7efc6f4d11bea59b60a9099dd88e287b8f46f300ba158befd6c922fb0ddaf2",
+    "curated_allowlist_canonical_sha256": "ac16993da99d961f6066e2c0f6084418a52f42cc736623b526bb92c4edd053de",
     "bpf_sha256": "d1574a64643907e6c95ccafbfc74e7f04977781014ade214011e57994cb65242",
     "bpf_bytes": 592,
     "allow_entries": 46,
     "argv_length": 131,
+    "argv_length_historical_note": 131,
+    "current_builder_argv_length": 151,
     "argv_marker": "SUBSTRATE_ARGV_SMOKE_OK_CURRENT_BUILDER",
     "clone_rule": "argument-filtered only (no unconditional allow); (flags & (CLONE_VM|CLONE_THREAD|CLONE_NEWMASK_FULL)) == CLONE_VM|CLONE_THREAD -> thread bits required AND every CLONE_NEW* bit explicitly denied; fork-like clones denied; clone3->ENOSYS",
+    "execve_semantics": "execve ALLOWED (curated runtime closure/loader); execveat DENIED; arbitrary child-process creation constrained by the arg-filtered clone rule; see phase-2c-c1a-reconciliation-and-classification.md (F5)",
     "pfc_regression": "exported PFC inspected: clone mask 0x7e030180 datum 65792; R1 tests 16-21 derive decisions (thread-only ALLOW; NEWNS/NEWNET/NEWUSER/NEWPID/NEWUTS/NEWIPC/NEWCGROUP/NEWTIME rejected; multiple NEW* rejected; no-thread-bits rejected); no unconditional clone allow; clone3 ERRNO(38)",
     "launcher_shape": {
       "smoke": "non-provider nested CommonJS tree, no T3MP3ST/fixture/network/child_process",
@@ -57,7 +76,7 @@
     "mechanism": "systemd-run --user --scope (no privileged setup)",
     "limits": "memory.max=268435456, pids.max=64, cpu.max=50000 100000 (read back)",
     "kill": "cgroup.kill written; workload terminated; unit inactive",
-    "populated_zero": "NOT directly observed (systemd reaps the scope) — forward obligation",
+    "populated_zero": "OBSERVED on the RAPHAEL-owned child cgroup (populated 1 -> 0 in 0.051s); the systemd top-level scope itself is reaped by systemd",
     "cleanup": "scope cgroup removed"
   },
   "status_values": [
@@ -66,6 +85,18 @@
     "UNKNOWN"
   ],
   "note": "No item is READY from specification alone; environmental items require the actual proof environment and independent verification.",
+  "m1_evidence": {
+    "path": "docs/integration/phase-2c-m1/m1-evidence.json",
+    "sha256": "381d8cd25557519ca86f3f8b2beb8b827f316e12766e0935736e64f2e0a386c3",
+    "builder_argv_len": 151,
+    "builder_argv_sha256": "781c36b4eef7e41ccd4bd7fe9707b4f20ce943e4cbef70bc17a78e130d3171ac",
+    "bpf_sha256": "d1574a64643907e6c95ccafbfc74e7f04977781014ade214011e57994cb65242",
+    "total": 25,
+    "pass": 25,
+    "fail": 0,
+    "probe": "scripts/m1_escape_probe.py (self-contained; body scripts/m1_probe_body.js)",
+    "regression": "tests/test_m1_probe.py::test_5_probe_argv_matches_current_builder"
+  },
   "items": [
     {
       "id": "G0",
@@ -96,7 +127,7 @@
       "invariant": "filesystem containment",
       "control": "mount namespace + ro fixture root + no host mounts",
       "status": "PROBED_PASS",
-      "evidence": "M1 escape/containment probes: 25/25 PASS over 16 families (host FS invisibility, traversal, symlink via /proc/self/root, provider/runtime/fixture read-only, source/home/ssh/config invisibility, no docker sockets, minimal /dev (raw devices absent/unreadable), uid/gid 65534 + caps 0 + NNP 1 + seccomp active, namespaces differ from host, pidns isolated, fork-like clone denied, identity changes denied, no cgroupfs, no child process). Evidence: docs/integration/phase-2c-m1/m1-evidence.json",
+      "evidence": "M1 escape/containment probes: 25/25 PASS over 16 families (host FS invisibility, traversal, symlink via /proc/self/root, provider/runtime/fixture read-only, source/home/ssh/config invisibility, no docker sockets, minimal /dev (raw devices absent/unreadable), uid/gid 65534 + caps 0 + NNP 1 + seccomp active, namespaces differ from host, pidns isolated, fork-like clone denied, identity changes denied, no cgroupfs, no child process). F1: regenerated against the current 151-token builder (freeze builder_argv_len=151, builder_argv_sha256=781c36b4...). Evidence: docs/integration/phase-2c-m1/m1-evidence.json (sha256 381d8cd2...)",
       "ready_for_live_proof": false
     },
     {
@@ -128,7 +159,7 @@
       "invariant": "fresh dedicated provider instance lifecycle",
       "control": "create/bind/execute/collect/attest/teardown/discard",
       "status": "IMPLEMENTED_NOT_PROVIDER_VERIFIED",
-      "evidence": "b4_lifecycle.py: ordered fail-closed lifecycle (CREATED..CLOSED) with sandbox/workload identity binding, strictly contiguous transitions, evidence-required teardown observation, no-authority-smuggling, integrity hashing, and M5-evidence binding (populated 1->0 + target_terminated + no_provider_execution). Attestation is lifecycle-integrity ONLY (never provider/gate success). M5 evidence bound; provider-instance creation remains a live-proof concern. Tests: tests/test_b4_lifecycle.py (14).",
+      "evidence": "b4_lifecycle.py: ordered fail-closed lifecycle (CREATED..CLOSED) with R1 explicit teardown provenance (direct|m5-bound, serialized + hash-covered), R2 fail-closed closure (CLOSED/ATTESTED require M5-bound teardown + non-None reference; historical direct observe->close false closure eliminated), R3 strict boolean M5 fields (no coercion), R4 atomic rebind (validate-before-mutate; identity-preserving rebind is a no-op), R5 semantics docs, R6 sha256_file/verify_file_sha256 (actual bytes, fail-closed), R7 regression tests. Attestation is lifecycle-integrity ONLY. Tests: tests/test_b4_lifecycle.py (27). Provider-instance creation remains a live-proof concern.",
       "ready_for_live_proof": false
     },
     {
@@ -136,7 +167,7 @@
       "invariant": "exact capability and fixture path",
       "control": "single capability, exact canonical literal, single-file",
       "status": "READY",
-      "evidence": "provider_runtime.validate_scope enforces; tests 1-6",
+      "evidence": "provider_runtime.validate_scope enforces; tool = binary_sink_scan (pure JS); tests 1-6",
       "ready_for_live_proof": false
     },
     {
@@ -165,17 +196,16 @@
     }
   ],
   "blockers": [
-    "cgroup populated=0 not directly observable for systemd-managed scopes (reaped on termination); M5 teardown design must observe populated=0 on a RAPHAEL-owned cgroup",
-    "no container runtime (docker/podman absent); isolation uses userns+bwrap (scratch eliminated, D1)",
-    "out-of-process adapter transport not implemented",
-    "dedicated fresh-instance lifecycle not implemented",
-    "M1/M2 escape/egress probe suites not yet authorized (G2 now complete for plain Node)"
+    "out-of-process adapter transport not implemented (C1A-TRANSPORT)",
+    "RAPHAEL-owned c1a_launcher.js not implemented (only LAUNCHER_ENTRY constant exists)",
+    "dedicated fresh-instance lifecycle not exercised with a live provider",
+    "live provider execution NOT AUTHORIZED (live_proof_authorized=false)",
+    "no container runtime (docker/podman absent); isolation uses userns+bwrap (scratch eliminated, D1)"
   ],
   "readiness_stage": {
     "provisioning_design": "READY_FOR_PROVISIONING_DESIGN",
     "live_proof": "NOT_READY"
   },
-  "raphael_head_note": "pre-isolation-design docs commit",
   "design_reference": "docs/integration/phase-2c-isolation-engineering-design.md",
   "dependency_install": {
     "executed": true,
@@ -227,7 +257,8 @@
       "Gate 1 explicit Node runtime closure (libnode.so.127 + 23 libs)",
       "Gate B: NODE_BUILTIN_ASSETS (6 externalized builtins) added to closure",
       "Gate D: --seccomp FD integration",
-      "Gate H D1: scratch eliminated (no tmpfs, no scratch_bytes)"
+      "Gate H D1: scratch eliminated (no tmpfs, no scratch_bytes)",
+      "Correction 3: proxy/env hardening (10x --unsetenv); builder emits 151 tokens"
     ],
     "scratch_mode": "NO_SCRATCH",
     "tmpfs_size": "NOT_APPLICABLE (D1)",
@@ -249,6 +280,6 @@
     },
     "executable": "/usr/bin/node",
     "command_pinned": true,
-    "note": "G2 curated + verified for plain Node; Gate 7 prerequisite verified; M1/M2 NOT STARTED; M5 NOT_READY; live_proof NOT_READY; provider never executed"
+    "note": "G2 curated + verified for plain Node; M1/M2/M5 PROBED_PASS; live_proof NOT_READY; provider never executed"
   }
 }

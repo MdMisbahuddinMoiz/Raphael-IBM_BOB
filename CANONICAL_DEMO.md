@@ -4,20 +4,28 @@ This document explains the canonical demonstration runner for judges evaluating 
 
 ---
 
-## 1. Quickstart
+## 1. Quickstart & Modes
 
 Run from the repository root:
 
 ```bash
-# 1. Canonical governed hero demonstration (exits 0, QualityGate: COMPLETE)
+# 1. Canonical governed hero demonstration (REAL T3MP3ST provider required; exits 0, QualityGate: COMPLETE)
 ./scripts/run_demo.sh
 
-# 2. Honest refusal demonstration (exits 1, QualityGate: REFUSE)
+# 2. Honest refusal demonstration (exits 1, QualityGate: REFUSE via failed oracle probe)
 ./scripts/run_demo.sh --refuse
 
-# 3. Environment prerequisite inspection
+# 3. Explicit mock mode (uses InertProviderDouble test double instead of real provider; exits 0, COMPLETE)
+./scripts/run_demo.sh --mock
+
+# 4. Environment prerequisite inspection
 ./scripts/run_demo.sh --check-prereqs
 ```
+
+### Provider Execution Contract:
+- **Default canonical demo (`./scripts/run_demo.sh`)**: Demands the **REAL** pinned T3MP3ST provider checkout in the `bwrap` sandbox. It does **NOT** silently fall back to an inert double. If provider prerequisites are missing, it halts with a clear prerequisite failure (exit code 2).
+- **Explicit test double mode (`./scripts/run_demo.sh --mock`)**: Allows running in constrained environments without the compiled T3MP3ST provider dist by explicitly substituting [`InertProviderDouble`](file:///home/moiz/raphael-2.0-rbsv2r/raphael_ibm_bob/adapters/t3mp3st_adapter.py) (clearly labeled as a test double).
+- **Refusal comparison (`./scripts/run_demo.sh --refuse`)**: Skips replanning after the v1 decoy fix; the external oracle remains red and QualityGate refuses honestly.
 
 No external Python dependencies (`pytest`, `requests`, etc.) are required. The system runs purely on standard library Python (>= 3.11, tested on Python 3.14.4) and Node (>= 22.19.0, tested on v22.22.1).
 
@@ -74,10 +82,18 @@ Evidence: runs/<run_id>/evidence.jsonl
 
 - `0`: QualityGate evaluated to `COMPLETE`.
 - `1`: QualityGate evaluated to `REFUSE` (e.g. `--refuse` or baseline comparison mode).
-- `2`: Fatal environment or configuration error (missing prerequisites).
+- `2`: Fatal environment or configuration error (missing prerequisites or provider unavailable when not in `--mock` mode).
 
 ---
 
-## 5. Clean Repository Guarantee
+## 5. Verification Scope & Limitations
 
-All fixture mutations applied during the demonstration are restored in `finally` blocks upon exit. `git status --short` remains clean after every run. Evidence is persisted under `runs/<run_id>/` (which is git-ignored).
+1. **Local Sandboxed Execution Validated**:
+   - The canonical demo executes the real pinned T3MP3ST provider locally inside a bubblewrap (`bwrap`) sandbox with network denial (`--unshare-net`) and read-only mounts.
+2. **Controlled Release Gate**:
+   - In accordance with safety policies, `LIVE_PROOF_AUTHORIZED = False` in [`scripts/c1a_live_proof.py`](file:///home/moiz/raphael-2.0-rbsv2r/scripts/c1a_live_proof.py).
+   - Formal remote M1/M2/M5 live proof is marked **NOT VERIFIED**.
+   - Seccomp status remains marked **NOT_EXECUTED** where formal seccomp BPF policy compilation is not attached.
+3. **Test Suite Accounting**:
+   - **Governed BOB Suite**: **1064 tests passed, 0 failures** across all 69 modules in the tree.
+   - **Legacy Substrate Root-Discovery Errors**: 18 collection errors occur if running unguided `python3 -m unittest discover` because the tool attempts to import unadapted legacy test modules from the pre-BOB base repository (in `src/arena` requiring `pytest`). These 22 legacy files are strictly outside the governed BOB suite and isolated by test guards.

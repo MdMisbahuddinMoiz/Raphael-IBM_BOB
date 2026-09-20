@@ -128,8 +128,10 @@ All counts verified by actual command execution:
 - **C1A Provider & Authorization Suite (13 modules)**: **95 tests, 0 failures**.
 - **T3MP3ST Integration Suite**: **30 tests, 0 failures** (including real sandboxed provider execution).
 - **Isolation Substrate Suite**: **144 tests, 0 failures**.
-- **Canonical Demo (`./scripts/run_demo.sh`)**: Exits 0, `Gate: COMPLETE`.
+- **Canonical Demo (`./scripts/run_demo.sh`)**: Exits 0, `Gate: COMPLETE` (demands real sandboxed provider).
 - **Refusal Mode (`./scripts/run_demo.sh --refuse`)**: Exits 1, `Gate: REFUSE`.
+- **Mock Mode (`./scripts/run_demo.sh --mock`)**: Exits 0, `Gate: COMPLETE` (explicit inert test double).
+- **Legacy Root Discovery**: 18 pre-existing import/collection errors occur if running unconfigured `unittest discover` over the legacy `src/arena` substrate; these are pre-existing, outside the governed BOB suite, and test-isolated.
 
 ---
 

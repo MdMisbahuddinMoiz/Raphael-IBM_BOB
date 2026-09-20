@@ -35,6 +35,10 @@ class CanonicalHeroTest(unittest.TestCase):
         exit_code = run_canonical_demo(mode="refuse")
         self.assertEqual(exit_code, 1)
 
+    def test_canonical_hero_mock_mode_reaches_complete(self):
+        exit_code = run_canonical_demo(mode="raphael", mock=True)
+        self.assertEqual(exit_code, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

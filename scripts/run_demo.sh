@@ -3,8 +3,9 @@
 # RAPHAEL IBM BOB — Canonical Judge Demonstration Runner
 #
 # Usage:
-#   ./scripts/run_demo.sh            # Run canonical governed demo (exit 0, COMPLETE)
+#   ./scripts/run_demo.sh            # Run canonical governed demo (exit 0, COMPLETE; demands real provider)
 #   ./scripts/run_demo.sh --refuse   # Run refusal scenario (exit 1, REFUSE)
+#   ./scripts/run_demo.sh --mock     # Run with explicit inert test double (exit 0, COMPLETE)
 #   ./scripts/run_demo.sh --check-prereqs # Check environment prerequisites
 #   ./scripts/run_demo.sh --help     # Display usage options
 # ==============================================================================

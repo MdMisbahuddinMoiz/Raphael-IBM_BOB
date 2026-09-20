@@ -344,6 +344,7 @@ def run_canonical_demo(
     mode: str = "raphael",
     runs_root: Optional[Path] = None,
     keep: bool = False,
+    mock: bool = False,
 ) -> int:
     authkit_dir = ROOT / "fixtures" / "authkit"
     login_path = authkit_dir / "login.py"
@@ -379,14 +380,20 @@ def run_canonical_demo(
         and prereq_dict["t3mp3st_provider_dist"].ok
     )
 
-    if have_real_t3mp3st:
+    if mock:
+        c1a_provider = InertProviderDouble()
+        provider_name = "InertProviderDouble (test double, explicit --mock mode)"
+        provider_state_label = "INERT"
+    elif have_real_t3mp3st:
         c1a_provider = T3MP3STAdapter(provider_dist=PROVIDER_DIST)
         provider_name = "T3MP3ST (real pinned checkout)"
         provider_state_label = "AVAILABLE"
     else:
-        c1a_provider = InertProviderDouble()
-        provider_name = "InertProviderDouble (test double)"
-        provider_state_label = "INERT"
+        failed_prereqs = [p.name for p in prereqs if not p.ok]
+        raise RuntimeError(
+            f"Real T3MP3ST provider unavailable (failed prerequisites: {failed_prereqs}). "
+            "Canonical demo requires the real provider. Use explicit --mock to run with test double."
+        )
 
     policy = BOBPolicy(workspace)
     c1a_auth = C1AAuthorizationBinding()
@@ -662,6 +669,11 @@ def main() -> int:
         help="Convenience alias for --mode baseline.",
     )
     parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Explicitly run with InertProviderDouble test double instead of requiring real T3MP3ST provider.",
+    )
+    parser.add_argument(
         "--check-prereqs",
         action="store_true",
         help="Validate and print environment prerequisites then exit.",
@@ -694,7 +706,7 @@ def main() -> int:
         for st in statuses:
             tag = "PASS" if st.ok else "FAIL"
             print(f"[{tag}] {st.name:25s}: {st.detail}")
-            if not st.ok and st.name in ("python_runtime", "c1a_launcher_pinned", "t3mp3st_bridge_pinned"):
+            if not st.ok:
                 all_ok = False
         return 0 if all_ok else 2
 
@@ -705,11 +717,20 @@ def main() -> int:
         print(f"Fatal prerequisite failure: python {st_dict['python_runtime'].detail}", file=sys.stderr)
         return 2
 
+    if not args.mock:
+        real_reqs = ("node_runtime", "bwrap_sandbox", "c1a_launcher_pinned", "t3mp3st_bridge_pinned", "t3mp3st_provider_dist")
+        missing_real = [r for r in real_reqs if not st_dict.get(r) or not st_dict[r].ok]
+        if missing_real:
+            print(f"Fatal prerequisite failure for real T3MP3ST provider: missing {missing_real}.", file=sys.stderr)
+            print("The canonical demo requires the real provider. To run with the test double instead, explicitly pass --mock.", file=sys.stderr)
+            return 2
+
     try:
         return run_canonical_demo(
             mode=mode,
             runs_root=args.runs_root,
             keep=args.keep,
+            mock=args.mock,
         )
     except Exception as exc:
         print(f"Demo failed: {type(exc).__name__}: {exc}", file=sys.stderr)

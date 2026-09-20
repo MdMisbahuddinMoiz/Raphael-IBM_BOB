@@ -23,7 +23,7 @@ this file (see the M12 report for the exact hash).
 
 ## Functional Verification
 
-- [x] **VERIFIED** — comprehensive BOB test suite: **1064 tests, 0 failures**
+- [x] **VERIFIED** — comprehensive BOB test suite: **1065 tests, 0 failures**
   (69 modules executed via standard library unittest; Python 3.14.4).
 - [x] **VERIFIED** — core seam suite: **209 tests, 0 failures**
   (12-module explicit unittest command).
@@ -131,8 +131,8 @@ this file (see the M12 report for the exact hash).
   T3MP3ST provider executes in the sandbox when its compiled checkout is
   present (`provider_execution = VERIFIED`, local); M1/M2/M5 are **not**
   claimed. See `docs/integration/c1a-release-gate.md`.
-- [x] **VERIFIED** — test counts reconciled: 209 tests on the 12-module
-  core seam list; 1064 tests across all 69 BOB modules in the tree (0 failures).
+- [x] **VERIFIED** — test counts reconciled: test-count discrepancy resolved; 209 tests on the 12-module
+  core seam list; 1065 tests across all 69 BOB modules in the tree (0 failures).
   All test numbers match actual execution evidence.
 
 

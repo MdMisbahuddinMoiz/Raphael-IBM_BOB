@@ -123,7 +123,7 @@ RAPHAEL strictly enforces these foundational invariants across all layers:
 
 All counts verified by actual command execution:
 
-- **Full BOB Test Suite (69 modules)**: **1064 tests, 0 failures** (Python 3.14.4).
+- **Full BOB Test Suite (69 modules)**: **1065 tests, 0 failures** (Python 3.14.4).
 - **Core Seam & Gov-Loop Suite (12 modules)**: **209 tests, 0 failures**.
 - **C1A Provider & Authorization Suite (13 modules)**: **95 tests, 0 failures**.
 - **T3MP3ST Integration Suite**: **30 tests, 0 failures** (including real sandboxed provider execution).
@@ -150,7 +150,7 @@ probes/            auth_behavior_probe.py (independent oracle)
 fixtures/          Deterministic authkit scenario (login.py, session.py, store.py)
 scripts/           run_demo.sh (judge runner), audit_runs.py (metrics audit),
                    c1a_live_proof.py (controlled release gate)
-tests/             Comprehensive 69-module test suite (1064 tests)
+tests/             Comprehensive 69-module test suite (1065 tests)
 runs/              Durable per-run evidence ledgers (git-ignored)
 ```
 
@@ -158,7 +158,7 @@ runs/              Durable per-run evidence ledgers (git-ignored)
 
 ## Honest Limitations
 
-1. **Live Proof Gate**: In accordance with Controlled Release requirements, `LIVE_PROOF_AUTHORIZED = False` in [`scripts/c1a_live_proof.py`](file:///home/moiz/raphael-2.0-rbsv2r/scripts/c1a_live_proof.py). While real T3MP3ST executes locally in the bubblewrap sandbox (`provider_execution = VERIFIED`), formal remote M1/M2/M5 closure is marked **NOT VERIFIED** (seccomp `NOT_EXECUTED`).
+1. **Live Proof Gate (Live proof is BLOCKED)**: In accordance with Controlled Release requirements, `LIVE_PROOF_AUTHORIZED = False` in [`scripts/c1a_live_proof.py`](file:///home/moiz/raphael-2.0-rbsv2r/scripts/c1a_live_proof.py). While real T3MP3ST executes locally in the bubblewrap sandbox (`provider_execution = VERIFIED`), formal remote M1/M2/M5 closure is marked **NOT VERIFIED** (seccomp `NOT_EXECUTED`).
 2. **Benchmark Scope**: Evaluated on the canonical deterministic `authkit` scenario; multi-repo generalization is not claimed.
 3. **Legacy Substrate**: The repository substrate includes earlier offensive research platform files in `src/` which are strictly isolated and not imported by the governed IBM BOB runtime.
 

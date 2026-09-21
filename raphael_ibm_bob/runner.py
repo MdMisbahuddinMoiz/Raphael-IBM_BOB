@@ -47,6 +47,42 @@ def _canonical(payload: dict) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
+#: Legacy Plan-A retest marker. Retained as the default so existing
+#: generic Runner behavior is unchanged when a mission declares nothing.
+DEFAULT_CANDIDATE_EXPECTED_SUBSTRING = "OK"
+
+#: Sentinel distinguishing "caller did not supply an expectation" from an
+#: explicit `None` (which means: a successful ALLOWed READ is sufficient).
+_UNSET = object()
+
+
+def resolve_plan_a_expected_substring(
+    mission: Mission, override: object = _UNSET
+) -> Optional[str]:
+    """Resolve the Plan-A retest content expectation.
+
+    Precedence (smallest, explicit-first design):
+        1. an explicit `override` argument;
+        2. `mission.problem["verification_expected_substring"]` when the
+           mission declares it (a string marker, or explicit ``None`` to
+           require only a successful ALLOWed READ);
+        3. the legacy default ``"OK"`` (backward compatibility).
+
+    A declared empty/invalid value falls back to the strict legacy
+    default rather than silently weakening verification.
+    """
+    if override is not _UNSET:
+        return override  # type: ignore[return-value]
+    problem = mission.problem if isinstance(mission.problem, dict) else {}
+    if "verification_expected_substring" in problem:
+        value = problem.get("verification_expected_substring")
+        if value is None:
+            return None
+        if isinstance(value, str) and value:
+            return value
+    return DEFAULT_CANDIDATE_EXPECTED_SUBSTRING
+
+
 @dataclass(frozen=True)
 class RunnerOutcome:
     """Public result of a Runner.run() call.
@@ -128,6 +164,7 @@ class Runner:
         *,
         candidate_target: str = "src/fixed.py",
         candidate_summary: str = "session.py mishandles tokens",
+        candidate_expected_substring: object = _UNSET,
         challenger_target: str = "src/still_buggy.py",
         challenger_forbidden_substring: str = "BUG: still contains the original defect",
         challenger_capability: Capability = Capability.READ,
@@ -156,7 +193,13 @@ class Runner:
         RUN_TEST actions so the gate's required-test condition can be
         satisfied by real evidence. The loop never exceeds `max_replans`
         recovery attempts; exhaustion with a REFUTED terminal finding
-        yields REFUSE from the gate.
+        yields REFUSE from the gate. The Plan-A retest content
+        expectation is resolved explicitly via
+        `resolve_plan_a_expected_substring`: an explicit
+        `candidate_expected_substring` wins, else
+        `mission.problem["verification_expected_substring"]` (a marker,
+        or explicit None for observation-only missions), else the legacy
+        `"OK"` default. The Verifier and QualityGate are unchanged.
         """
         # 1. Generate Plan A.
         plan_a = self._planner.plan_a(mission)
@@ -183,13 +226,17 @@ class Runner:
         )
         self._store.register(finding)
 
-        # 3. Verifier.verify F1: UNVERIFIED -> VERIFIED.
+        # 3. Verifier.verify F1: UNVERIFIED -> VERIFIED. The Plan-A
+        # expected content marker is explicit and mission-derived
+        # (see resolve_plan_a_expected_substring), never a hidden
+        # constant.
         self._verifier.verify(
             finding,
             RetestSpec(
                 capability=Capability.READ,
                 target=candidate_target,
-                expected_substring="OK",
+                expected_substring=resolve_plan_a_expected_substring(
+                    mission, candidate_expected_substring),
             ),
             mission,
             requester="runner",
@@ -423,7 +470,9 @@ class Runner:
 
 
 __all__ = [
+    "DEFAULT_CANDIDATE_EXPECTED_SUBSTRING",
     "Runner",
     "Planner",
     "RunnerOutcome",
+    "resolve_plan_a_expected_substring",
 ]

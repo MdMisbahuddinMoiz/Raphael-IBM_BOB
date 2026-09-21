@@ -63,6 +63,11 @@ form.start input,form.start select{font:inherit;background:var(--bg);
 color:var(--text);border:1px solid var(--border);border-radius:3px;
 padding:7px 9px}
 a.row-link{color:var(--primary);text-decoration:none}
+fieldset.advanced{border:1px solid var(--border);border-radius:3px;
+padding:10px 12px;display:grid;gap:10px;margin:0}
+fieldset.advanced legend{font-size:10px;color:var(--muted);
+letter-spacing:.08em;text-transform:uppercase;padding:0 4px}
+fieldset.advanced .hint{margin:0;line-height:1.5}
 """
 
 
@@ -190,6 +195,23 @@ def render_index(run_ids: List[str], *, runs_root, sessions_root) -> str:
         'min="1" max="50" value="14"></label>'
         '<label>CANDIDATE TARGET (runner)<input name="candidate_target" '
         f'value="{dt._e(default_candidate)}"></label>'
+        '<fieldset class="advanced"><legend>ADVANCED GOVERNED RUN '
+        '(optional, runner)</legend>'
+        '<p class="hint">Values map to existing Runner arguments. Every '
+        'action still travels UI &rarr; harness.api &rarr; Runner &rarr; '
+        'Runtime &rarr; Broker &rarr; Policy.</p>'
+        '<label>CANDIDATE SUMMARY<input name="candidate_summary" '
+        'placeholder="session.py mishandles tokens"></label>'
+        '<label>CHALLENGER TARGET<input name="challenger_target" '
+        'placeholder="src/challenger.txt"></label>'
+        '<label>CHALLENGER FORBIDDEN SUBSTRING<input '
+        'name="challenger_forbidden_substring" '
+        'placeholder="BUG: still contains the original defect"></label>'
+        '<label>VERIFICATION TEST TARGETS (comma-separated)<input '
+        'name="verification_tests" placeholder="src/test_ok.py"></label>'
+        '<label>MAX REPLANS<input name="max_replans" type="number" '
+        'min="0" max="10" value="1"></label>'
+        '</fieldset>'
         '<div><button class="btn" type="submit">START OPERATION</button></div>'
         '</form></section>')
 

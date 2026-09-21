@@ -75,6 +75,73 @@ def _as_int(value, fallback):
         raise errors.invalid_input("max_turns must be an integer") from None
 
 
+#: Upper bound for operator-supplied `max_replans` (a UI guardrail only;
+#: the Runner keeps its own bounds/semantics).
+MAX_UI_REPLANS = 10
+
+
+def _optional_str(body, key):
+    """Return a stripped, non-empty string field, else None."""
+    value = body.get(key)
+    if isinstance(value, str):
+        value = value.strip()
+        if value:
+            return value
+    return None
+
+
+def _verification_tests(body):
+    """Parse a comma-separated verification test list into a tuple."""
+    raw = body.get("verification_tests")
+    if not isinstance(raw, str):
+        return ()
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
+
+
+def _max_replans(body):
+    """Parse and bound the operator-supplied max_replans (None if absent)."""
+    raw = body.get("max_replans")
+    if raw in (None, ""):
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise errors.invalid_input("max_replans must be an integer") from None
+    if value < 0 or value > MAX_UI_REPLANS:
+        raise errors.invalid_input(
+            f"max_replans must be between 0 and {MAX_UI_REPLANS}")
+    return value
+
+
+def _runner_kwargs(body):
+    """Map ordinary operator inputs to existing Runner.run arguments.
+
+    Only documented Runner arguments are exposed. Internal authority
+    objects/flags (challenge_specs, regression_ok, behavior_probe_ok)
+    are never settable from the UI; omitted fields keep Runner defaults.
+    """
+    kwargs = {}
+    candidate = _optional_str(body, "candidate_target")
+    if candidate:
+        kwargs["candidate_target"] = candidate
+    summary = _optional_str(body, "candidate_summary")
+    if summary:
+        kwargs["candidate_summary"] = summary
+    challenger = _optional_str(body, "challenger_target")
+    if challenger:
+        kwargs["challenger_target"] = challenger
+    forbidden = _optional_str(body, "challenger_forbidden_substring")
+    if forbidden:
+        kwargs["challenger_forbidden_substring"] = forbidden
+    tests = _verification_tests(body)
+    if tests:
+        kwargs["verification_tests"] = tests
+    replans = _max_replans(body)
+    if replans is not None:
+        kwargs["max_replans"] = replans
+    return kwargs
+
+
 def start_operation(request, params, config):
     """POST /operations/start — start a governed run (existing API).
 
@@ -98,13 +165,9 @@ def start_operation(request, params, config):
             sessions_root=config.sessions_root, runs_root=config.runs_root)
         run_id = result.run.run_id
     else:
-        runner_kwargs = {}
-        target = body.get("candidate_target")
-        if target:
-            runner_kwargs["candidate_target"] = target
         run = api.start_run(
             session, sessions_root=config.sessions_root,
-            runs_root=config.runs_root, **runner_kwargs)
+            runs_root=config.runs_root, **_runner_kwargs(body))
         run_id = run.run_id
     return Response(200, _console.redirect_page(f"/operations/{run_id}"),
                     content_type=HTML)

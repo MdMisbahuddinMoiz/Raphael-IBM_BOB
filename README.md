@@ -112,7 +112,7 @@ RAPHAEL strictly enforces these foundational invariants across all layers:
 
 - **Real T3MP3ST Provider**: Executed via the canonical path:
   `RAPHAEL -> bwrap -> RAPHAEL bridge -> binarySinkScanTool.handler()`
-- **Bubblewrap Sandbox**: Enforces `--unshare-net` (network denial), read-only mounts (`--ro-bind`), and seccomp filters.
+- **Bubblewrap Sandbox**: Enforces `--unshare-net` (network denial) and read-only mounts (`--ro-bind`); the sandbox also carries a locally built seccomp filter (`--seccomp`). Remote-kernel seccomp BPF attachment is **not demonstrated** (see Honest Limitations).
 - **RAPHAEL-Owned Bridge** ([`provider/t3mp3st_bridge.js`](file:///home/moiz/raphael-2.0-rbsv2r/provider/t3mp3st_bridge.js)): Pinned by SHA-256 digest (`ea5616e...`). The bridge excludes raw authority findings (`severity`, `cwe`, `title`, `details`) from output receipts.
 - **Untrusted Evidence**: Provider receipts are recorded with `provider_untrusted: True`. Provider output can never assert `VERIFIED`, `REFUTED`, or `COMPLETE`.
 - **Inert Provider Double**: [`InertProviderDouble`](file:///home/moiz/raphael-2.0-rbsv2r/raphael_ibm_bob/adapters/t3mp3st_adapter.py) serves as a standalone local test double when external provider checkouts are absent.
@@ -123,7 +123,7 @@ RAPHAEL strictly enforces these foundational invariants across all layers:
 
 All counts verified by actual command execution:
 
-- **Full Governed BOB Suite (75 modules)**: **1139 tests, 0 failures** (Python 3.14.4).
+- **Full Governed BOB Suite (80 modules)**: **1165 tests, 0 failures** (Python 3.14.4).
 - **Core Seam & Gov-Loop Suite (12 modules)**: **209 tests, 0 failures**.
 - **C1A Provider & Authorization Suite (13 modules)**: **95 tests, 0 failures**.
 - **T3MP3ST Integration Suite**: **30 tests, 0 failures** (including real sandboxed provider execution).
@@ -131,7 +131,7 @@ All counts verified by actual command execution:
 - **Canonical Demo (`./scripts/run_demo.sh`)**: Exits 0, `Gate: COMPLETE` (demands real sandboxed provider).
 - **Refusal Mode (`./scripts/run_demo.sh --refuse`)**: Exits 1, `Gate: REFUSE`.
 - **Mock Mode (`./scripts/run_demo.sh --mock`)**: Exits 0, `Gate: COMPLETE` (explicit inert test double).
-- **Legacy Root Discovery**: the unrestricted legacy discovery command still reports **18 pre-existing collection/import errors** from the legacy `src/arena` substrate (1157 test entries collected: 1139 governed pass + 18 legacy errors). These are outside the governed BOB suite and test-isolated; zero governed failures or errors.
+- **Legacy Root Discovery**: `python3 -m unittest discover -s tests -p "test_*.py"` reports **1183 test entries collected: 1165 governed pass + 18 legacy errors**, with zero governed failures. The **18 pre-existing collection/import errors** come from unadapted legacy modules that import the `arena` substrate (`ModuleNotFoundError`); the error set is byte-identical run-to-run. These modules are outside the governed BOB suite and test-isolated.
 
 ---
 
@@ -150,7 +150,7 @@ probes/            auth_behavior_probe.py (independent oracle)
 fixtures/          Deterministic authkit scenario (login.py, session.py, store.py)
 scripts/           run_demo.sh (judge runner), audit_runs.py (metrics audit),
                    c1a_live_proof.py (controlled release gate)
-tests/             Comprehensive 75-module governed test suite (1139 tests)
+tests/             Comprehensive 80-module governed test suite (1165 tests)
 runs/              Durable per-run evidence ledgers (git-ignored)
 ```
 
@@ -161,6 +161,7 @@ runs/              Durable per-run evidence ledgers (git-ignored)
 1. **Live Proof Gate (Live proof is BLOCKED)**: In accordance with Controlled Release requirements, `LIVE_PROOF_AUTHORIZED = False` in [`scripts/c1a_live_proof.py`](file:///home/moiz/raphael-2.0-rbsv2r/scripts/c1a_live_proof.py). While real T3MP3ST executes locally in the bubblewrap sandbox (`provider_execution = VERIFIED`), formal remote M1/M2/M5 closure is marked **NOT VERIFIED** (seccomp `NOT_EXECUTED`).
 2. **Benchmark Scope**: Evaluated on the canonical deterministic `authkit` scenario; multi-repo generalization is not claimed.
 3. **Legacy Substrate**: The repository substrate includes earlier offensive research platform files in `src/` which are strictly isolated and not imported by the governed IBM BOB runtime.
+4. **D5-7 Controlled VulnHub E2E (BLOCKED / OUT OF SCOPE FOR THIS RELEASE)**: no supported controlled VulnHub target/environment is present in this checkout or host. Legacy Stapler (VulnHub) material under `evaluations/campaign/` and `current-state/reports/` is historical evidence from a different lab host; the VM image and lab bridge (`icabr0`, `10.66.0.0/24`) are unavailable here, and the governed runtime has no network target adapter. No VulnHub execution, VM availability, reachable target IP, or kill chain is claimed.
 
 ---
 

@@ -23,11 +23,11 @@ this file (see the M12 report for the exact hash).
 
 ## Functional Verification
 
-- [x] **VERIFIED** — comprehensive governed BOB test suite: **1139 tests,
-  0 failures** (75 governed modules executed via standard library
-  unittest; Python 3.14.4). The unrestricted legacy discovery command
+- [x] **VERIFIED** — comprehensive governed BOB test suite: **1165 tests,
+  0 failures** (80 governed modules executed via standard library
+  unittest; Python 3.14.4). The unrestricted discovery command
   separately reports 18 pre-existing collection/import errors from the
-  legacy `src/arena` substrate (1157 collected = 1139 pass + 18 errors).
+  legacy `arena` substrate (1183 collected = 1165 pass + 18 errors).
 - [x] **VERIFIED** — core seam suite: **209 tests, 0 failures**
   (12-module explicit unittest command).
 - [x] **VERIFIED** — canonical judge demo (`./scripts/run_demo.sh`):
@@ -134,12 +134,26 @@ this file (see the M12 report for the exact hash).
   T3MP3ST provider executes in the sandbox when its compiled checkout is
   present (`provider_execution = VERIFIED`, local); M1/M2/M5 are **not**
   claimed. See `docs/integration/c1a-release-gate.md`.
-- [x] **VERIFIED** — test counts reconciled: test-count discrepancy
-  resolved; 209 tests on the 12-module core seam list; 1139 tests across
-  all 75 governed BOB modules in the tree (0 failures); 18 pre-existing
-  legacy `src/arena` collection/import errors remain during unrestricted
-  discovery and are outside the governed suite. All test numbers match
-  actual execution evidence.
+- [x] **VERIFIED** — test counts reconciled from actual execution:
+  the earlier test-count discrepancy is resolved; 209 tests on the
+  12-module core seam list; **1165 tests across all 80 governed BOB
+  modules** in the tree (0 failures); **1183 discovered = 1165 governed
+  pass + 18 legacy errors**, with the 18 legacy `arena`
+  collection/import errors byte-identical run-to-run and outside the
+  governed suite. All test numbers match actual execution evidence.
+
+## D5 Status Matrix
+
+| Item | Status |
+| --- | --- |
+| D5-1 UI target default (mission-derived) | ACCEPTED |
+| D5-2 governed runner controls + positive UI COMPLETE path | ACCEPTED |
+| D5-3 explicit Plan-A verification expectation | ACCEPTED |
+| D5-4 UI/authkit end-to-end (honest REFUSE) | ACCEPTED |
+| D5-5 authkit observation-only semantics | ACCEPTED |
+| D5-6 real-provider regression (canonical sandboxed + mock) | ACCEPTED (external live proof remains locked / not performed) |
+| D5-7 controlled VulnHub E2E | BLOCKED / OUT OF SCOPE FOR THIS RELEASE (no supported controlled target environment) |
+| D5-8 release reconciliation + provenance audit | ACCEPTED after validation |
 
 
 

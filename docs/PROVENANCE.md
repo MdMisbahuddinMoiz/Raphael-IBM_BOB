@@ -241,3 +241,24 @@ Honesty boundary (unchanged, explicit):
 See `docs/integration/c1a-evidence-contract.md`,
 `docs/integration/c1a-runbook.md`, and
 `docs/integration/c1a-release-gate.md`.
+
+### 15.1 Provider source-pin reconciliation (D5-8)
+
+Two T3MP3ST provider revisions were cited across sources; this section
+records which is authoritative from repository state.
+
+- **Authoritative provider pin:**
+  `29824d5625ede419ac8cdae418c8f4c72c6270f7`. It matches the code
+  constant `raphael_ibm_bob/isolation_substrate.py::PROVIDER_PIN` and is
+  used consistently across the integration documents
+  (`docs/integration/*`). This is the value asserted by the current
+  certification path.
+- **RAPHAEL-owned bridge pin:**
+  `ea5616e1515004fe2fed344eb6787ed29d57a6040e0290ad3069321799056101`,
+  matching `raphael_ibm_bob/adapters/t3mp3st_adapter.py::T3MP3ST_BRIDGE_SHA256`.
+- **Unresolved audit hash:** an earlier external audit/source report
+  cited `0602377484dfc746bc5f67a21a539e088716b9a8`. This string does
+  **not** appear anywhere in this checkout, and the repository/object it
+  identifies cannot be established from repository state. It is recorded
+  here as **UNRESOLVED / not found in this checkout** and is *not*
+  claimed reconciled. No certification claim depends on it.

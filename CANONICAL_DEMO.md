@@ -95,5 +95,5 @@ Evidence: runs/<run_id>/evidence.jsonl
    - Formal remote M1/M2/M5 live proof is marked **NOT VERIFIED**.
    - Seccomp status remains marked **NOT_EXECUTED** where formal seccomp BPF policy compilation is not attached.
 3. **Test Suite Accounting**:
-   - **Governed BOB Suite**: **1139 tests passed, 0 failures** across all 75 governed modules in the tree.
-   - **Legacy Substrate Root-Discovery Errors**: the unrestricted legacy discovery command still reports **18 pre-existing collection/import errors** because the tool attempts to import unadapted legacy test modules from the pre-BOB base repository (in `src/arena`, requiring `pytest`). These legacy files are strictly outside the governed BOB suite and isolated by test guards. The unrestricted discovery collects 1157 test entries: 1139 governed pass + 18 legacy errors, with zero governed failures.
+   - **Governed BOB Suite**: **1165 tests passed, 0 failures** across all 80 governed modules in the tree.
+   - **Legacy Substrate Root-Discovery Errors**: `python3 -m unittest discover -s tests -p "test_*.py"` still reports **18 pre-existing collection/import errors** because the tool attempts to import unadapted legacy test modules from the pre-BOB base repository (importing the `arena` substrate). These legacy files are strictly outside the governed BOB suite and isolated by test guards. The discovery collects 1183 test entries: 1165 governed pass + 18 legacy errors, with zero governed failures.

@@ -89,6 +89,60 @@ def _shell(title: str, body: str, script: str = "") -> str:
 # index + start operation
 # ---------------------------------------------------------------------------
 
+#: Last-resort candidate target, used only when the selected session's
+#: mission declares no `problem["symptom_target"]`. It mirrors the
+#: Runner's documented default; the UI never invents a target.
+DEFAULT_CANDIDATE_TARGET = "src/fixed.py"
+
+
+def _session_candidate_target(session) -> str:
+    """Project a session's mission-derived candidate target, or ''.
+
+    Reads `mission.problem["symptom_target"]` for presentation only.
+    The Harness, Policy, and Runner remain authoritative; this grants no
+    execution authority and never fabricates a target.
+    """
+    mission = getattr(session, "mission", None)
+    problem = getattr(mission, "problem", None)
+    if isinstance(problem, dict):
+        target = problem.get("symptom_target")
+        if isinstance(target, str) and target.strip():
+            return target.strip()
+    return ""
+
+
+def _candidate_targets(sessions: List[str], sessions_root) -> Dict[str, str]:
+    """Map session_id -> mission-derived candidate target ('' if none)."""
+    targets: Dict[str, str] = {}
+    for session_id in sessions:
+        try:
+            session = api.get_session(session_id, sessions_root)
+        except Exception:
+            targets[session_id] = ""
+            continue
+        targets[session_id] = _session_candidate_target(session)
+    return targets
+
+
+_CANDIDATE_DEFAULT_JS = """
+(function () {
+  var form = document.querySelector('form.start');
+  if (!form) { return; }
+  var select = form.querySelector('select[name="session_id"]');
+  var input = form.querySelector('input[name="candidate_target"]');
+  if (!select || !input) { return; }
+  var edited = false;
+  input.addEventListener('input', function () { edited = true; });
+  select.addEventListener('change', function () {
+    if (edited) { return; }
+    var opt = select.options[select.selectedIndex];
+    var target = opt ? (opt.getAttribute('data-candidate-target') || '') : '';
+    if (target) { input.value = target; }
+  });
+})();
+"""
+
+
 def render_index(run_ids: List[str], *, runs_root, sessions_root) -> str:
     rows = []
     for run_id in run_ids:
@@ -112,8 +166,15 @@ def render_index(run_ids: List[str], *, runs_root, sessions_root) -> str:
              if rows else '<p class="empty">No runs yet.</p>')
 
     sessions = api.get_sessions(sessions_root)
+    targets = _candidate_targets(sessions, sessions_root)
+    default_candidate = (
+        targets[sessions[0]]
+        if sessions and targets.get(sessions[0])
+        else DEFAULT_CANDIDATE_TARGET)
     options = "".join(
-        f'<option value="{dt._e(s)}">{dt._e(s)}</option>' for s in sessions)
+        f'<option value="{dt._e(s)}" '
+        f'data-candidate-target="{dt._e(targets[s])}">'
+        f'{dt._e(s)}</option>' for s in sessions)
     start = (
         '<section class="panel"><h2>NEW OPERATION</h2>'
         '<p class="note">Starts a governed run through the existing Harness '
@@ -128,12 +189,12 @@ def render_index(run_ids: List[str], *, runs_root, sessions_root) -> str:
         '<label>MAX TURNS<input name="max_turns" type="number" '
         'min="1" max="50" value="14"></label>'
         '<label>CANDIDATE TARGET (runner)<input name="candidate_target" '
-        'value="src/fixed.py"></label>'
+        f'value="{dt._e(default_candidate)}"></label>'
         '<div><button class="btn" type="submit">START OPERATION</button></div>'
         '</form></section>')
 
     body = (f"<h1>OPERATIONS</h1>{table}{start}")
-    return _shell("RAPHAEL — Operations", body)
+    return _shell("RAPHAEL — Operations", body, _CANDIDATE_DEFAULT_JS)
 
 
 def redirect_page(url: str) -> str:

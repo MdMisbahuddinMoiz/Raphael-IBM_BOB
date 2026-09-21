@@ -151,7 +151,7 @@ this file (see the M12 report for the exact hash).
 | D5-3 explicit Plan-A verification expectation | ACCEPTED |
 | D5-4 UI/authkit end-to-end (honest REFUSE) | ACCEPTED |
 | D5-5 authkit observation-only semantics | ACCEPTED |
-| D5-6 real-provider regression (canonical sandboxed + mock) | ACCEPTED (external live proof remains locked / not performed) |
+| D5-6 real-provider regression | ACCEPTED — canonical sandboxed provider regression and mock-provider regression executed; external live-provider proof NOT EXECUTED, no performance claim made |
 | D5-7 controlled VulnHub E2E | BLOCKED / OUT OF SCOPE FOR THIS RELEASE (no supported controlled target environment) |
 | D5-8 release reconciliation + provenance audit | ACCEPTED after validation |
 

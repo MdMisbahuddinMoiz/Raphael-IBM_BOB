@@ -123,7 +123,7 @@ RAPHAEL strictly enforces these foundational invariants across all layers:
 
 All counts verified by actual command execution:
 
-- **Full BOB Test Suite (69 modules)**: **1065 tests, 0 failures** (Python 3.14.4).
+- **Full Governed BOB Suite (75 modules)**: **1139 tests, 0 failures** (Python 3.14.4).
 - **Core Seam & Gov-Loop Suite (12 modules)**: **209 tests, 0 failures**.
 - **C1A Provider & Authorization Suite (13 modules)**: **95 tests, 0 failures**.
 - **T3MP3ST Integration Suite**: **30 tests, 0 failures** (including real sandboxed provider execution).
@@ -131,7 +131,7 @@ All counts verified by actual command execution:
 - **Canonical Demo (`./scripts/run_demo.sh`)**: Exits 0, `Gate: COMPLETE` (demands real sandboxed provider).
 - **Refusal Mode (`./scripts/run_demo.sh --refuse`)**: Exits 1, `Gate: REFUSE`.
 - **Mock Mode (`./scripts/run_demo.sh --mock`)**: Exits 0, `Gate: COMPLETE` (explicit inert test double).
-- **Legacy Root Discovery**: 18 pre-existing import/collection errors occur if running unconfigured `unittest discover` over the legacy `src/arena` substrate; these are pre-existing, outside the governed BOB suite, and test-isolated.
+- **Legacy Root Discovery**: the unrestricted legacy discovery command still reports **18 pre-existing collection/import errors** from the legacy `src/arena` substrate (1157 test entries collected: 1139 governed pass + 18 legacy errors). These are outside the governed BOB suite and test-isolated; zero governed failures or errors.
 
 ---
 
@@ -150,7 +150,7 @@ probes/            auth_behavior_probe.py (independent oracle)
 fixtures/          Deterministic authkit scenario (login.py, session.py, store.py)
 scripts/           run_demo.sh (judge runner), audit_runs.py (metrics audit),
                    c1a_live_proof.py (controlled release gate)
-tests/             Comprehensive 69-module test suite (1065 tests)
+tests/             Comprehensive 75-module governed test suite (1139 tests)
 runs/              Durable per-run evidence ledgers (git-ignored)
 ```
 

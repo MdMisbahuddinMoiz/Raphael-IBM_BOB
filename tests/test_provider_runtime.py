@@ -54,7 +54,8 @@ def _tree(tc):
 
 def _handoff(root, fx, **over):
     data = dict(run_id="run-1", proof_session_id="PS-1",
-                action_request_id="AR-1", invocation_id="INV-1",
+                mission_id="M-1", action_request_id="AR-1",
+                invocation_id="INV-1",
                 fixture_root=str(root), fixture_path=str(fx),
                 capability_id=C1A_CAPABILITY_ID, provider_id=C1A_PROVIDER_ID,
                 network_denied=True, timeout_seconds=5.0)

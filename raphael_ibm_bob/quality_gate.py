@@ -359,6 +359,34 @@ class BOBQualityGate:
                     reasons.append(
                         f"REFUTED finding without replan: {f.finding_id}"
                     )
+            elif f.state is FindingState.VERIFIED:
+                # D4: a VERIFIED finding that was verified through the
+                # governed independent path contributes only when its
+                # verification chain is valid (supported + independence
+                # passed + lineage valid). Legacy findings verified without
+                # any D4 verification record are unaffected.
+                d4_records = [
+                    r for r in evidence_records
+                    if r.get("producer") == "verifier"
+                    and r.get("finding_id") == f.finding_id
+                    and isinstance(r.get("payload"), dict)
+                    and r["payload"].get("kind") == "verification-result"
+                ]
+                if d4_records:
+                    valid_chain = any(
+                        r["payload"].get("supported") is True
+                        and (r["payload"].get("independence") or {}).get(
+                            "all_passed") is True
+                        and (r["payload"].get("lineage") or {}).get(
+                            "valid") is True
+                        for r in d4_records
+                    )
+                    if not valid_chain:
+                        bad_findings.append(f)
+                        reasons.append(
+                            "VERIFIED finding without a valid independent "
+                            f"verification chain: {f.finding_id}"
+                        )
         for f in bad_findings:
             finding_refs.append(f.finding_id)
         if not bad_findings:

@@ -425,6 +425,12 @@ class ActiveRunObservability(_LiveCase):
                         break
                 except FileNotFoundError:
                     pass
+                except ValueError:
+                    # D5: the harness file may exist but not yet be fully
+                    # written (empty/partial JSON). That is "not yet
+                    # observable", which is exactly what this poll waits
+                    # for; do not let a transient partial read error out.
+                    pass
             time.sleep(0.01)
         self.assertIsNotNone(run_id, "active run record was not observable")
         state_mid = api.get_run(run_id, self.runs).state

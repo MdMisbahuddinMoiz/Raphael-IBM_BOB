@@ -68,6 +68,7 @@ def provider_result_to_execution(
         "capability": result.capability_id,
         "invocation_id": result.invocation_id,
         "proof_session_id": result.proof_session_id,
+        "mission_id": result.mission_id,
         "provider_state": result.state.value,
     }
     assert_no_authority(evidence, "provider execution evidence")
@@ -115,6 +116,7 @@ class C1AEvidenceWriter:
             "capability_id": result.capability_id,
             "invocation_id": result.invocation_id,
             "proof_session_id": result.proof_session_id,
+            "mission_id": result.mission_id,
             "state": result.state.value,
             "success": result.success,
             "truncated": result.truncated,

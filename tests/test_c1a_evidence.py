@@ -39,6 +39,7 @@ class EvidenceConversion(unittest.TestCase):
         decision = self.stack.policy.consult(request, self.stack.mission)
         self.binding = self.stack.auth.create_binding(
             decision=decision, request=request, run_id="r",
+            mission_id=self.stack.mission.mission_id,
             workspace_root=str(self.stack.root), timeout_seconds=10.0)
         self.request = request
 
@@ -83,6 +84,7 @@ class EvidenceWriter(unittest.TestCase):
         decision = stack.policy.consult(request, stack.mission)
         binding = stack.auth.create_binding(
             decision=decision, request=request, run_id="r",
+            mission_id=stack.mission.mission_id,
             workspace_root=str(stack.root), timeout_seconds=10.0)
         result = invoke_governed(CountingInertProvider(), binding.handoff,
                                  request)

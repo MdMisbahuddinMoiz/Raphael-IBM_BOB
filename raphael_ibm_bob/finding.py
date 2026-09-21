@@ -150,6 +150,9 @@ class FindingStore:
                 target=current.target,
                 evidence_ids=merged_evidence_ids,
                 supersedes=supersedes if supersedes is not None else current.supersedes,
+                # D4-I7: the finding's mission identity must survive every
+                # lifecycle transition (it gates independent verification).
+                mission_id=current.mission_id,
             )
             self._findings[finding_id] = updated
 

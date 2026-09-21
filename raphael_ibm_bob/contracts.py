@@ -230,6 +230,10 @@ class Finding:
     target: str
     evidence_ids: List[str] = field(default_factory=list)
     supersedes: Optional[str] = None
+    # D4: the mission this finding belongs to. Optional for back-compat with
+    # pre-D4 constructions; the independent verification path fails closed
+    # when it is absent. It is NEVER provider-supplied.
+    mission_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -239,6 +243,7 @@ class Finding:
             "target": self.target,
             "evidence_ids": list(self.evidence_ids),
             "supersedes": self.supersedes,
+            "mission_id": self.mission_id,
         }
 
 

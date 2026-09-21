@@ -205,8 +205,10 @@ Base: `7272880f7`. Per-milestone design notes:
    authkit).
 2. Statistical significance is not established (designated n=5 per
    mode; labels beyond that are incidental observations).
-3. Environment uses Python 3.14.4 although `pyproject.toml`
-   declares `requires-python = ">=3.11,<3.13"`.
+3. Environment uses Python 3.14.4; `pyproject.toml` declares
+   `requires-python = ">=3.11"` (the obsolete upper bound was removed in
+   D5). Only 3.14.4 is verified; compatibility with other versions is
+   not claimed.
 4. Mode provenance exists only for benchmark runs made after M10.3;
    the 40+ pre-mode hero observations stay `mode="unknown"` and are
    excluded from `by_mode` (never relabeled after the fact).

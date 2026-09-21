@@ -41,6 +41,7 @@ class CapabilityIdentity(unittest.TestCase):
             decision=self.stack.policy.consult(
                 c1a_request(self.stack.fixture), self.stack.mission),
             request=c1a_request(self.stack.fixture), run_id="r",
+            mission_id=self.stack.mission.mission_id,
             workspace_root=str(self.stack.root),
             timeout_seconds=DEFAULT_TIMEOUT).handoff
         with self.assertRaises(ScopeViolation):

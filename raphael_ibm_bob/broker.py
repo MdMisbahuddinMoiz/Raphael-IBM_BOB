@@ -51,6 +51,11 @@ from raphael_ibm_bob.policy import BOBPolicy
 from raphael_ibm_bob.capabilities import execute_capability
 from raphael_ibm_bob.workspace import Workspace
 from raphael_ibm_bob.evidence_ledger import EvidenceLedger, digest_id
+from raphael_ibm_bob.c1a_replay import (
+    C1AReplayError,
+    C1AReplayGuard,
+    new_lineage,
+)
 
 
 @dataclass(frozen=True)
@@ -87,6 +92,7 @@ class BOBBroker:
         default_timeouts: Optional[Dict[Capability, float]] = None,
         c1a_provider: Optional[Any] = None,
         c1a_authorization: Optional[Any] = None,
+        c1a_replay_guard: Optional[Any] = None,
     ):
         self._policy = policy
         self._workspace = workspace
@@ -102,6 +108,12 @@ class BOBBroker:
         # and the authorization-binding authority (one per broker).
         self._c1a_provider = c1a_provider
         self._c1a_authorization = c1a_authorization
+        # Replay/lineage guard for the governed C1A path (one per broker).
+        # It prevents a ProviderResult/result lineage from one execution
+        # being replayed or grafted onto another.
+        self._c1a_replay_guard = (
+            c1a_replay_guard if c1a_replay_guard is not None
+            else C1AReplayGuard())
         self._lock = threading.Lock()
         self._sequence = 0
         # Diagnostic counters for tests/audit. Retained from M2.
@@ -129,6 +141,10 @@ class BOBBroker:
     @property
     def c1a_provider(self) -> Any:
         return self._c1a_provider
+
+    @property
+    def c1a_replay_guard(self) -> C1AReplayGuard:
+        return self._c1a_replay_guard
 
     # Broker.seam interface ----------------------------------------------------
 
@@ -354,6 +370,7 @@ class BOBBroker:
         )
         from raphael_ibm_bob.provider_runtime import (
             ScopeViolation,
+            fixture_digest,
             invoke_governed,
         )
 
@@ -365,28 +382,72 @@ class BOBBroker:
         provider = (self._c1a_provider
                     if self._c1a_provider is not None
                     else T3MP3STAdapter())
+        guard = self._c1a_replay_guard
+        mission_id = mission.mission_id
+
+        def _failure(error: str, **extra: Any) -> ExecutionResult:
+            evidence: Dict[str, Any] = {PROVIDER_UNTRUSTED: True}
+            evidence.update(extra)
+            return ExecutionResult(
+                sequence=stamped.sequence, success=False, output="",
+                error=error, evidence=evidence)
 
         try:
             binding = auth.create_binding(
                 decision=decision,
                 request=stamped,
                 run_id=run_id,
+                mission_id=mission_id,
                 workspace_root=str(self._workspace.root),
                 timeout_seconds=effective_timeout,
             )
         except C1AAuthorizationError as exc:
-            execution = ExecutionResult(
-                sequence=stamped.sequence,
-                success=False,
-                output="",
-                error=f"C1AAuthorizationError:{exc}",
-                evidence={PROVIDER_UNTRUSTED: True,
-                          "authorization_failed": True},
-            )
             return self._finalize_c1a_result(
-                stamped=stamped, decision=decision, execution=execution,
+                stamped=stamped, decision=decision,
+                execution=_failure(
+                    f"C1AAuthorizationError:{exc}",
+                    authorization_failed=True),
                 request_seq=request_seq, decision_seq=decision_seq,
-                evidence_ids=evidence_ids)
+                evidence_ids=evidence_ids, mission_id=mission_id)
+
+        invocation_id = binding.handoff.invocation_id
+
+        # 1. Verify the freshly created binding BEFORE any provider dispatch.
+        #    A binding that cannot be re-verified (tampered, consumed, or
+        #    foreign) must never reach the provider.
+        if not auth.verify_binding(invocation_id, decision):
+            auth.invalidate_binding(invocation_id)
+            return self._finalize_c1a_result(
+                stamped=stamped, decision=decision,
+                execution=_failure(
+                    "C1AAuthorizationError:binding verification failed "
+                    "before provider dispatch", authorization_failed=True),
+                request_seq=request_seq, decision_seq=decision_seq,
+                evidence_ids=evidence_ids, mission_id=mission_id)
+
+        # 2. Register the execution lineage BEFORE provider dispatch so a
+        #    replayed or cross-run invocation cannot execute and a result
+        #    from another execution cannot be grafted onto this one.
+        fixture_sha256 = fixture_digest(binding.handoff.fixture_path)["sha256"]
+        lineage = new_lineage(
+            run_id=run_id,
+            invocation_id=invocation_id,
+            proof_session_id=binding.handoff.proof_session_id,
+            sandbox_id=binding.sandbox_id,
+            fixture_path=binding.handoff.fixture_path,
+            fixture_sha256=fixture_sha256,
+        )
+        try:
+            guard.register(lineage)
+        except C1AReplayError as exc:
+            auth.invalidate_binding(invocation_id)
+            return self._finalize_c1a_result(
+                stamped=stamped, decision=decision,
+                execution=_failure(f"C1AReplayError:{exc}",
+                                   replay_rejected=True),
+                request_seq=request_seq, decision_seq=decision_seq,
+                evidence_ids=evidence_ids, mission_id=mission_id,
+                lineage_hash=lineage.lineage_hash)
 
         # validate_scope compares the request target against the canonical
         # fixture literal; use the binding's canonical target so a relative
@@ -400,24 +461,20 @@ class BOBBroker:
             execution = provider_result_to_execution(
                 provider_result, sequence=stamped.sequence)
         except ScopeViolation as exc:
-            execution = ExecutionResult(
-                sequence=stamped.sequence, success=False, output="",
-                error=f"ScopeViolation:{exc}",
-                evidence={PROVIDER_UNTRUSTED: True})
+            execution = _failure(f"ScopeViolation:{exc}")
         except Exception as exc:  # noqa: BLE001 - fail closed
-            execution = ExecutionResult(
-                sequence=stamped.sequence, success=False, output="",
-                error=f"{type(exc).__name__}:{exc}",
-                evidence={PROVIDER_UNTRUSTED: True,
-                          "failure_type": type(exc).__name__})
+            execution = _failure(
+                f"{type(exc).__name__}:{exc}",
+                failure_type=type(exc).__name__)
         finally:
             # Single-use: the binding can never authorize a second call.
-            auth.invalidate_binding(binding.handoff.invocation_id)
+            auth.invalidate_binding(invocation_id)
 
         return self._finalize_c1a_result(
             stamped=stamped, decision=decision, execution=execution,
             request_seq=request_seq, decision_seq=decision_seq,
-            evidence_ids=evidence_ids)
+            evidence_ids=evidence_ids, mission_id=mission_id,
+            lineage_hash=lineage.lineage_hash, fixture_sha256=fixture_sha256)
 
     def _finalize_c1a_result(
         self,
@@ -428,6 +485,9 @@ class BOBBroker:
         request_seq: int,
         decision_seq: int,
         evidence_ids: List[str],
+        mission_id: str = "",
+        lineage_hash: Optional[str] = None,
+        fixture_sha256: Optional[str] = None,
     ) -> BrokerResult:
         """Persist a C1A result as provider (untrusted) evidence."""
         result_seq: Optional[int] = None
@@ -458,6 +518,9 @@ class BOBBroker:
                 "capability": "c1a_static_file_inspect",
                 "provider_untrusted": True,
                 "invocation_id": invocation_id,
+                "mission_id": mission_id,
+                "lineage_hash": lineage_hash,
+                "fixture_sha256": fixture_sha256,
                 "evidence_keys": sorted(execution.evidence.keys()),
                 "request_seq": request_seq,
                 "decision_seq": decision_seq,

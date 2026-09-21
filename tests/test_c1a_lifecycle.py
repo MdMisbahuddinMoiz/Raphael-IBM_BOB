@@ -33,6 +33,7 @@ class Lifecycle(unittest.TestCase):
         decision = self.stack.policy.consult(request, self.stack.mission)
         self.binding = self.stack.auth.create_binding(
             decision=decision, request=request, run_id="run-1",
+            mission_id=self.stack.mission.mission_id,
             workspace_root=str(self.stack.root), timeout_seconds=10.0)
         self.orch = C1ALifecycleOrchestrator()
 

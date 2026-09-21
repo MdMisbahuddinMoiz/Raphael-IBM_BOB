@@ -28,9 +28,9 @@ fixture. See §10 for the exact scope boundary.
 ## 2. Environment / prerequisites
 
 - Python **3.14.4** (verified: `python3 --version`). `pyproject.toml`
-  declares `requires-python = ">=3.11,<3.13"`: the suite passes on
-  3.14.4 anyway, but compatibility with any other version is NOT
-  claimed — only 3.14.4 was tested.
+  declares `requires-python = ">=3.11"` (the obsolete `<3.13` upper bound
+  was removed in D5): the suite is verified on 3.14.4, but compatibility
+  with any other version is NOT claimed — only 3.14.4 was tested.
 - Repository root as working directory for all commands below.
 - `raphael_ibm_bob`, the demo, and the tests are **stdlib-only** in
   their imports; test execution additionally spawns the same

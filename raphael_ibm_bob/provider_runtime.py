@@ -167,6 +167,7 @@ class ScopeHandoff:
     """RAPHAEL-owned scope bound before invocation."""
     run_id: str
     proof_session_id: str
+    mission_id: str
     action_request_id: str
     invocation_id: str
     fixture_root: str
@@ -211,6 +212,7 @@ def validate_scope(handoff: ScopeHandoff,
     """
     for name, value in (("run_id", handoff.run_id),
                         ("proof_session_id", handoff.proof_session_id),
+                        ("mission_id", handoff.mission_id),
                         ("action_request_id", handoff.action_request_id),
                         ("invocation_id", handoff.invocation_id),
                         ("fixture_root", handoff.fixture_root),
@@ -272,6 +274,7 @@ class ProviderResult:
     proof_session_id: str
     capability_id: str
     provider_id: str
+    mission_id: str = ""
     results: Tuple[Dict[str, Any], ...] = ()
     artifacts: Tuple[str, ...] = ()
     result_hash: Optional[str] = None
@@ -295,6 +298,7 @@ class ProviderResult:
             "proof_session_id": self.proof_session_id,
             "capability_id": self.capability_id,
             "provider_id": self.provider_id,
+            "mission_id": self.mission_id,
             "results": [dict(r) for r in self.results],
             "artifacts": list(self.artifacts),
             "result_hash": self.result_hash,
@@ -341,7 +345,8 @@ def normalize_result(handoff: ScopeHandoff, raw: bytes) -> ProviderResult:
             invocation_id=handoff.invocation_id,
             proof_session_id=handoff.proof_session_id,
             capability_id=handoff.capability_id,
-            provider_id=handoff.provider_id, error=msg[:512])
+            provider_id=handoff.provider_id,
+            mission_id=handoff.mission_id, error=msg[:512])
 
     try:
         data = parse_closed_payload(raw, handoff.max_response_bytes)
@@ -363,7 +368,8 @@ def normalize_result(handoff: ScopeHandoff, raw: bytes) -> ProviderResult:
             invocation_id=handoff.invocation_id,
             proof_session_id=handoff.proof_session_id,
             capability_id=handoff.capability_id,
-            provider_id=handoff.provider_id, truncated=True,
+            provider_id=handoff.provider_id,
+            mission_id=handoff.mission_id, truncated=True,
             error=f"results limit: {len(results_raw)}>"
                   f"{handoff.max_results}")
 
@@ -418,6 +424,7 @@ def normalize_result(handoff: ScopeHandoff, raw: bytes) -> ProviderResult:
         proof_session_id=handoff.proof_session_id,
         capability_id=handoff.capability_id,
         provider_id=handoff.provider_id,
+        mission_id=handoff.mission_id,
         results=tuple(results), artifacts=tuple(artifacts),
         result_hash=result_hash, truncated=truncated,
         provider_message=message[:2000],
@@ -439,6 +446,24 @@ class ProviderRuntime(Protocol):
         ...
 
 
+def _lineage_matches(handoff: ScopeHandoff,
+                     result: ProviderResult) -> bool:
+    """A provider result must carry THIS execution's full identity.
+
+    Prevents a ProviderResult (and therefore its result lineage) produced by
+    one execution from being grafted onto another: every identity field the
+    handoff bound must match, including the RAPHAEL mission id.
+    """
+    return (
+        result.run_id == handoff.run_id
+        and result.invocation_id == handoff.invocation_id
+        and result.proof_session_id == handoff.proof_session_id
+        and result.capability_id == handoff.capability_id
+        and result.provider_id == handoff.provider_id
+        and result.mission_id == handoff.mission_id
+    )
+
+
 def invoke_governed(runtime: ProviderRuntime, handoff: ScopeHandoff,
                     request: ActionRequest) -> ProviderResult:
     """Validate scope, invoke with a wall-clock bound, normalize.
@@ -446,8 +471,18 @@ def invoke_governed(runtime: ProviderRuntime, handoff: ScopeHandoff,
     Fail-closed: a timeout never becomes success; a provider exception
     becomes UNAVAILABLE/FAILURE. Cancellation is only acknowledged when
     the adapter reports externally observed teardown.
+
+    Also enforces, BEFORE provider execution, that the runtime's declared
+    ``provider_id`` equals the handoff's ``provider_id``, and AFTER
+    execution that the returned ProviderResult carries the exact lineage
+    the handoff bound (no cross-execution result grafting).
     """
     validate_scope(handoff, request)
+    runtime_provider_id = getattr(runtime, "provider_id", None)
+    if runtime_provider_id != handoff.provider_id:
+        raise ScopeViolation(
+            f"runtime.provider_id {runtime_provider_id!r} != handoff "
+            f"provider_id {handoff.provider_id!r}")
     start = time.monotonic()
     try:
         result = runtime.invoke(handoff, request)
@@ -462,7 +497,22 @@ def invoke_governed(runtime: ProviderRuntime, handoff: ScopeHandoff,
             proof_session_id=handoff.proof_session_id,
             capability_id=handoff.capability_id,
             provider_id=handoff.provider_id,
+            mission_id=handoff.mission_id,
             error=f"{type(exc).__name__}:{exc}"[:512])
+    if not _lineage_matches(handoff, result):
+        # Result grafting: the provider returned an outcome bound to a
+        # different run/invocation/mission. Never normalize it as this
+        # execution's result.
+        return ProviderResult(
+            state=ProviderState.FAILURE,
+            run_id=handoff.run_id,
+            action_request_id=handoff.action_request_id,
+            invocation_id=handoff.invocation_id,
+            proof_session_id=handoff.proof_session_id,
+            capability_id=handoff.capability_id,
+            provider_id=handoff.provider_id,
+            mission_id=handoff.mission_id,
+            error="provider result lineage mismatch (graft rejected)")
     elapsed = time.monotonic() - start
     if elapsed > handoff.timeout_seconds and result.state is ProviderState.SUCCESS:
         return ProviderResult(
@@ -472,6 +522,7 @@ def invoke_governed(runtime: ProviderRuntime, handoff: ScopeHandoff,
             proof_session_id=handoff.proof_session_id,
             capability_id=handoff.capability_id,
             provider_id=handoff.provider_id,
+            mission_id=handoff.mission_id,
             cancellation_acknowledged=False,
             # RAPHAEL stopped waiting; the provider execution may still be
             # running. This is uncertainty, NOT a cancellation/teardown claim.

@@ -224,6 +224,7 @@ class SandboxExecution(unittest.TestCase):
         decision = self.stack.policy.consult(self.request, self.stack.mission)
         self.binding = C1AAuthorizationBinding().create_binding(
             decision=decision, request=self.request, run_id="run-real",
+            mission_id=self.stack.mission.mission_id,
             workspace_root=str(self.stack.root), timeout_seconds=30.0)
 
     def _adapter(self, **over):
@@ -507,6 +508,7 @@ class FailurePaths(unittest.TestCase):
         decision = self.stack.policy.consult(self.request, self.stack.mission)
         self.binding = C1AAuthorizationBinding().create_binding(
             decision=decision, request=self.request, run_id="run-fail",
+            mission_id=self.stack.mission.mission_id,
             workspace_root=str(self.stack.root), timeout_seconds=30.0)
 
     def _adapter(self, transport):

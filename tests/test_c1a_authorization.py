@@ -57,6 +57,7 @@ class BindingCreation(unittest.TestCase):
     def _create(self, **over):
         kwargs = dict(
             decision=self.decision, request=self.request, run_id="run-1",
+            mission_id="M-c1a",
             workspace_root=str(self.stack.root),
             timeout_seconds=DEFAULT_TIMEOUT)
         kwargs.update(over)
@@ -125,6 +126,7 @@ class CanonicalPayload(unittest.TestCase):
         self.request = c1a_request(self.stack.fixture, sequence=1)
         self.binding = self.binding_obj.create_binding(
             decision=self.decision, request=self.request, run_id="run-1",
+            mission_id="M-c1a",
             workspace_root=str(self.stack.root),
             timeout_seconds=DEFAULT_TIMEOUT)
 
@@ -162,6 +164,7 @@ class BindingVerification(unittest.TestCase):
         self.request = c1a_request(self.stack.fixture, sequence=1)
         self.binding = self.binding_obj.create_binding(
             decision=self.decision, request=self.request, run_id="run-1",
+            mission_id="M-c1a",
             workspace_root=str(self.stack.root),
             timeout_seconds=DEFAULT_TIMEOUT)
         self.inv = self.binding.invocation_id

@@ -42,6 +42,7 @@ from raphael_ibm_bob.provider_runtime import (
 #: place so creation and verification cannot drift.
 BINDING_FIELDS = (
     "run_id",
+    "mission_id",
     "decision_seq",
     "request_seq",
     "invocation_id",
@@ -92,6 +93,10 @@ class AuthorizationBinding:
         return self.identity["invocation_id"]
 
     @property
+    def mission_id(self) -> str:
+        return self.identity["mission_id"]
+
+    @property
     def decision_seq(self) -> int:
         return self.identity["decision_seq"]
 
@@ -133,16 +138,25 @@ class C1AAuthorizationBinding:
         decision: PolicyDecision,
         request: ActionRequest,
         run_id: str,
+        mission_id: str,
         workspace_root: str,
         timeout_seconds: Optional[float],
     ) -> AuthorizationBinding:
         """Create a verified binding from an ALLOW decision to a handoff.
 
         Fails closed if the decision is not ALLOW, the capability is not
-        C1A, the targets disagree, the target is not canonically contained
-        in the workspace, the timeout is not positive, or the invocation is
-        already bound (replay).
+        C1A, the mission id is missing, the targets disagree, the target is
+        not canonically contained in the workspace, the timeout is not
+        positive, or the invocation is already bound (replay).
+
+        ``mission_id`` is the RAPHAEL-owned ``Mission.mission_id``; it is
+        sealed into the binding and carried through the handoff so provider
+        results can never be grafted across missions. It is NEVER a
+        provider-issued identifier (T3MP3ST is a stateless direct handler).
         """
+        if not isinstance(mission_id, str) or mission_id.strip() == "":
+            raise C1AAuthorizationError(
+                "C1A binding requires a non-empty RAPHAEL mission_id")
         if decision.decision is not Decision.ALLOW:
             raise C1AAuthorizationError(
                 f"cannot bind non-ALLOW decision: {decision.decision.value}")
@@ -193,6 +207,7 @@ class C1AAuthorizationBinding:
         handoff = ScopeHandoff(
             run_id=run_id,
             proof_session_id=proof_session_id,
+            mission_id=mission_id,
             action_request_id=str(request.sequence),
             invocation_id=invocation_id,
             fixture_root=fixture_root,
@@ -206,6 +221,7 @@ class C1AAuthorizationBinding:
 
         identity: Dict[str, Any] = {
             "run_id": run_id,
+            "mission_id": mission_id,
             "decision_seq": decision.sequence,
             "request_seq": request.sequence,
             "invocation_id": invocation_id,

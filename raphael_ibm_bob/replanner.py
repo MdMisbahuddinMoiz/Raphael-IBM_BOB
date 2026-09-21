@@ -134,6 +134,13 @@ class Replanner:
         if not focused_context.diagnostic_evidence:
             raise ValueError("replan requires non-empty diagnostic_evidence")
 
+        # D4: the Replanner may only consume evidence that is causally
+        # scoped to the refuted finding, and may never treat a failed-
+        # independence verification/falsification result as diagnostic
+        # truth. Raw provider authority claims are rejected too.
+        self._assert_diagnostic_scoping(
+            refuted.finding_id, focused_context.diagnostic_evidence)
+
         target = self._derive_target(focused_context)
         if target is None:
             target = parent_plan.steps[0].target if parent_plan.steps else "src/"
@@ -187,6 +194,35 @@ class Replanner:
         )
 
         return plan_b
+
+    @staticmethod
+    def _assert_diagnostic_scoping(finding_id: str, evidence) -> None:
+        """Reject diagnostic evidence from unrelated findings/missions and
+        failed-independence verification/falsification results."""
+        authority_keys = {
+            "verified", "refuted", "authorized", "approved", "complete",
+            "gate_pass", "verdict", "confidence",
+        }
+        for ev in evidence:
+            outer = ev.payload or {}
+            inner = outer.get("payload") if isinstance(outer.get("payload"), dict) else outer
+            claimed_finding = inner.get("finding_id")
+            if claimed_finding is not None and claimed_finding != finding_id:
+                raise ValueError(
+                    "diagnostic evidence from unrelated finding "
+                    f"{claimed_finding!r} (expected {finding_id!r})")
+            kind = inner.get("kind")
+            if kind in ("verification-result", "falsification-result"):
+                independence = inner.get("independence") or {}
+                lineage = inner.get("lineage") or {}
+                if (independence.get("all_passed") is False
+                        or lineage.get("valid") is False):
+                    raise ValueError(
+                        "diagnostic evidence failed independence/lineage")
+            for key in authority_keys:
+                if key in inner and key not in ("kind",):
+                    raise ValueError(
+                        f"diagnostic evidence carries authority key {key!r}")
 
     def _derive_target(self, focused_context: FocusedContext) -> Optional[str]:
         """Choose the new target.

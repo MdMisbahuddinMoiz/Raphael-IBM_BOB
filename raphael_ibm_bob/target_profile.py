@@ -34,7 +34,9 @@ from raphael_ibm_bob.network_scope import (
 )
 
 ALLOWED_PLATFORMS = ("htb",)
-ALLOWED_PROTOCOLS = ("http", "https")
+#: D12 adds "telnet" for the governed Telnet session capability. Existing
+#: HTTP target checks are unchanged; authorization stays exact per protocol.
+ALLOWED_PROTOCOLS = ("http", "https", "telnet")
 
 
 class TargetProfileError(ValueError):

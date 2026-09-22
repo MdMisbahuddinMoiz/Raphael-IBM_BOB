@@ -47,6 +47,11 @@ class Capability(str, Enum):
     #: Authorization requires an operator-declared TargetProfile; network
     #: output is untrusted evidence, never authority.
     NETWORK_HTTP_REQUEST = "network_http_request"
+    #: D12: governed Telnet session (flag retrieval through an allow-listed
+    #: command set only). Additive POST-HACKATHON capability; it does NOT
+    #: alter NETWORK_HTTP_REQUEST. Authorization requires a mission-bound
+    #: TargetProfile with protocol "telnet"; output is untrusted evidence.
+    NETWORK_TELNET_SESSION = "network_telnet_session"
 
 
 class Decision(str, Enum):

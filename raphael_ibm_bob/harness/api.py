@@ -186,13 +186,29 @@ def start_network_run(session: RaphaelSession, mission: Optional[Mission] = None
         raise ValueError("no mission: submit one or pass mission=")
     if session.workspace is None:
         raise ValueError("session has no workspace")
+    workspace_root = Path(session.workspace.workspace_root)
+
+    # D12: a mission that declares a Telnet session uses the additive
+    # governed Telnet mission; everything else uses the HTTP network mission.
+    if isinstance(mission.problem, dict) and mission.problem.get("telnet"):
+        from raphael_ibm_bob.harness.telnet_run import run_telnet_mission
+        telnet_kwargs: Dict[str, Any] = {}
+        if timeout_seconds is not None:
+            telnet_kwargs["timeout_seconds"] = timeout_seconds
+        return run_telnet_mission(
+            session, mission, workspace_root,
+            runs_root=Path(runs_root),
+            sessions_root=(Path(sessions_root)
+                           if sessions_root is not None else None),
+            target_store=target_store, **telnet_kwargs)
+
     kwargs: Dict[str, Any] = {}
     if mediator is not None:
         kwargs["mediator"] = mediator
     if timeout_seconds is not None:
         kwargs["timeout_seconds"] = timeout_seconds
     return run_network_mission(
-        session, mission, Path(session.workspace.workspace_root),
+        session, mission, workspace_root,
         runs_root=Path(runs_root),
         sessions_root=(Path(sessions_root)
                        if sessions_root is not None else None),

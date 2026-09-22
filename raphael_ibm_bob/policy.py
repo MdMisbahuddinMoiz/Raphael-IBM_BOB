@@ -43,7 +43,16 @@ from raphael_ibm_bob.contracts import (
 )
 from raphael_ibm_bob.c1a_scope import scope_contains, within_root
 from raphael_ibm_bob.network_runtime import ALLOWED_METHODS, method_from_purpose
-from raphael_ibm_bob.network_scope import NetworkScopeError, parse_http_target
+from raphael_ibm_bob.network_scope import (
+    NetworkScopeError,
+    parse_http_target,
+    parse_telnet_target,
+)
+from raphael_ibm_bob.telnet_runtime import (
+    build_telnet_spec,
+    command_from_purpose,
+    validate_command,
+)
 from raphael_ibm_bob.target_profile import get_target_store
 from raphael_ibm_bob.workspace import Workspace
 
@@ -65,6 +74,7 @@ class BOBPolicy:
             Capability.RUN_TEST,
             Capability.C1A_STATIC_FILE_INSPECT,
             Capability.NETWORK_HTTP_REQUEST,
+            Capability.NETWORK_TELNET_SESSION,
         }:
             cap_str = getattr(request.capability, "value", str(request.capability))
             return self._deny(request, f"capability-not-allowed:{cap_str}")
@@ -78,6 +88,13 @@ class BOBPolicy:
         # scope algebra replaces path containment).
         if request.capability == Capability.NETWORK_HTTP_REQUEST:
             return self._consult_network(request, mission)
+
+        # D12: governed Telnet session. Authorized against the same
+        # mission-bound TargetProfile (protocol "telnet") with the same
+        # exact host/port matching; the declared command must additionally
+        # pass the fail-closed allow-list for its role.
+        if request.capability == Capability.NETWORK_TELNET_SESSION:
+            return self._consult_telnet(request, mission)
 
         # 3. Workspace containment check.
         try:
@@ -178,6 +195,43 @@ class BOBPolicy:
                      or not isinstance(request.timeout_seconds, (int, float))
                      or request.timeout_seconds <= 0)):
             return self._deny(request, "network-timeout-invalid")
+        return self._allow(request)
+
+    def _consult_telnet(self, request: ActionRequest,
+                        mission: Mission) -> PolicyDecision:
+        """D12 Telnet authorization (fail closed).
+
+        The ``telnet://host:port`` target must be exactly authorized by the
+        mission-bound TargetProfile (protocol ``telnet``), the mission must
+        declare a session spec, and the role's command must pass the
+        fail-closed allow-list. Any failure is a DENY (no session, no result).
+        """
+        try:
+            target = parse_telnet_target(request.target)
+        except NetworkScopeError as exc:
+            return self._deny(request, f"telnet-target-invalid:{exc}")
+        store = self._target_store or get_target_store()
+        profile = store.get_target(mission.mission_id)
+        if profile is None:
+            return self._deny(request, "telnet-no-authorized-target")
+        if not profile.authorization_ref:
+            return self._deny(request, "telnet-authorization-missing")
+        if not profile.allows(host=target.host, port=target.port,
+                              protocol="telnet"):
+            return self._deny(request, "telnet-target-mismatch")
+        if (request.timeout_seconds is not None
+                and (isinstance(request.timeout_seconds, bool)
+                     or not isinstance(request.timeout_seconds, (int, float))
+                     or request.timeout_seconds <= 0)):
+            return self._deny(request, "telnet-timeout-invalid")
+        spec = build_telnet_spec(mission, profile)
+        if spec is None:
+            return self._deny(request, "telnet-no-session-spec")
+        role = command_from_purpose(request.purpose)
+        command = spec.command_for_role(role)
+        ok, why = validate_command(command, spec.authorized_commands())
+        if not ok:
+            return self._deny(request, f"telnet-command-rejected:{why}")
         return self._allow(request)
 
     def _consult_c1a(self, request: ActionRequest, resolved) -> PolicyDecision:

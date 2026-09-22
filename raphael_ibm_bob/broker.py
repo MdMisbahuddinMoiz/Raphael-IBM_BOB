@@ -61,6 +61,10 @@ from raphael_ibm_bob.network_runtime import (
     PROVIDER_UNTRUSTED,
     get_network_mediator,
 )
+from raphael_ibm_bob.telnet_runtime import (
+    build_telnet_spec,
+    get_telnet_mediator,
+)
 from raphael_ibm_bob.target_profile import get_target_store
 
 
@@ -101,6 +105,7 @@ class BOBBroker:
         c1a_replay_guard: Optional[Any] = None,
         network_mediator: Optional[Any] = None,
         target_store: Optional[Any] = None,
+        telnet_mediator: Optional[Any] = None,
     ):
         self._policy = policy
         self._workspace = workspace
@@ -125,6 +130,8 @@ class BOBBroker:
         # D9: governed network boundary (mediator) + authorized target store.
         self._network_mediator = network_mediator
         self._target_store = target_store
+        # D12: governed Telnet boundary (its own mediator; additive).
+        self._telnet_mediator = telnet_mediator
         self._lock = threading.Lock()
         self._sequence = 0
         # Diagnostic counters for tests/audit. Retained from M2.
@@ -164,6 +171,13 @@ class BOBBroker:
             return self._network_mediator
         from raphael_ibm_bob.network_runtime import get_network_mediator
         return get_network_mediator()
+
+    @property
+    def telnet_mediator(self) -> Any:
+        """The governed Telnet mediator (injected or process singleton)."""
+        if self._telnet_mediator is not None:
+            return self._telnet_mediator
+        return get_telnet_mediator()
 
     # Broker.seam interface ----------------------------------------------------
 
@@ -281,6 +295,19 @@ class BOBBroker:
         # the sole invoker and the mediator is the only network-I/O boundary.
         if stamped.capability == Capability.NETWORK_HTTP_REQUEST:
             return self._execute_network(
+                stamped=stamped,
+                mission=mission,
+                request_seq=request_seq,
+                decision_seq=decision_seq,
+                evidence_ids=evidence_ids,
+                decision=decision,
+            )
+
+        # D12: the governed Telnet path (additive). Same discipline: no
+        # execute_capability, no shell; the telnet mediator is the only
+        # Telnet-I/O boundary.
+        if stamped.capability == Capability.NETWORK_TELNET_SESSION:
+            return self._execute_telnet(
                 stamped=stamped,
                 mission=mission,
                 request_seq=request_seq,
@@ -664,6 +691,100 @@ class BOBBroker:
                 evidence_id=exec_ev_id, producer="network",
                 request_seq=request_seq, decision_seq=decision_seq,
                 result_seq=result_seq, payload=network_payload)
+            evidence_ids.append(exec_ev_id)
+
+        return BrokerResult(
+            decision=decision, execution=execution, capability_invoked=True,
+            request_seq=request_seq, decision_seq=decision_seq,
+            result_seq=result_seq, evidence_ids=tuple(evidence_ids))
+
+    # D12 governed Telnet path ------------------------------------------------
+
+    def _execute_telnet(
+        self,
+        *,
+        stamped: ActionRequest,
+        mission: Mission,
+        request_seq: int,
+        decision_seq: int,
+        evidence_ids: List[str],
+        decision: PolicyDecision,
+    ) -> BrokerResult:
+        """Execute one governed Telnet session through the TelnetMediator.
+
+        The ONLY path for the Telnet capability. Builds the mission-declared
+        session spec, delegates the single bounded session to the mediator
+        (the only Telnet-I/O boundary), and persists UNTRUSTED telnet
+        evidence. It never calls execute_capability and never spawns a shell.
+        """
+        run_id = (self._ledger.run_dir().name
+                  if self._ledger is not None else "in-memory")
+        mediator = self._telnet_mediator or get_telnet_mediator()
+        store = (self._target_store if self._target_store is not None
+                 else get_target_store())
+        profile = store.get_target(mission.mission_id)
+
+        if profile is None:
+            execution = ExecutionResult(
+                sequence=stamped.sequence, success=False, output="",
+                error="telnet-no-authorized-target",
+                evidence={PROVIDER_UNTRUSTED: True})
+        else:
+            spec = build_telnet_spec(mission, profile)
+            if spec is None:
+                execution = ExecutionResult(
+                    sequence=stamped.sequence, success=False, output="",
+                    error="telnet-no-session-spec",
+                    evidence={PROVIDER_UNTRUSTED: True})
+            else:
+                invocation_id = "TEL-" + hashlib.sha256(
+                    f"{run_id}:{stamped.sequence}".encode("utf-8")
+                ).hexdigest()[:16]
+                result = mediator.invoke(
+                    request=stamped, profile=profile, spec=spec,
+                    invocation_id=invocation_id, run_id=run_id)
+                evidence: Dict[str, Any] = {
+                    "telnet_result": result.to_dict(),
+                    PROVIDER_UNTRUSTED: True,
+                    "capability": Capability.NETWORK_TELNET_SESSION.value,
+                    "invocation_id": result.invocation_id,
+                    "mission_id": result.mission_id,
+                    "target_id": result.target_id,
+                    "authenticated": result.authenticated,
+                    "auth_decision": result.auth_decision,
+                    "flag": result.flag,
+                    "flag_sha256": result.flag_sha256,
+                    "session_bytes": result.session_bytes,
+                }
+                execution = ExecutionResult(
+                    sequence=stamped.sequence, success=result.success,
+                    output=f"telnet:{result.state.value}",
+                    error=(result.error or None), evidence=evidence)
+
+        with self._lock:
+            self.capability_invocations += 1
+            self.audit.append({"stage": "execution", **execution.to_dict()})
+
+        result_seq: Optional[int] = None
+        if self._ledger is not None:
+            result_seq = self._ledger.append_result(
+                request_seq=request_seq, decision_seq=decision_seq,
+                result=execution)
+            telnet_payload = dict(execution.evidence)
+            telnet_payload.update({
+                "request_seq": request_seq, "decision_seq": decision_seq,
+                "result_seq": result_seq,
+            })
+            exec_ev_id = digest_id({
+                "request_seq": request_seq, "decision_seq": decision_seq,
+                "result_seq": result_seq,
+                "invocation_id": execution.evidence.get("invocation_id"),
+                "capability": Capability.NETWORK_TELNET_SESSION.value,
+            }, prefix="TX")
+            self._ledger.append_evidence(
+                evidence_id=exec_ev_id, producer="telnet",
+                request_seq=request_seq, decision_seq=decision_seq,
+                result_seq=result_seq, payload=telnet_payload)
             evidence_ids.append(exec_ev_id)
 
         return BrokerResult(

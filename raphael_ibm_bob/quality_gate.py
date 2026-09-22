@@ -65,7 +65,13 @@ from raphael_ibm_bob.contracts import (
     Mission,
 )
 from raphael_ibm_bob.c1a_scope import scope_contains, within_root
-from raphael_ibm_bob.network_scope import scope_contains_host
+from raphael_ibm_bob.network_scope import (
+    NetworkScopeError,
+    host_in_scope,
+    parse_http_target,
+    parse_telnet_target,
+    scope_contains_host,
+)
 from raphael_ibm_bob.target_profile import get_target_store
 from raphael_ibm_bob.evidence_ledger import (
     EvidenceLedger,
@@ -99,6 +105,24 @@ class GateEvaluation:
     reasons: Tuple[str, ...]
     evidence_refs: Tuple[str, ...]
     finding_refs: Tuple[str, ...]
+
+
+def _network_host_in_scope(capability: str, scope: object,
+                           target_url: object) -> bool:
+    """Host-in-scope check for a network capability (HTTP or Telnet).
+
+    Uses the capability-appropriate parser so Telnet targets are validated
+    by the Telnet grammar and HTTP targets by the HTTP grammar; both then
+    share the exact/CIDR host scope algebra.
+    """
+    try:
+        if capability == "network_telnet_session":
+            parsed = parse_telnet_target(target_url)
+        else:
+            parsed = parse_http_target(target_url)
+    except NetworkScopeError:
+        return False
+    return host_in_scope(scope, parsed.host)
 
 
 class BOBQualityGate:
@@ -293,13 +317,16 @@ class BOBQualityGate:
         scope_ok = True
         for r in request_records:
             tgt = r.get("target") or ""
-            # D9: network targets are checked against the mission-bound
-            # TargetProfile scope (host semantics), not path containment.
-            if r.get("capability") == "network_http_request":
+            cap = r.get("capability")
+            # D9/D12: network targets (HTTP or Telnet) are checked against
+            # the mission-bound TargetProfile scope (host semantics), not
+            # path containment. Same rule, applied to both network caps.
+            if cap in ("network_http_request", "network_telnet_session"):
                 store = (self._target_store if self._target_store is not None
                          else get_target_store())
                 profile = store.get_target(inputs.mission.mission_id)
-                if profile is None or not scope_contains_host(profile.scope, tgt):
+                if profile is None or not _network_host_in_scope(
+                        cap, profile.scope, tgt):
                     scope_ok = False
                     reasons.append(
                         f"network scope violation: target '{tgt}' is not in "

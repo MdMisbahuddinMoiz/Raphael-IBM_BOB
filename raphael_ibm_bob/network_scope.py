@@ -60,7 +60,7 @@ def canonical_host(value: object) -> str:
 
 @dataclass(frozen=True)
 class ParsedTarget:
-    """A validated HTTP target derived from one URL."""
+    """A validated network target derived from one URL."""
     scheme: str
     host: str
     port: int
@@ -91,6 +91,35 @@ def parse_http_target(url: object) -> ParsedTarget:
     if not path.startswith("/"):
         path = "/" + path
     return ParsedTarget(scheme=scheme, host=host, port=port, path=path,
+                        url=url.strip())
+
+
+_TELNET_SCHEME = "telnet"
+_DEFAULT_TELNET_PORT = 23
+
+
+def parse_telnet_target(url: object) -> ParsedTarget:
+    """Parse and validate a ``telnet://host:port`` target (fail closed).
+
+    Rejects any other scheme, userinfo, fragments, and bad hosts/ports.
+    The default port is 23 only when the URL omits it. Kept separate from
+    ``parse_http_target`` so HTTP authorization is never relaxed.
+    """
+    if not isinstance(url, str) or url.strip() == "":
+        raise NetworkScopeError("target url is required")
+    parts = urlsplit(url.strip())
+    scheme = parts.scheme.lower()
+    if scheme != _TELNET_SCHEME:
+        raise NetworkScopeError(f"unsupported scheme: {scheme or 'none'}")
+    if parts.username is not None or parts.password is not None:
+        raise NetworkScopeError("userinfo is forbidden in the target url")
+    if parts.fragment:
+        raise NetworkScopeError("fragment is forbidden in the target url")
+    host = canonical_host(parts.hostname or "")
+    port = parts.port if parts.port is not None else _DEFAULT_TELNET_PORT
+    if not (1 <= port <= 65535):
+        raise NetworkScopeError(f"port out of range: {port}")
+    return ParsedTarget(scheme=scheme, host=host, port=port, path="",
                         url=url.strip())
 
 
@@ -144,5 +173,6 @@ __all__ = [
     "canonical_host",
     "host_in_scope",
     "parse_http_target",
+    "parse_telnet_target",
     "scope_contains_host",
 ]

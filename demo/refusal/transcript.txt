@@ -1,0 +1,32 @@
+RAPHAEL x IBM BOB - demo evidence transcript
+run_id      : 20260922T184344_7686de
+mission_id  : M-HTB-001
+state       : refused
+verdict     : refuse
+conditions  : 6/7
+
+Governed requests (order):
+  #1   network_http_request   http://127.0.0.1:44329/
+  #6   network_http_request   http://127.0.0.1:44329/index.html
+  #11  run_test               test_ok.py
+
+Network observations:
+  /                state=refused  status=None bytes=0
+  /index.html      state=refused  status=None bytes=0
+
+Independent probe:
+  null
+
+Regression:
+  {"kind": "regression", "mission_id": "M-HTB-001", "request_seq": 11, "result": "passed", "result_seq": 14, "returncode": 0, "source": "network-run:required-test", "test": "test_ok.py"}
+
+QualityGate conditions:
+  [   PASS] A:mission-criterion
+  [   PASS] B:required-tests
+  [   PASS] C:regression
+  [   FAIL] D:independent-behavior-probe
+  [   PASS] E:scope
+  [   PASS] F:evidence
+  [   PASS] G:finding-state
+
+FINAL: REFUSE (6/7)

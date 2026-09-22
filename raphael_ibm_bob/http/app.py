@@ -54,6 +54,15 @@ class RaphaelHTTPConfig:
     api_key: Optional[str] = None
     default_max_turns: int = DEFAULT_MAX_TURNS
     verbose: bool = False
+    #: Optional injected VPN manager (tests/embedding). When None, the
+    #: process-wide singleton from `raphael_ibm_bob.vpn` is used.
+    vpn_manager: Optional[Any] = None
+    #: Optional injected mode manager (tests/embedding). When None, the
+    #: process-wide singleton from `raphael_ibm_bob.mode` is used.
+    mode_manager: Optional[Any] = None
+    #: Optional injected target store (tests/embedding). When None, the
+    #: process-wide singleton from `raphael_ibm_bob.target_profile` is used.
+    target_store: Optional[Any] = None
 
     def is_loopback(self) -> bool:
         return self.host in LOOPBACK_HOSTS
@@ -326,14 +335,19 @@ def build_router() -> Router:
         gate,
         graph,
         health,
+        htb,
+        mode,
         operations,
         runs,
         sessions,
         tasks,
+        vpn,
         workspaces,
     )
     router = Router()
     router.add("GET", "/health", health.health)
+    # Root landing -> Command Center (first-run discoverability).
+    router.add("GET", "/", command.root)
 
     # Command Center — primary read-only operational overview.
     router.add("GET", "/command", command.command)
@@ -382,6 +396,8 @@ def build_router() -> Router:
     router.add("GET", "/operations/capabilities", capabilities.capabilities)
     # M15.10 — literal route MUST precede "/operations/{run_id}" too.
     router.add("GET", "/operations/graph", graph.graph)
+    # D7 — HTB VPN operator screen (literal, precedes "/operations/{run_id}").
+    router.add("GET", "/operations/network", operations.network)
     router.add("GET", "/operations/{run_id}", operations.console)
     router.add("GET", "/operations/{run_id}/events",
                operations.event_stream_page)
@@ -390,6 +406,23 @@ def build_router() -> Router:
                operations.cancel_operation)
     router.add("GET", "/runs/{run_id}/events/stream",
                operations.events_stream)
+
+    # D7 — controlled HTB VPN lifecycle (argument-array subprocess only;
+    # no execution authority, no governance-core involvement).
+    router.add("GET", "/vpn/status", vpn.status)
+    router.add("POST", "/vpn/connect", vpn.connect)
+    router.add("POST", "/vpn/disconnect", vpn.disconnect)
+
+    # D8 — product mode + testing profile (configuration only; never
+    # triggers VPN/scan/execution).
+    router.add("GET", "/mode", mode.get_mode)
+    router.add("POST", "/mode", mode.set_mode)
+
+    # D9 — operator-declared authorized network target (configuration only;
+    # no network I/O here).
+    router.add("GET", "/htb/target", htb.get_target)
+    router.add("POST", "/htb/target", htb.set_target)
+    router.add("POST", "/htb/target/clear", htb.clear_target)
     return router
 
 

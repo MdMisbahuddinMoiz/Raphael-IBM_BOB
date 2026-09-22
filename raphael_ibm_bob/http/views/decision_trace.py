@@ -119,12 +119,24 @@ def _table(headers: List[str], rows: List[List[Any]],
             f'<tbody>{"".join(body)}</tbody></table>')
 
 
-def _checklist(names: Tuple[str, ...], passed: List[str]) -> str:
+def _checklist(names: Tuple[str, ...], passed: List[str],
+               failed: Optional[List[str]] = None) -> str:
+    """Render the A..G checklist from the authoritative pass/fail sets.
+
+    When `failed` is supplied, names in neither set render as UNKNOWN
+    (muted); when it is None (legacy payload), anything not passed is
+    rendered as failed (the legacy `checks` list was passed-only).
+    """
+    passed_set = set(passed)
+    failed_set = set(failed) if failed is not None else None
     items = []
     for name in names:
-        ok = name in passed
-        mark = "✓" if ok else "✕"
-        cls = "ok" if ok else "crit"
+        if name in passed_set:
+            mark, cls = "✓", "ok"
+        elif failed_set is None or name in failed_set:
+            mark, cls = "✕", "crit"
+        else:
+            mark, cls = "?", "muted"
         items.append(
             f'<div class="chk {cls}"><span class="mark">{mark}</span>'
             f'<span class="mono">{_e(name)}</span></div>')
@@ -462,6 +474,84 @@ def _gate_condition_names() -> Tuple[str, ...]:
     )
 
 
+_CONDITION_NAMES = _gate_condition_names()
+
+#: Ordered (unique-substring, condition) mapping from a QualityGate refusal
+#: reason to the condition it belongs to. The gate emits these strings; the
+#: renderer only classifies the persisted reasons (it never recomputes the
+#: gate). Longer/more specific patterns MUST precede shorter ones.
+_REASON_CONDITION = (
+    ("mission has no criteria", "A:mission-criterion"),
+    ("mission has no success criteria", "A:mission-criterion"),
+    ("no RUN_TEST capability invocation", "B:required-tests"),
+    ("no RUN_TEST invocation with ALLOW", "B:required-tests"),
+    ("regression_ok=False (caller did not prove regression)",
+     "B:required-tests"),
+    ("no producer='regression' evidence record", "C:regression"),
+    ("distinct ALLOWed capability", "C:regression"),
+    ("regression_ok=False", "C:regression"),
+    ("behavior_probe_ok=False", "D:independent-behavior-probe"),
+    ("behavior_probe_ok=True but no producer='probe'",
+     "D:independent-behavior-probe"),
+    ("scope violation:", "E:scope"),
+    ("DENY record paired with result record", "E:scope"),
+    ("missing record kinds:", "F:evidence"),
+    ("unresolved UNVERIFIED finding", "G:finding-state"),
+    ("REFUTED finding without replan", "G:finding-state"),
+    ("VERIFIED finding without a valid independent verification",
+     "G:finding-state"),
+)
+
+
+def _condition_for_reason(reason: str) -> Optional[str]:
+    text = reason or ""
+    for needle, condition in _REASON_CONDITION:
+        if needle in text:
+            return condition
+    return None
+
+
+def gate_breakdown(gate: Optional[Dict[str, Any]]
+                   ) -> Tuple[List[str], List[str], List[str], Tuple[str, ...]]:
+    """Authoritative per-condition split for a persisted gate record.
+
+    Returns ``(passed, failed, unknown, names)``.
+
+    Priority:
+      1. the gate payload's `passed`/`failed` collections when present;
+      2. otherwise, for a COMPLETE decision, all conditions are passed;
+      3. otherwise the gate's own persisted refusal `reasons` are classified
+         to their condition (the gate emits one reason per failed condition);
+      4. an unexplained REFUSE never claims passes — the evaluated conditions
+         are reported as UNKNOWN instead.
+    """
+    names = _CONDITION_NAMES
+    if not gate:
+        return [], [], [], names
+    payload = gate.get("payload") or {}
+    if ("passed" in payload) or ("failed" in payload):
+        passed = [c for c in (payload.get("passed") or []) if c in names]
+        failed = [c for c in (payload.get("failed") or []) if c in names]
+        unknown = [c for c in names if c not in passed and c not in failed]
+        return passed, failed, unknown, names
+
+    decision = (gate.get("decision") or "").lower()
+    if decision == "complete":
+        return list(names), [], [], names
+
+    failed = []
+    for reason in (gate.get("reasons") or []):
+        condition = _condition_for_reason(reason)
+        if condition and condition in names and condition not in failed:
+            failed.append(condition)
+    if not failed:
+        # REFUSE with no classifiable reason: refuse to invent passes.
+        return [], [], list(names), names
+    failed = [c for c in names if c in failed]
+    passed = [c for c in names if c not in failed]
+    return passed, failed, [], names
+
+
 def _stage_gate(d: Dict[str, Any]) -> Dict[str, Any]:
     gate = d["gate"]
     if gate is None:
@@ -470,10 +560,7 @@ def _stage_gate(d: Dict[str, Any]) -> Dict[str, Any]:
             "summary": "No gate record",
             "html": '<p class="empty">No Quality Gate record persisted.</p>',
         }
-    checks = list(gate.get("checks", ()))
-    names = _gate_condition_names()
-    passed = [c for c in checks if c in names]
-    failed = [c for c in names if c not in passed]
+    passed, failed, unknown, names = gate_breakdown(gate)
     decision = (gate.get("decision") or "").upper()
     status = "complete" if decision == "COMPLETE" else "refused"
     return {
@@ -484,7 +571,7 @@ def _stage_gate(d: Dict[str, Any]) -> Dict[str, Any]:
             f'conditions satisfied</div>'
             '<div class="authority">The Quality Gate is the SOLE '
             'authority permitted to declare COMPLETE.</div>'
-            + _checklist(names, passed)
+            + _checklist(names, passed, failed)
             + _kv([("FINAL", decision)]
                   + [("REASON", r) for r in gate.get("reasons", ())])),
     }
@@ -870,6 +957,7 @@ gap:3px 16px;margin:8px 0}
 .chk .mark{width:12px}
 .chk.ok .mark{color:var(--ok)}
 .chk.crit .mark{color:var(--crit)}
+.chk.muted .mark{color:var(--muted)}
 .chk.ok .mono{color:var(--text)}
 .gate-final{font-size:20px;font-weight:700;letter-spacing:.08em;
 margin-bottom:6px}
@@ -890,4 +978,4 @@ text-transform:uppercase;margin-top:10px}
 """
 
 
-__all__ = ["collect", "render_decision_trace"]
+__all__ = ["collect", "gate_breakdown", "render_decision_trace"]

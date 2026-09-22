@@ -15,7 +15,11 @@ from raphael_ibm_bob.http.errors import ApiError
 from raphael_ibm_bob.http.views import decision_trace as _view
 from raphael_ibm_bob.http.views import event_stream as _stream
 from raphael_ibm_bob.http.views import event_stream_page as _events_page
+from raphael_ibm_bob.http.views import network_console as _network
 from raphael_ibm_bob.http.views import operations_console as _console
+from raphael_ibm_bob.mode import Mode, TestingProfile, get_mode_manager
+from raphael_ibm_bob.target_profile import get_target_store
+from raphael_ibm_bob.vpn import get_vpn_manager
 
 HTML = "text/html; charset=utf-8"
 
@@ -28,13 +32,55 @@ def decision_trace(request, params, config):
     return Response(200, html_doc, content_type=HTML)
 
 
+def network(request, params, config):
+    """GET /operations/network — HTB VPN operator screen (D7).
+
+    Reads the VPN manager's safe status snapshot. Presentation only: the
+    page drives the VPN lifecycle through the /vpn/* API; it never
+    executes a capability and never touches the governance core.
+    """
+    manager = getattr(config, "vpn_manager", None) or get_vpn_manager()
+    html_doc = _network.render_network(manager.status())
+    return Response(200, html_doc, content_type=HTML)
+
+
 def list_operations(request, params, config):
     """GET /operations — list runs + New Operation form."""
     run_ids = api.get_runs(config.runs_root)
     html_doc = _console.render_index(
         run_ids, runs_root=config.runs_root,
-        sessions_root=config.sessions_root)
+        sessions_root=config.sessions_root,
+        vpn_status=_vpn_status(config), mode_state=_mode_state(config),
+        target_state=_target_state(config))
     return Response(200, html_doc, content_type=HTML)
+
+
+def _target_state(config):
+    """Safe declared-target snapshot for the operations page (never fatal)."""
+    try:
+        store = getattr(config, "target_store", None) or get_target_store()
+        profile = store.current()
+        return profile.to_dict() if profile is not None else None
+    except Exception:
+        return None
+
+
+def _vpn_status(config):
+    """Safe VPN snapshot for the operations strip (never fatal)."""
+    try:
+        manager = getattr(config, "vpn_manager", None) or get_vpn_manager()
+        return manager.status()
+    except Exception:
+        return None
+
+
+def _mode_state(config):
+    """Safe product-mode snapshot for the operations page (never fatal)."""
+    try:
+        manager = getattr(config, "mode_manager", None) or get_mode_manager()
+        return manager.state().to_dict()
+    except Exception:
+        return None
 
 
 def console(request, params, config):
@@ -152,6 +198,21 @@ def start_operation(request, params, config):
     body = request.body if isinstance(request.body, dict) else {}
     session = _load_session(config, body.get("session_id"))
     mode = body.get("mode", "runner")
+
+    # D9.1: product mode TESTING/HTB selects the deterministic governed
+    # network mission instead of the file-remediation Runner/Model path.
+    mode_manager = getattr(config, "mode_manager", None) or get_mode_manager()
+    state = mode_manager.state()
+    if (state.mode is Mode.TESTING
+            and state.testing_profile is TestingProfile.HTB):
+        result = api.start_network_run(
+            session, sessions_root=config.sessions_root,
+            runs_root=config.runs_root,
+            target_store=getattr(config, "target_store", None))
+        run_id = result.run.run_id
+        return Response(200, _console.redirect_page(f"/operations/{run_id}"),
+                        content_type=HTML)
+
     if mode == "model":
         provider = body.get("provider", "openai-compatible")
         try:
@@ -221,5 +282,6 @@ __all__ = [
     "event_stream_page",
     "events_stream",
     "list_operations",
+    "network",
     "start_operation",
 ]

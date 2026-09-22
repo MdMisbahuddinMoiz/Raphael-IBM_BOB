@@ -34,6 +34,7 @@ Remaining limitations at M3:
 """
 from __future__ import annotations
 
+import hashlib
 import threading
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
@@ -56,6 +57,11 @@ from raphael_ibm_bob.c1a_replay import (
     C1AReplayGuard,
     new_lineage,
 )
+from raphael_ibm_bob.network_runtime import (
+    PROVIDER_UNTRUSTED,
+    get_network_mediator,
+)
+from raphael_ibm_bob.target_profile import get_target_store
 
 
 @dataclass(frozen=True)
@@ -93,6 +99,8 @@ class BOBBroker:
         c1a_provider: Optional[Any] = None,
         c1a_authorization: Optional[Any] = None,
         c1a_replay_guard: Optional[Any] = None,
+        network_mediator: Optional[Any] = None,
+        target_store: Optional[Any] = None,
     ):
         self._policy = policy
         self._workspace = workspace
@@ -114,6 +122,9 @@ class BOBBroker:
         self._c1a_replay_guard = (
             c1a_replay_guard if c1a_replay_guard is not None
             else C1AReplayGuard())
+        # D9: governed network boundary (mediator) + authorized target store.
+        self._network_mediator = network_mediator
+        self._target_store = target_store
         self._lock = threading.Lock()
         self._sequence = 0
         # Diagnostic counters for tests/audit. Retained from M2.
@@ -145,6 +156,14 @@ class BOBBroker:
     @property
     def c1a_replay_guard(self) -> C1AReplayGuard:
         return self._c1a_replay_guard
+
+    @property
+    def network_mediator(self) -> Any:
+        """The governed network mediator (injected or process singleton)."""
+        if self._network_mediator is not None:
+            return self._network_mediator
+        from raphael_ibm_bob.network_runtime import get_network_mediator
+        return get_network_mediator()
 
     # Broker.seam interface ----------------------------------------------------
 
@@ -253,6 +272,19 @@ class BOBBroker:
                 request_seq=request_seq,
                 decision_seq=decision_seq,
                 effective_timeout=effective_timeout,
+                evidence_ids=evidence_ids,
+                decision=decision,
+            )
+
+        # D9: the single governed network path (HTTP only). It never uses
+        # execute_capability and never spawns a shell; the Broker remains
+        # the sole invoker and the mediator is the only network-I/O boundary.
+        if stamped.capability == Capability.NETWORK_HTTP_REQUEST:
+            return self._execute_network(
+                stamped=stamped,
+                mission=mission,
+                request_seq=request_seq,
+                decision_seq=decision_seq,
                 evidence_ids=evidence_ids,
                 decision=decision,
             )
@@ -546,9 +578,101 @@ class BOBBroker:
             evidence_ids=tuple(evidence_ids),
         )
 
+    # D9 governed network path ------------------------------------------------
+
+    def _execute_network(
+        self,
+        *,
+        stamped: ActionRequest,
+        mission: Mission,
+        request_seq: int,
+        decision_seq: int,
+        evidence_ids: List[str],
+        decision: PolicyDecision,
+    ) -> BrokerResult:
+        """Execute one governed HTTP request through the NetworkMediator.
+
+        This is the ONLY path for the network capability. It creates a
+        deterministic invocation bound to run/mission/target, delegates the
+        single bounded HTTP request to the mediator (the only network-I/O
+        boundary), and persists UNTRUSTED network evidence. It never calls
+        execute_capability and never spawns a subprocess.
+        """
+        run_id = (self._ledger.run_dir().name
+                  if self._ledger is not None else "in-memory")
+        mediator = self._network_mediator or get_network_mediator()
+        store = (self._target_store if self._target_store is not None
+                 else get_target_store())
+        profile = store.get_target(mission.mission_id)
+
+        if profile is None:
+            execution = ExecutionResult(
+                sequence=stamped.sequence, success=False, output="",
+                error="network-no-authorized-target",
+                evidence={PROVIDER_UNTRUSTED: True})
+        else:
+            invocation_id = "NET-" + hashlib.sha256(
+                f"{run_id}:{stamped.sequence}".encode("utf-8")
+            ).hexdigest()[:16]
+            result = mediator.invoke(
+                request=stamped, profile=profile,
+                invocation_id=invocation_id, run_id=run_id)
+            data = result.to_dict()
+            evidence: Dict[str, Any] = {
+                "network_result": data,
+                PROVIDER_UNTRUSTED: True,
+                "capability": Capability.NETWORK_HTTP_REQUEST.value,
+                "invocation_id": result.invocation_id,
+                "mission_id": result.mission_id,
+                "target_id": result.target_id,
+                "flag": result.flag,
+                "flag_sha256": result.flag_sha256,
+                "response_sha256": result.response_sha256,
+                "status_code": result.status_code,
+                "truncated": result.truncated,
+            }
+            execution = ExecutionResult(
+                sequence=stamped.sequence, success=result.success,
+                output=(f"http:{result.status_code}"
+                        if result.status_code is not None
+                        else result.state.value),
+                error=(result.error or None), evidence=evidence)
+
+        with self._lock:
+            self.capability_invocations += 1
+            self.audit.append({"stage": "execution", **execution.to_dict()})
+
+        result_seq: Optional[int] = None
+        if self._ledger is not None:
+            result_seq = self._ledger.append_result(
+                request_seq=request_seq, decision_seq=decision_seq,
+                result=execution)
+            network_payload = dict(execution.evidence)
+            network_payload.update({
+                "request_seq": request_seq,
+                "decision_seq": decision_seq,
+                "result_seq": result_seq,
+            })
+            exec_ev_id = digest_id({
+                "request_seq": request_seq,
+                "decision_seq": decision_seq,
+                "result_seq": result_seq,
+                "invocation_id": execution.evidence.get("invocation_id"),
+                "capability": Capability.NETWORK_HTTP_REQUEST.value,
+            }, prefix="NX")
+            self._ledger.append_evidence(
+                evidence_id=exec_ev_id, producer="network",
+                request_seq=request_seq, decision_seq=decision_seq,
+                result_seq=result_seq, payload=network_payload)
+            evidence_ids.append(exec_ev_id)
+
+        return BrokerResult(
+            decision=decision, execution=execution, capability_invoked=True,
+            request_seq=request_seq, decision_seq=decision_seq,
+            result_seq=result_seq, evidence_ids=tuple(evidence_ids))
+
     def next_sequence(self) -> int:
         with self._lock:
             return self._sequence + 1
-
 
 __all__ = ["BOBBroker", "BrokerResult"]

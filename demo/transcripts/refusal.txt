@@ -1,0 +1,50 @@
+(refusal demo: authorized target 127.0.0.1:44329 is not serving)
+RAPHAEL x IBM BOB - DEMO REFUSAL
+============================================================
+[1] Environment
+     repo: /home/moiz/raphael-2.0-rbsv2r
+     server: http://127.0.0.1:8787
+     workspace: /tmp/raphael_demo_ws_4yopyead
+[2] VPN
+     state: disconnected
+[3] Mode
+     mode: {'mode': 'testing', 'testing_profile': 'htb', 'updated_at': '2026-09-22T18:43:44.475140+00:00'}
+[4] Target
+     locator: 127.0.0.1
+     port: 44329
+     target_id: TP-c720e0d654c1456f
+     reachable: False
+[5] Mission
+     mission_id: M-HTB-001
+     session_id: 927291152821
+     request_path: /
+     probe_path: /index.html
+[6] Governed execution
+     TESTING/HTB -> TargetProfile -> NETWORK_HTTP_REQUEST -> Policy -> Runtime/Broker
+     run_id: 20260922T184344_7686de
+[7] Evidence
+     ledger: runs/20260922T184344_7686de/evidence.jsonl
+     producers: ['execution', 'network', 'policy', 'regression']
+     request: network_http_request -> http://127.0.0.1:44329/
+     request: network_http_request -> http://127.0.0.1:44329/index.html
+     request: run_test -> test_ok.py
+     network: / state=refused status=None bytes=0
+     network: /index.html state=refused status=None bytes=0
+[8] Verification / probe
+     regression: test=test_ok.py returncode=0 result=passed
+[9] QualityGate
+     [*] A:mission-criterion
+     [*] B:required-tests
+     [*] C:regression
+     [x] D:independent-behavior-probe
+     [*] E:scope
+     [*] F:evidence
+     [*] G:finding-state
+     failed: ['D:independent-behavior-probe']
+     unknown: []
+     reasons: ['behavior_probe_ok=False (no probe proof supplied)']
+[10] Final verdict
+     state: refused
+     conditions: 6/7
+     verdict: REFUSE
+RESULT: REFUSE (honest: failure was not reported as COMPLETE)

@@ -69,6 +69,10 @@ class Render(_Case):
         data = ca.collect()
         by_role = {r["id"]: r["skills"] for r in data["roles"]}
         for skill in skills:
+            if skill.role is None:
+                # Role-less skills (e.g. the D9 network capability) are
+                # intentionally not bound to a specialist role.
+                continue
             self.assertIn(skill.id, by_role.get(skill.role, []),
                           f"{skill.id} not bound to {skill.role}")
         _, _, html = self.render()

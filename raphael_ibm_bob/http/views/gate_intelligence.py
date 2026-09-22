@@ -122,6 +122,8 @@ def _run_view(run, records: List[Dict[str, Any]],
         verdict = "UNKNOWN / NOT VERIFIED"
         verdict_kind = "muted"
 
+    passed_conds, failed_conds, unknown_conds, _names = dt.gate_breakdown(gate)
+
     return {
         "run_id": run.run_id,
         "mission_id": run.mission.mission_id,
@@ -134,6 +136,9 @@ def _run_view(run, records: List[Dict[str, Any]],
         "verdict": verdict,
         "verdict_kind": verdict_kind,
         "conditions": list((gate or {}).get("checks", [])),
+        "passed_conditions": passed_conds,
+        "failed_conditions": failed_conds,
+        "unknown_conditions": unknown_conds,
         "reasons": list((gate or {}).get("reasons", [])),
         "gate_evidence_refs": list((gate or {}).get("evidence_refs", [])),
         "gate_finding_refs": list((gate or {}).get("finding_refs", [])),
@@ -252,11 +257,20 @@ def _gate_panels(data: Dict[str, Any]) -> str:
                     f'persisted gate record for this operation.</p>')
         else:
             conds = op["conditions"]
-            cond_rows = "".join(
-                f'<div class="chk"><span class="mark">•</span>'
-                f'<span class="mono">{dt._e(c)}</span>'
-                f'<span class="cond-state">UNKNOWN / NOT VERIFIED</span>'
-                f'</div>' for c in conds) or \
+            passed_set = set(op["passed_conditions"])
+            failed_set = set(op["failed_conditions"])
+            cond_rows_html = []
+            for c in conds:
+                if c in passed_set:
+                    mark, cls = "✓", "ok"
+                elif c in failed_set:
+                    mark, cls = "✕", "crit"
+                else:
+                    mark, cls = "•", "muted"
+                cond_rows_html.append(
+                    f'<div class="chk {cls}"><span class="mark">{mark}</span>'
+                    f'<span class="mono">{dt._e(c)}</span></div>')
+            cond_rows = "".join(cond_rows_html) or \
                 '<p class="empty">No condition names persisted.</p>'
             reasons = "".join(
                 f'<li>{dt._e(r)}</li>' for r in op["reasons"]) or \
@@ -287,11 +301,11 @@ def _gate_panels(data: Dict[str, Any]) -> str:
                 '<div class="sublabel">CONDITIONS EVALUATED (persisted '
                 'names)</div>'
                 f'<div class="checklist">{cond_rows}</div>'
-                '<p class="note">The persisted gate record carries the '
-                'evaluated condition names and refusal reasons, but not a '
-                'per-condition pass/fail split. Per-condition result is '
-                'therefore UNKNOWN / NOT VERIFIED — this screen does not '
-                'recompute the gate.</p>'
+                '<p class="note">Per-condition pass/fail is taken directly '
+                'from the persisted gate record (payload.passed / '
+                'payload.failed); this screen does not recompute the gate. '
+                'A condition recorded in neither collection is shown as '
+                'UNKNOWN.</p>'
                 '<div class="sublabel">RECORDED REFUSAL REASONS</div>'
                 f'<ul class="reasons">{reasons}</ul>')
         panels.append(

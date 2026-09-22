@@ -168,6 +168,37 @@ def start_model_run(session: RaphaelSession,
                        if sessions_root is not None else None))
 
 
+def start_network_run(session: RaphaelSession, mission: Optional[Mission] = None,
+                      *, runs_root: Path = DEFAULT_RUNS_ROOT,
+                      sessions_root: Optional[Path] = None,
+                      target_store: Any = None,
+                      mediator: Any = None,
+                      timeout_seconds: Optional[float] = None) -> Any:
+    """Start a deterministic governed network mission (D9.1).
+
+    Delegates to the existing Harness network mission, which orchestrates
+    the existing D9 governed network capability through Runtime -> Broker ->
+    Policy -> NetworkMediator. It is NOT a second execution path.
+    """
+    from raphael_ibm_bob.harness.network_run import run_network_mission
+    mission = mission or session.mission
+    if mission is None:
+        raise ValueError("no mission: submit one or pass mission=")
+    if session.workspace is None:
+        raise ValueError("session has no workspace")
+    kwargs: Dict[str, Any] = {}
+    if mediator is not None:
+        kwargs["mediator"] = mediator
+    if timeout_seconds is not None:
+        kwargs["timeout_seconds"] = timeout_seconds
+    return run_network_mission(
+        session, mission, Path(session.workspace.workspace_root),
+        runs_root=Path(runs_root),
+        sessions_root=(Path(sessions_root)
+                       if sessions_root is not None else None),
+        target_store=target_store, **kwargs)
+
+
 def get_run(run_id: str, runs_root: Path = DEFAULT_RUNS_ROOT) -> RaphaelRun:
     """Load a Harness run record by id (FileNotFoundError if absent)."""
     return load_run(find_run_dir(Path(runs_root), run_id))
@@ -356,6 +387,7 @@ __all__ = [
     "list_skills",
     "make_model_adapter",
     "start_model_run",
+    "start_network_run",
     "start_run",
     "submit_mission",
 ]

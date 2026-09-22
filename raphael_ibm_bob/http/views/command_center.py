@@ -162,8 +162,7 @@ def collect(*, runs_root, sessions_root) -> Dict[str, Any]:
         if decision:
             try:
                 gate = api.get_gate(run["run_id"], runs_root)
-                passed = len([c for c in (gate or {}).get("checks", [])
-                              if c in dt._gate_condition_names()])
+                passed = len(dt.gate_breakdown(gate)[0])
             except Exception:
                 passed = 0
         gate_rows.append({
@@ -220,6 +219,36 @@ def collect(*, runs_root, sessions_root) -> Dict[str, Any]:
 def _metric(label: str, value: Any, kind: str = "") -> str:
     return (f'<div class="metric {kind}"><span class="mv">{dt._e(value)}</span>'
             f'<span class="ml">{dt._e(label)}</span></div>')
+
+
+_MODE_KIND = {"normal": "muted", "testing": "info"}
+_VPN_KIND = {"connected": "ok", "connecting": "info",
+             "disconnecting": "info", "failed": "crit",
+             "disconnected": "muted"}
+
+
+def _mode_panel(mode_state, vpn_status) -> str:
+    """Top-level product mode + testing environment + VPN (read-only).
+
+    Unknown values are shown as UNKNOWN, never fabricated. Setting the
+    mode happens on the Operations page; this panel only reports it.
+    """
+    mode_state = mode_state if isinstance(mode_state, dict) else {}
+    vpn_status = vpn_status if isinstance(vpn_status, dict) else {}
+    mode = str(mode_state.get("mode") or "unknown")
+    profile = mode_state.get("testing_profile")
+    vpn_state = str(vpn_status.get("state") or "unknown")
+    return (
+        '<section class="panel"><h2>RAPHAEL MODE</h2>'
+        '<div class="metrics">'
+        + _metric("MODE", mode.upper(), _MODE_KIND.get(mode, "muted"))
+        + _metric("ENVIRONMENT", profile.upper() if profile else "—")
+        + _metric("VPN", vpn_state.upper(), _VPN_KIND.get(vpn_state, "muted"))
+        + '</div>'
+        '<p class="note">Product mode is set on the '
+        '<a class="row-link" href="/operations">Operations</a> page. '
+        'TESTING → HTB is configuration only; it never starts the VPN or '
+        'any network activity.</p></section>')
 
 
 def _summary(data: Dict[str, Any]) -> str:
@@ -399,6 +428,7 @@ def _models(data: Dict[str, Any]) -> str:
 def _navigation() -> str:
     links = [
         ("OPERATIONS INDEX", "/operations", True),
+        ("HTB VPN / NETWORK", "/operations/network", True),
         ("FINDINGS", "/operations/findings", True),
         ("EVIDENCE", "/operations/evidence", True),
         ("POLICY & QUALITY GATE", "/operations/gate", True),
@@ -436,6 +466,8 @@ color:var(--text)}
 color:var(--muted)}
 .metric.ok .mv{color:var(--ok)}
 .metric.warn .mv{color:var(--warn)}
+.metric.info .mv{color:var(--primary)}
+.metric.crit .mv{color:var(--crit)}
 .lifecycle{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .navgrid{display:flex;gap:8px;flex-wrap:wrap}
 .navlink{font-size:11px;letter-spacing:.05em;text-transform:uppercase;
@@ -493,11 +525,14 @@ _JS = r"""
 """
 
 
-def render_command(*, runs_root, sessions_root) -> str:
+def render_command(*, runs_root, sessions_root,
+                   mode_state: dict = None,
+                   vpn_status: dict = None) -> str:
     data = collect(runs_root=runs_root, sessions_root=sessions_root)
     cfg = json.dumps({"activeRuns": [r["run_id"] for r in data["active"]],
                       "sseBase": "/runs/"}, sort_keys=True)
     body = (
+        f'{_mode_panel(mode_state, vpn_status)}'
         f'{_summary(data)}'
         f'{_engagements(data)}'
         '<div class="grid2">'

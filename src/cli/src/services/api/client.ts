@@ -521,10 +521,14 @@ export async function getAnthropicClient({
   // Raphael orchestrator: route to Raphael provider when orchestrator URL is set
   if (process.env.RAPHAEL_ORCHESTRATOR_URL) {
     const { createRaphaelClient } = await import('./raphaelProvider.js')
+    // BOB requires a real session id and mission to start a governed run.
+    // The CLI session id is the authoritative source; the mission is supplied
+    // via RAPHAEL_MISSION_JSON (see raphaelProvider). Auth headers from
+    // `defaultHeaders` are intentionally NOT forwarded to BOB.
     return createRaphaelClient({
-      defaultHeaders,
       maxRetries,
       timeout: parseInt(process.env.API_TIMEOUT_MS || String(600 * 1000), 10),
+      sessionId: getSessionId(),
     }) as unknown as Anthropic
   }
   // GitHub provider in native Anthropic API mode: send requests in Anthropic

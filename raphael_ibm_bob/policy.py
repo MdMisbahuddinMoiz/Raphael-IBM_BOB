@@ -42,14 +42,18 @@ from raphael_ibm_bob.contracts import (
     PolicyDecision,
 )
 from raphael_ibm_bob.c1a_scope import scope_contains, within_root
+from raphael_ibm_bob.network_runtime import ALLOWED_METHODS, method_from_purpose
+from raphael_ibm_bob.network_scope import NetworkScopeError, parse_http_target
+from raphael_ibm_bob.target_profile import get_target_store
 from raphael_ibm_bob.workspace import Workspace
 
 
 class BOBPolicy:
     """MVP Policy. Fail-closed. Pure (no side effects)."""
 
-    def __init__(self, workspace: Workspace):
+    def __init__(self, workspace: Workspace, target_store=None):
         self._workspace = workspace
+        self._target_store = target_store
 
     def consult(self, request: ActionRequest, mission: Mission) -> PolicyDecision:
         # 1. Capability must be in the MVP allow-list.
@@ -60,6 +64,7 @@ class BOBPolicy:
             Capability.WRITE,
             Capability.RUN_TEST,
             Capability.C1A_STATIC_FILE_INSPECT,
+            Capability.NETWORK_HTTP_REQUEST,
         }:
             cap_str = getattr(request.capability, "value", str(request.capability))
             return self._deny(request, f"capability-not-allowed:{cap_str}")
@@ -67,6 +72,12 @@ class BOBPolicy:
         # 2. Target must be a non-empty string.
         if not request.target or not isinstance(request.target, str):
             return self._deny(request, "target-empty-or-invalid")
+
+        # 2b. Network capability: authorize against the mission-bound
+        # TargetProfile (URL targets are not workspace paths; the network
+        # scope algebra replaces path containment).
+        if request.capability == Capability.NETWORK_HTTP_REQUEST:
+            return self._consult_network(request, mission)
 
         # 3. Workspace containment check.
         try:
@@ -134,6 +145,40 @@ class BOBPolicy:
 
         # Unreachable: capability allow-list is exhaustive above.
         return self._deny(request, f"unhandled-capability:{request.capability.value}")
+
+    def _consult_network(self, request: ActionRequest,
+                         mission: Mission) -> PolicyDecision:
+        """D9 network authorization (fail closed).
+
+        The URL must be a valid http(s) target whose host/port/protocol are
+        exactly authorized by the mission-bound TargetProfile, with an
+        explicit authorization reference, an allowed method, and a positive
+        timeout. Any failure is a DENY (no invocation, no result).
+        """
+        try:
+            target = parse_http_target(request.target)
+        except NetworkScopeError as exc:
+            return self._deny(request, f"network-target-invalid:{exc}")
+        store = self._target_store or get_target_store()
+        profile = store.get_target(mission.mission_id)
+        if profile is None:
+            return self._deny(request, "network-no-authorized-target")
+        if not profile.authorization_ref:
+            return self._deny(request, "network-authorization-missing")
+        if not profile.allows(host=target.host, port=target.port,
+                              protocol=target.scheme):
+            return self._deny(request, "network-target-mismatch")
+        method = method_from_purpose(request.purpose)
+        if method not in ALLOWED_METHODS:
+            return self._deny(request, f"network-method-not-allowed:{method}")
+        # The mediator always enforces its own bounded timeout; a missing
+        # request timeout is acceptable (resolved by the broker default).
+        if (request.timeout_seconds is not None
+                and (isinstance(request.timeout_seconds, bool)
+                     or not isinstance(request.timeout_seconds, (int, float))
+                     or request.timeout_seconds <= 0)):
+            return self._deny(request, "network-timeout-invalid")
+        return self._allow(request)
 
     def _consult_c1a(self, request: ActionRequest, resolved) -> PolicyDecision:
         """C1A-specific authorization (fail closed).

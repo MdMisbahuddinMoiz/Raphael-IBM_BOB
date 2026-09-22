@@ -104,7 +104,7 @@ class Registration(unittest.TestCase):
         reg.register_skill(_skill(id="s-b", name="B"))
         self.assertEqual([s.id for s in reg.list_skills()],
                          ["s-a", "s-b"])
-        self.assertEqual(len(reg.list_capabilities()), 5)
+        self.assertEqual(len(reg.list_capabilities()), 6)
 
 
 class DeclarationValidation(unittest.TestCase):

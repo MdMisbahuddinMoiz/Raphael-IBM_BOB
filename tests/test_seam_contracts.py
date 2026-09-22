@@ -65,10 +65,10 @@ from raphael_ibm_bob.adapters import (
 class CapabilityEnumTests(unittest.TestCase):
     def test_capability_allow_list_is_exactly_the_brief(self):
         # The MVP brief's five capabilities plus the first-class C1A
-        # out-of-process capability (Phase 2C); C1A is deliberately NOT an
-        # alias of READ.
+        # out-of-process capability (Phase 2C) and the single governed
+        # network capability (D9); neither is an alias.
         expected = {"read", "list", "search", "write", "run_test",
-                    "c1a_static_file_inspect"}
+                    "c1a_static_file_inspect", "network_http_request"}
         actual = {c.value for c in Capability}
         self.assertEqual(actual, expected)
 

@@ -1,0 +1,97 @@
+{
+  "conditions": {
+    "count": "7/7",
+    "failed": [],
+    "names": [
+      "A:mission-criterion",
+      "B:required-tests",
+      "C:regression",
+      "D:independent-behavior-probe",
+      "E:scope",
+      "F:evidence",
+      "G:finding-state"
+    ],
+    "passed": [
+      "A:mission-criterion",
+      "B:required-tests",
+      "C:regression",
+      "D:independent-behavior-probe",
+      "E:scope",
+      "F:evidence",
+      "G:finding-state"
+    ],
+    "unknown": []
+  },
+  "gate_verdict": "complete",
+  "mission_id": "M-HTB-001",
+  "network_observations": [
+    {
+      "invocation_id": "NET-295e9b1de039bd52",
+      "path": "/",
+      "response_bytes": 11159,
+      "state": "success",
+      "status_code": 200
+    },
+    {
+      "invocation_id": "NET-e7dc822351c0be3e",
+      "path": "/index.html",
+      "response_bytes": 11159,
+      "state": "success",
+      "status_code": 200
+    }
+  ],
+  "probe": {
+    "allowed": true,
+    "decision_seq": 7,
+    "endpoint": "http://127.0.0.1:8080/index.html",
+    "invariant": "authorized-http-endpoint-reachable-and-serving",
+    "invocation_id": "NET-e7dc822351c0be3e",
+    "kind": "probe",
+    "mission_id": "M-HTB-001",
+    "path": "/index.html",
+    "probe_id": "NETPROBE-cad5ac",
+    "request_seq": 6,
+    "response_bytes": 11159,
+    "response_sha256": "64dbf323e49e058fbc1b550da47116ee6adb3abab82d893142a086ae5bde347b",
+    "result": "passed",
+    "result_seq": 9,
+    "source": "network-independent-behavior-probe",
+    "status_code": 200
+  },
+  "producers": [
+    "execution",
+    "network",
+    "policy",
+    "probe",
+    "regression"
+  ],
+  "regression": {
+    "kind": "regression",
+    "mission_id": "M-HTB-001",
+    "request_seq": 12,
+    "result": "passed",
+    "result_seq": 15,
+    "returncode": 0,
+    "source": "network-run:required-test",
+    "test": "test_ok.py"
+  },
+  "requests": [
+    {
+      "capability": "network_http_request",
+      "seq": 1,
+      "target": "http://127.0.0.1:8080/"
+    },
+    {
+      "capability": "network_http_request",
+      "seq": 6,
+      "target": "http://127.0.0.1:8080/index.html"
+    },
+    {
+      "capability": "run_test",
+      "seq": 12,
+      "target": "test_ok.py"
+    }
+  ],
+  "run_id": "20260922T184344_cad5ac",
+  "state": "completed"
+}

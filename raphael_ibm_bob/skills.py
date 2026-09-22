@@ -397,6 +397,18 @@ def default_registry() -> CapabilityRegistry:
         timeout_seconds=30.0,
         evidence_produced=("test-execution",),
     ))
+    registry.register_capability(CapabilityDefinition(
+        capability=Capability.NETWORK_HTTP_REQUEST,
+        description=("One governed HTTP(S) GET/HEAD request to an authorized "
+                     "target (D9)."),
+        target_schema="http(s) URL inside the declared TargetProfile scope",
+        purpose_template="network-http-request:{target}",
+        verification_expectation=("an independent governed request yields the "
+                                  "same flag hash"),
+        version="1.0",
+        timeout_seconds=10.0,
+        evidence_produced=("network-observation",),
+    ))
     return registry
 
 
@@ -411,6 +423,9 @@ _DEFAULT_SKILLS = (
      "remediation_planner", ("remediation",), ("inspection",)),
     ("run-test", "Run a named test file", Capability.RUN_TEST,
      "test_analyst", ("test-execution",), ()),
+    ("network-http-request", "Governed HTTP request",
+     Capability.NETWORK_HTTP_REQUEST, None,
+     ("network-observation",), ()),
 )
 
 

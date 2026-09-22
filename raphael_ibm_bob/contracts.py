@@ -43,6 +43,10 @@ class Capability(str, Enum):
     WRITE = "write"
     RUN_TEST = "run_test"
     C1A_STATIC_FILE_INSPECT = "c1a_static_file_inspect"
+    #: D9: the single governed network capability (HTTP GET/HEAD only).
+    #: Authorization requires an operator-declared TargetProfile; network
+    #: output is untrusted evidence, never authority.
+    NETWORK_HTTP_REQUEST = "network_http_request"
 
 
 class Decision(str, Enum):

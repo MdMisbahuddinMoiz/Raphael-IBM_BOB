@@ -54,6 +54,48 @@ See [`CANONICAL_DEMO.md`](CANONICAL_DEMO.md) for full demo documentation.
 
 ---
 
+## Hackathon Demo
+
+The governed **network** path (TESTING / HTB) has a dedicated canonical
+entrypoint. It drives the real product HTTP API only — the same endpoints the
+UI uses — and reads the persisted run ledger. It never bypasses the
+Broker/Policy boundary and never constructs a verdict.
+
+```bash
+./scripts/run_hackathon_demo.sh --preflight   # READY / NOT READY / OPTIONAL
+./scripts/run_hackathon_demo.sh --success     # governed run  -> 7/7 COMPLETE
+./scripts/run_hackathon_demo.sh --refuse      # honest refusal -> REFUSE
+./scripts/run_hackathon_demo.sh --tests       # one-command release suite
+```
+
+Full documentation: [`docs/HACKATHON_DEMO.md`](docs/HACKATHON_DEMO.md) ·
+Operator checklist: [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md) ·
+Evidence bundle: [`demo/`](demo/README.md).
+
+**What the evaluator will see.** A `TESTING/HTB` run that flows
+`TargetProfile → NETWORK_HTTP_REQUEST → Policy ALLOW → execution → independent
+probe → RUN_TEST → regression evidence → QualityGate`, with the `decision-trace`
+page showing each condition `A`–`G` and the final count (`7/7`).
+
+**What `COMPLETE` means.** All seven QualityGate conditions (A–G) evaluated
+green against the ledger, backed by real evidence: a passing `RUN_TEST`
+artifact, a `producer="regression"` record with ≥ 2 distinct ALLOWed
+capabilities, and an independent `producer="probe"` record with `allowed=true`.
+`COMPLETE` is emitted by the QualityGate alone.
+
+**What `REFUSE` means.** Required evidence was absent (e.g. the authorized
+service did not answer, so no probe proof exists). Raphael records the failure
+and refuses — it never converts failure into `COMPLETE`.
+
+**Current limitations.** The only network capability is `NETWORK_HTTP_REQUEST`
+(HTTP GET/HEAD); there is no shell, SMB, Telnet, privilege escalation, port
+scanning, or arbitrary HTTP method. The validated Breakout run reaches
+`COMPLETE` without capturing a flag: Breakout does not serve its root flag over
+HTTP, so condition G is satisfied as "no unresolved/refuted/invalid findings".
+It is **not** a claim that Raphael solved Breakout.
+
+---
+
 ## Core Invariants
 
 RAPHAEL strictly enforces these foundational invariants across all layers:

@@ -262,7 +262,7 @@ class Discovery(_HTTPCase):
     def test_O_skills_and_filters(self):
         status, data = self.call("GET", "/skills")
         self.assertEqual(status, 200)
-        self.assertEqual(len(data["skills"]), 5)
+        self.assertEqual(len(data["skills"]), 6)
         status, filtered = self.call(
             "GET", "/skills?role=investigator")
         ids = {s["id"] for s in filtered["skills"]}
@@ -282,7 +282,8 @@ class Discovery(_HTTPCase):
         self.assertEqual(status, 200)
         caps = {c["capability"] for c in data["capabilities"]}
         self.assertEqual(caps,
-                         {"read", "list", "search", "write", "run_test"})
+                         {"read", "list", "search", "write", "run_test",
+                          "network_http_request"})
         status, by_role = self.call(
             "GET", "/capabilities?role=test_analyst")
         self.assertEqual({c["capability"] for c in by_role["capabilities"]},

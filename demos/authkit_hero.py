@@ -70,21 +70,53 @@ def _step(idx: int, label: str, detail: str = "") -> None:
             print(f"     {line}")
 
 
+def _latest_bound_execution(ledger: EvidenceLedger):
+    """(request_seq, decision_seq, result_seq) of the latest ALLOWed success."""
+    records = ledger.all_records()
+    decisions = {r.get("request_seq"): r.get("decision") for r in records
+                 if r.get("kind") == "decision"}
+    results = {r.get("request_seq"): r for r in records
+               if r.get("kind") == "result"}
+    req_seq = None
+    for r in records:
+        if r.get("kind") != "request":
+            continue
+        seq = r.get("seq")
+        if (decisions.get(seq) == "allow"
+                and results.get(seq, {}).get("success") is True):
+            req_seq = seq
+    if req_seq is None:
+        return 0, 0, None
+    decs = [r for r in records if r.get("kind") == "decision"
+            and r.get("request_seq") == req_seq]
+    dec_seq = decs[-1].get("seq") if decs else 0
+    res_seq = (results.get(req_seq) or {}).get("seq")
+    return req_seq, dec_seq, res_seq
+
+
 def _persist_probe_proof(ledger: EvidenceLedger, ok: bool) -> int:
-    payload = {"kind": "probe", "result": "passed" if ok else "failed", "allowed": ok}
+    req_seq, dec_seq, res_seq = (0, 0, None)
+    if ok:
+        req_seq, dec_seq, res_seq = _latest_bound_execution(ledger)
+    payload = {"kind": "probe", "result": "passed" if ok else "failed",
+               "allowed": ok, "request_seq": req_seq, "result_seq": res_seq}
     ev_id = digest_id(payload, prefix="PB")
     return ledger.append_evidence(
-        evidence_id=ev_id, producer="probe", request_seq=0, decision_seq=0,
-        result_seq=None, payload=payload,
+        evidence_id=ev_id, producer="probe", request_seq=req_seq,
+        decision_seq=dec_seq, result_seq=res_seq, payload=payload,
     )
 
 
 def _persist_regression_proof(ledger: EvidenceLedger, ok: bool) -> int:
-    payload = {"kind": "regression", "result": "passed" if ok else "failed"}
+    req_seq, dec_seq, res_seq = (0, 0, None)
+    if ok:
+        req_seq, dec_seq, res_seq = _latest_bound_execution(ledger)
+    payload = {"kind": "regression", "result": "passed" if ok else "failed",
+               "request_seq": req_seq, "result_seq": res_seq}
     ev_id = digest_id(payload, prefix="RG")
     return ledger.append_evidence(
-        evidence_id=ev_id, producer="regression", request_seq=0, decision_seq=0,
-        result_seq=None, payload=payload,
+        evidence_id=ev_id, producer="regression", request_seq=req_seq,
+        decision_seq=dec_seq, result_seq=res_seq, payload=payload,
     )
 
 

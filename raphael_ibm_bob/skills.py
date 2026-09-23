@@ -86,6 +86,16 @@ class CapabilityDefinition:
 
 
 @dataclass(frozen=True)
+class CapabilityAdapterBinding:
+    capability_id: str
+    adapter_ref: str
+
+    def __post_init__(self) -> None:
+        if not self.capability_id or not self.adapter_ref:
+            raise ValueError("capability_id and adapter_ref are required")
+
+
+@dataclass(frozen=True)
 class SkillDefinition:
     """A named, versioned usage recipe over one capability.
 
@@ -168,6 +178,7 @@ class CapabilityRegistry:
     def __init__(self, roles: Optional[RoleRegistry] = None) -> None:
         self._capabilities: Dict[str, CapabilityDefinition] = {}
         self._skills: Dict[str, SkillDefinition] = {}
+        self._adapter_bindings: Dict[str, CapabilityAdapterBinding] = {}
         self._roles: RoleRegistry = roles or default_roles()
 
     # --- capabilities -------------------------------------------------
@@ -197,6 +208,22 @@ class CapabilityRegistry:
 
     def list_capabilities(self) -> List[CapabilityDefinition]:
         return [self._capabilities[k] for k in sorted(self._capabilities)]
+
+    def register_adapter_binding(self, binding: CapabilityAdapterBinding) -> None:
+        if binding.capability_id in self._adapter_bindings:
+            raise ValueError(
+                f"duplicate adapter binding: {binding.capability_id}")
+        self._adapter_bindings[binding.capability_id] = binding
+
+    def adapter_binding(self, capability_id: str) -> CapabilityAdapterBinding:
+        try:
+            return self._adapter_bindings[capability_id]
+        except KeyError:
+            raise KeyError(
+                f"adapter binding not registered: {capability_id!r}") from None
+
+    def list_adapter_bindings(self) -> List[CapabilityAdapterBinding]:
+        return [self._adapter_bindings[k] for k in sorted(self._adapter_bindings)]
 
     # --- skills ---------------------------------------------------------
 
@@ -409,6 +436,19 @@ def default_registry() -> CapabilityRegistry:
         timeout_seconds=10.0,
         evidence_produced=("network-observation",),
     ))
+    registry.register_capability(CapabilityDefinition(
+        capability=Capability.NETWORK_TELNET_SESSION,
+        description=("One governed Telnet session to an authorized target "
+                     "(D12)."),
+        target_schema=("telnet://host:port inside the declared TargetProfile "
+                       "scope"),
+        purpose_template="telnet-session:{target}",
+        verification_expectation=("an independent governed session yields the "
+                                  "same candidate hash"),
+        version="1.0",
+        timeout_seconds=20.0,
+        evidence_produced=("network-observation",),
+    ))
     return registry
 
 
@@ -425,6 +465,9 @@ _DEFAULT_SKILLS = (
      "test_analyst", ("test-execution",), ()),
     ("network-http-request", "Governed HTTP request",
      Capability.NETWORK_HTTP_REQUEST, None,
+     ("network-observation",), ()),
+    ("network-telnet-session", "Governed Telnet session",
+     Capability.NETWORK_TELNET_SESSION, None,
      ("network-observation",), ()),
 )
 
@@ -461,6 +504,7 @@ def register_default_skills(
 
 __all__ = [
     "CapabilityDefinition",
+    "CapabilityAdapterBinding",
     "SkillDefinition",
     "SkillProposal",
     "CapabilityRegistry",

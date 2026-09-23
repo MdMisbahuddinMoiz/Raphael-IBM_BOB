@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from raphael_ibm_bob.harness import api
 from raphael_ibm_bob.harness.providers import ProviderConfigError
-from raphael_ibm_bob.http import errors
+from raphael_ibm_bob.http import errors, security
 from raphael_ibm_bob.http.app import Response, StreamResponse
 from raphael_ibm_bob.http.errors import ApiError
 from raphael_ibm_bob.http.views import decision_trace as _view
@@ -104,6 +104,10 @@ def event_stream_page(request, params, config):
 
 
 def _load_session(config, session_id):
+    try:
+        security.check_resource_id(session_id, "session_id")
+    except (ValueError, TypeError) as exc:
+        raise errors.bad_request(str(exc)) from None
     try:
         return api.get_session(session_id, config.sessions_root)
     except FileNotFoundError:
@@ -249,13 +253,13 @@ def _cursor(request) -> int:
     last = request.headers.get("last-event-id")
     if last:
         try:
-            return max(0, int(last))
+            return security.clamp_cursor(int(last))
         except ValueError:
             pass
     raw = request.query_one("after")
     if raw:
         try:
-            return max(0, int(raw))
+            return security.clamp_cursor(int(raw))
         except ValueError:
             return 0
     return 0

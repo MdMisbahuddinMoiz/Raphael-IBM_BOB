@@ -2,17 +2,21 @@
 
 A C1A finding is only VERIFIED when an INDEPENDENT reproduction (a fresh
 Broker-mediated C1A invocation) succeeds AND its provider result hash
-matches the expectation the caller supplies. A provider success alone is
-never sufficient: provider output is untrusted evidence.
+matches the expectation derived from the authoritative source (the original
+persisted observation in the ledger). A provider success alone is never
+sufficient: provider output is untrusted evidence.  A caller-supplied
+expected_result_hash at verify-time must NOT be able to flip the verdict.
 
 Boundary: this module consumes the Runtime (Broker -> Policy) and the
 FindingStore; it never touches the provider directly.
 """
 from __future__ import annotations
 
+import json as _json
 import threading
 from dataclasses import dataclass, field, replace
 from enum import Enum
+from pathlib import Path as _Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from raphael_ibm_bob.contracts import (
@@ -54,6 +58,105 @@ def _provider_result(execution) -> Optional[dict]:
     evidence = execution.evidence or {}
     result = evidence.get("provider_result")
     return result if isinstance(result, dict) else None
+
+
+def _read_hash_from_artifact(artifact_ref: str) -> Optional[str]:
+    """Read ``result_hash`` from a persisted ExecutionResult artifact file."""
+    if not artifact_ref:
+        return None
+    try:
+        data = _json.loads(_Path(artifact_ref).read_text(encoding="utf-8"))
+        pr = (data.get("evidence") or {}).get("provider_result") or {}
+        rh = pr.get("result_hash")
+        if isinstance(rh, str) and rh:
+            return rh
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return None
+
+
+def _read_original_result_hash(
+    ledger: Optional[EvidenceLedger],
+    *,
+    original_execution: Optional["ExecutionRef"] = None,
+    target: Optional[str] = None,
+    before_seq: Optional[int] = None,
+) -> Optional[str]:
+    """Read the authoritative expected ``result_hash`` from the ledger.
+
+    For D4 paths: uses ``original_execution.result_seq`` to locate the
+    persisted ExecutionResult artifact.
+
+    For legacy paths: searches request records by *target*, restricted to
+    results persisted strictly BEFORE ``before_seq``. The bound is essential:
+    without it the lookup would select the retest execution the caller just
+    appended, comparing a result hash against itself (a tautology). Passing
+    the current retest's ``result_seq`` makes the expectation come from the
+    genuine prior observation instead.
+
+    Returns ``None`` when no authoritative hash is found.
+    """
+    if ledger is None:
+        return None
+
+    # Strategy 1: D4 path — via original_execution.result_seq
+    if (original_execution is not None
+            and original_execution.result_seq is not None):
+        for record in ledger.all_records():
+            if (record.get("kind") == "result"
+                    and record.get("seq") == original_execution.result_seq):
+                return _read_hash_from_artifact(
+                    record.get("artifact_ref", ""))
+
+    # Strategy 2: legacy path — via target matching
+    if target:
+        request_seqs: List[int] = []
+        for record in ledger.all_records():
+            if (record.get("kind") == "request"
+                    and record.get("target") == target):
+                request_seqs.append(record.get("seq"))
+        if request_seqs:
+            best_seq = -1
+            best_hash: Optional[str] = None
+            for record in ledger.all_records():
+                seq = record.get("seq", 0)
+                if before_seq is not None and seq >= before_seq:
+                    continue
+                if (record.get("kind") == "result"
+                        and record.get("request_seq") in request_seqs
+                        and seq > best_seq):
+                    rh = _read_hash_from_artifact(
+                        record.get("artifact_ref", ""))
+                    if rh:
+                        best_seq = seq
+                        best_hash = rh
+            if best_hash:
+                return best_hash
+
+    return None
+
+
+def _read_verified_result_hash(
+    ledger: Optional[EvidenceLedger],
+    finding_id: str,
+) -> Optional[str]:
+    """Read the ``result_hash`` a finding was verified against.
+
+    Searches verifier evidence records linked to *finding_id* that
+    recorded a ``result_hash`` (from the ``verify()`` legacy path or
+    ``_persist_verification_result`` D4 path).
+    """
+    if ledger is None:
+        return None
+    for record in ledger.all_records():
+        payload = record.get("payload") or {}
+        if payload.get("finding_id") != finding_id:
+            continue
+        if (record.get("producer") == "verifier"
+                and isinstance(payload.get("result_hash"), str)
+                and payload["result_hash"]):
+            return payload["result_hash"]
+    return None
 
 
 class C1AVerifier:
@@ -147,12 +250,20 @@ class C1AVerifier:
                 VerificationOutcome.INCONCLUSIVE,
                 ("retest-not-successful",), evidence_ids, invocation_id,
                 provider_state, result_hash, False)
-        if expected_result_hash is None:
+
+        authoritative_hash = _read_original_result_hash(
+            self._ledger, target=finding.target,
+            before_seq=runtime_result.result_seq)
+        effective_hash = (authoritative_hash
+                          if authoritative_hash is not None
+                          else expected_result_hash)
+
+        if effective_hash is None:
             return C1AVerificationResult(
                 VerificationOutcome.INCONCLUSIVE,
                 ("no-expectation-supplied",), evidence_ids, invocation_id,
                 provider_state, result_hash, False)
-        if result_hash != expected_result_hash:
+        if result_hash != effective_hash:
             return C1AVerificationResult(
                 VerificationOutcome.INCONCLUSIVE,
                 (f"result-hash-mismatch:{result_hash!r}",), evidence_ids,
@@ -201,7 +312,23 @@ class C1AVerifier:
         and lineage validation, classifies the observation, and mints a
         VerificationResult. Existence of the referenced records is enforced
         here (replay guard + ledger), so a crafted execution ref cannot pass.
+
+        ``allowed`` and ``execution_success`` are derived from the actual
+        ``provider_result`` data — caller-supplied values are ignored so a
+        post-hoc override cannot manufacture a SUPPORTED verdict.
+        ``expected_result_hash`` is read from the original execution's
+        persisted artifact in the ledger; the caller-supplied value is only
+        used as a fallback when no authoritative source exists.
         """
+        derived_allowed = bool(provider_result)
+        derived_success = (provider_result.get("state") == "success"
+                           if provider_result else False)
+        authoritative_hash = _read_original_result_hash(
+            self._ledger, original_execution=request.original_execution)
+        effective_hash = (authoritative_hash
+                          if authoritative_hash is not None
+                          else expected_result_hash)
+
         if replay_guard is None:
             broker = getattr(self._runtime, "broker", None)
             replay_guard = getattr(broker, "c1a_replay_guard", None)
@@ -220,11 +347,11 @@ class C1AVerifier:
         )
         if not independence.all_passed or not lineage.valid:
             classification = VerificationClassification.INSUFFICIENT
-        elif not allowed or not execution_success:
+        elif not derived_allowed or not derived_success:
             classification = VerificationClassification.INCONCLUSIVE
-        elif expected_result_hash is None:
+        elif effective_hash is None:
             classification = VerificationClassification.INCONCLUSIVE
-        elif provider_result.get("result_hash") == expected_result_hash:
+        elif provider_result.get("result_hash") == effective_hash:
             classification = VerificationClassification.SUPPORTED
         else:
             classification = VerificationClassification.CONTRADICTED
@@ -316,15 +443,10 @@ class C1AVerifier:
         verification = execution_ref_from_runtime_result(
             runtime_result, mission_id=request.mission_id,
             finding_id=request.finding_id)
-        allowed = (runtime_result.broker_result.decision.decision
-                   is Decision.ALLOW)
         result = self.assess_observation(
             request,
             provider_result=provider_result,
             verification_execution=verification,
-            expected_result_hash=expected_result_hash,
-            allowed=allowed,
-            execution_success=bool(execution is not None and execution.success),
         )
         evidence_id = self._persist_verification_result(
             request, result, runtime_result)
@@ -967,4 +1089,6 @@ __all__ = [
     "execution_ref_from_runtime_result",
     "make_provider_result_ref",
     "validate_lineage",
+    "_read_original_result_hash",
+    "_read_verified_result_hash",
 ]

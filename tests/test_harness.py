@@ -285,7 +285,8 @@ class DefaultSkills(unittest.TestCase):
         )
         reg = register_default_skills(default_registry())
         ids = sorted(s.id for s in reg.list_skills())
-        self.assertEqual(ids, ["list-dir", "network-http-request", "read-file",
+        self.assertEqual(ids, ["list-dir", "network-http-request",
+                               "network-telnet-session", "read-file",
                                "run-test", "search-dir", "write-file"])
         proposal = reg.propose("read-file", "src/a.txt")
         self.assertEqual(proposal.request.capability, Capability.READ)
@@ -298,7 +299,7 @@ class DefaultSkills(unittest.TestCase):
         )
         reg = register_default_skills(default_registry())
         register_default_skills(reg)  # second call is a no-op
-        self.assertEqual(len(reg.list_skills()), 6)
+        self.assertEqual(len(reg.list_skills()), 7)
 
 
 class ModelProviderOption(unittest.TestCase):

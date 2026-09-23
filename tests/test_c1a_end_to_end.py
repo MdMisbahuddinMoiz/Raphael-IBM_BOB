@@ -26,7 +26,7 @@ from raphael_ibm_bob.contracts import (  # noqa: E402
     Decision,
     GateVerdict,
 )
-from raphael_ibm_bob.evidence_ledger import digest_id  # noqa: E402
+from raphael_ibm_bob.evidence_ledger import digest_id, latest_allowed_success  # noqa: E402
 from raphael_ibm_bob.quality_gate import (  # noqa: E402
     BOBQualityGate,
     GateInputs,
@@ -43,18 +43,25 @@ _PASSING_TEST = textwrap.dedent('''
 
 
 def _persist_probe(ledger, ok: bool):
+    req_seq, dec_seq, res_seq = (latest_allowed_success(ledger) if ok
+                                 else (0, 0, None))
     payload = {"kind": "probe", "result": "passed" if ok else "failed",
-               "allowed": ok}
+               "allowed": ok, "request_seq": req_seq, "result_seq": res_seq}
     ledger.append_evidence(
         evidence_id=digest_id(payload, prefix="PB"), producer="probe",
-        request_seq=0, decision_seq=0, result_seq=None, payload=payload)
+        request_seq=req_seq, decision_seq=dec_seq, result_seq=res_seq,
+        payload=payload)
 
 
 def _persist_regression(ledger, ok: bool):
-    payload = {"kind": "regression", "result": "passed" if ok else "failed"}
+    req_seq, dec_seq, res_seq = (latest_allowed_success(ledger) if ok
+                                 else (0, 0, None))
+    payload = {"kind": "regression", "result": "passed" if ok else "failed",
+               "request_seq": req_seq, "result_seq": res_seq}
     ledger.append_evidence(
         evidence_id=digest_id(payload, prefix="RG"), producer="regression",
-        request_seq=0, decision_seq=0, result_seq=None, payload=payload)
+        request_seq=req_seq, decision_seq=dec_seq, result_seq=res_seq,
+        payload=payload)
 
 
 class EndToEnd(unittest.TestCase):

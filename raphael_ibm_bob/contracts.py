@@ -17,7 +17,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypeAlias
 
 
 # -----------------------------------------------------------------------------
@@ -52,6 +52,13 @@ class Capability(str, Enum):
     #: alter NETWORK_HTTP_REQUEST. Authorization requires a mission-bound
     #: TargetProfile with protocol "telnet"; output is untrusted evidence.
     NETWORK_TELNET_SESSION = "network_telnet_session"
+
+
+CapabilityId: TypeAlias = Capability | str
+
+
+def capability_id(capability: CapabilityId) -> str:
+    return capability.value if isinstance(capability, Capability) else capability
 
 
 class Decision(str, Enum):
@@ -136,7 +143,7 @@ class ActionRequest:
     """
     sequence: int
     requester: str
-    capability: Capability
+    capability: CapabilityId
     target: str
     purpose: str
     plan_id: Optional[str] = None
@@ -147,7 +154,7 @@ class ActionRequest:
         return {
             "sequence": self.sequence,
             "requester": self.requester,
-            "capability": self.capability.value,
+            "capability": capability_id(self.capability),
             "target": self.target,
             "purpose": self.purpose,
             "plan_id": self.plan_id,
@@ -162,7 +169,7 @@ class PolicyDecision:
     sequence: int
     decision: Decision
     reason: str
-    capability: Capability
+    capability: CapabilityId
     target: str
     # The evidence ledger slot this decision was recorded against. M3 will
     # enforce that PolicyDecision.evidence_id is non-null on every record.
@@ -173,7 +180,7 @@ class PolicyDecision:
             "sequence": self.sequence,
             "decision": self.decision.value,
             "reason": self.reason,
-            "capability": self.capability.value,
+            "capability": capability_id(self.capability),
             "target": self.target,
             "evidence_id": self.evidence_id,
         }

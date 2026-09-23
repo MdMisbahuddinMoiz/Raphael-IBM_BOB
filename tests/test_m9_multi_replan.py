@@ -43,7 +43,7 @@ from raphael_ibm_bob.planner import Planner
 from raphael_ibm_bob.policy import BOBPolicy
 from raphael_ibm_bob.quality_gate import BOBQualityGate
 from raphael_ibm_bob.replanner import Replanner
-from raphael_ibm_bob.runner import Runner, RunnerOutcome
+from raphael_ibm_bob.runner import ProbeSpec, Runner, RunnerOutcome
 from raphael_ibm_bob.runtime import BOBRuntime
 from raphael_ibm_bob.verifier import Verifier
 
@@ -157,6 +157,9 @@ def _run_success(h: _Harness) -> RunnerOutcome:
         candidate_summary="candidate A leaves the defect in scope",
         challenge_specs=_success_specs(),
         verification_tests=("src/test_recovery.py",),
+        probe_spec=ProbeSpec(
+            capability=Capability.READ, target="src/cand_c.txt",
+            expected_substring="OK"),
         max_replans=2,
     )
 

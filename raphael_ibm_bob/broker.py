@@ -47,6 +47,7 @@ from raphael_ibm_bob.contracts import (
     ExecutionResult,
     Mission,
     PolicyDecision,
+    capability_id,
 )
 from raphael_ibm_bob.policy import BOBPolicy
 from raphael_ibm_bob.capabilities import execute_capability
@@ -66,6 +67,11 @@ from raphael_ibm_bob.telnet_runtime import (
     get_telnet_mediator,
 )
 from raphael_ibm_bob.target_profile import get_target_store
+from raphael_ibm_bob.capability_registry import (
+    AdapterNotBoundError,
+    CapabilityDescriptor,
+    CapabilityRegistry,
+)
 
 
 @dataclass(frozen=True)
@@ -78,6 +84,18 @@ class BrokerResult:
     decision_seq: int                     # durable ledger sequence
     result_seq: Optional[int]            # durable ledger sequence (None on DENY)
     evidence_ids: Tuple[str, ...]         # durable evidence identifiers
+
+
+class _BrokerAdapter:
+    def __init__(self, broker: "BOBBroker", kind: str) -> None:
+        self._broker = broker
+        self._kind = kind
+
+    def execute_governed(
+        self, request: ActionRequest, mission: Mission,
+        decision: PolicyDecision,
+    ) -> BrokerResult:
+        return self._broker._execute_registered(self._kind, request, mission, decision)
 
 
 class BOBBroker:
@@ -106,6 +124,7 @@ class BOBBroker:
         network_mediator: Optional[Any] = None,
         target_store: Optional[Any] = None,
         telnet_mediator: Optional[Any] = None,
+        registry: Optional[CapabilityRegistry] = None,
     ):
         self._policy = policy
         self._workspace = workspace
@@ -132,6 +151,10 @@ class BOBBroker:
         self._target_store = target_store
         # D12: governed Telnet boundary (its own mediator; additive).
         self._telnet_mediator = telnet_mediator
+        self._registry = registry
+        if self._registry is None:
+            from raphael_ibm_bob.capability_bootstrap import register_default
+            self._registry = register_default(CapabilityRegistry())
         self._lock = threading.Lock()
         self._sequence = 0
         # Diagnostic counters for tests/audit. Retained from M2.
@@ -142,6 +165,45 @@ class BOBBroker:
         # In-memory audit log retained for back-compat with M2 tests.
         # The authoritative provenance is the ledger.
         self.audit: List[Dict[str, Any]] = []
+        self._execution_context: tuple[int, int, Optional[float], List[str]] | None = None
+        self._bind_builtin_adapters()
+
+    def _bind_builtin_adapters(self) -> None:
+        from raphael_ibm_bob.capability_bootstrap import register_default
+        register_default(self._registry)
+        for capability_name in (
+                "READ", "LIST", "SEARCH", "WRITE", "RUN_TEST",
+                "C1A_STATIC_FILE_INSPECT"):
+            if not self._registry.has(capability_name):
+                self._registry.register(
+                    CapabilityDescriptor(
+                        capability_id=capability_name,
+                        protocol="workspace",
+                        description=capability_name,
+                        prerequisites=frozenset(),
+                        authorization_scope="workspace",
+                        evidence_schema="execution_v1",
+                        execution_adapter="raphael_ibm_bob.capabilities",
+                        verifier_binding=None,
+                        falsifier_binding=None,
+                        mission_types=frozenset(),
+                    ),
+                    _BrokerAdapter(self, "native"),
+                )
+        bindings = {
+            "C1A_STATIC_FILE_INSPECT": "c1a",
+            "NETWORK_HTTP_REQUEST": "network",
+            "NETWORK_TELNET_SESSION": "telnet",
+            "READ": "native",
+            "LIST": "native",
+            "SEARCH": "native",
+            "WRITE": "native",
+            "RUN_TEST": "native",
+        }
+        for capability_name, kind in bindings.items():
+            if self._registry.has(capability_name):
+                self._registry.bind_adapter(
+                    capability_name, _BrokerAdapter(self, kind))
 
     @property
     def ledger(self) -> Optional[EvidenceLedger]:
@@ -229,8 +291,8 @@ class BOBBroker:
                 self.denies += 1
             self.audit.append({"stage": "decision", **decision.to_dict()})
 
-        # Persist the DecisionRecord.
-        decision_seq = self._sequence + 1 if False else None  # placeholder
+        # Persist the DecisionRecord. The ledger sequence is authoritative;
+        # without a ledger, in-memory M2 mode falls back to 0.
         if self._ledger is not None:
             decision_seq = self._ledger.append_decision(request_seq, decision)
         else:
@@ -276,125 +338,104 @@ class BOBBroker:
                 evidence_ids=tuple(evidence_ids),
             )
 
-        # On ALLOW: invoke the capability. C1A is a distinct,
-        # out-of-process path; every other capability uses the native
-        # in-process dispatch. C1A is NEVER aliased to READ.
-        if stamped.capability == Capability.C1A_STATIC_FILE_INSPECT:
+        adapter = self._registry.get_adapter(capability_id(stamped.capability))
+        if not hasattr(adapter, "execute_governed"):
+            raise AdapterNotBoundError(
+                f"no governed execution adapter for {capability_id(stamped.capability)}")
+        self._execution_context = (
+            request_seq, decision_seq, effective_timeout, evidence_ids)
+        adapter_result = adapter.execute_governed(stamped, mission, decision)
+        if isinstance(adapter_result, BrokerResult):
+            return adapter_result
+        return self._finalize_generic_execution(
+            stamped, decision, request_seq, decision_seq, evidence_ids,
+            adapter_result,
+        )
+
+    def _execute_registered(
+        self, kind: str, request: ActionRequest, mission: Mission,
+        decision: PolicyDecision,
+    ) -> BrokerResult:
+        if self._execution_context is None:
+            raise RuntimeError("missing Broker execution context")
+        request_seq, decision_seq, timeout, evidence_ids = self._execution_context
+        if kind == "c1a":
             return self._execute_c1a(
-                stamped=stamped,
-                mission=mission,
-                request_seq=request_seq,
-                decision_seq=decision_seq,
-                effective_timeout=effective_timeout,
-                evidence_ids=evidence_ids,
-                decision=decision,
-            )
-
-        # D9: the single governed network path (HTTP only). It never uses
-        # execute_capability and never spawns a shell; the Broker remains
-        # the sole invoker and the mediator is the only network-I/O boundary.
-        if stamped.capability == Capability.NETWORK_HTTP_REQUEST:
+                stamped=request, mission=mission, request_seq=request_seq,
+                decision_seq=decision_seq, effective_timeout=timeout,
+                evidence_ids=evidence_ids, decision=decision)
+        if kind == "network":
             return self._execute_network(
-                stamped=stamped,
-                mission=mission,
-                request_seq=request_seq,
-                decision_seq=decision_seq,
-                evidence_ids=evidence_ids,
-                decision=decision,
-            )
-
-        # D12: the governed Telnet path (additive). Same discipline: no
-        # execute_capability, no shell; the telnet mediator is the only
-        # Telnet-I/O boundary.
-        if stamped.capability == Capability.NETWORK_TELNET_SESSION:
+                stamped=request, mission=mission, request_seq=request_seq,
+                decision_seq=decision_seq, evidence_ids=evidence_ids,
+                decision=decision)
+        if kind == "telnet":
             return self._execute_telnet(
-                stamped=stamped,
-                mission=mission,
-                request_seq=request_seq,
-                decision_seq=decision_seq,
-                evidence_ids=evidence_ids,
-                decision=decision,
-            )
+                stamped=request, mission=mission, request_seq=request_seq,
+                decision_seq=decision_seq, evidence_ids=evidence_ids,
+                decision=decision)
+        return self._execute_native(
+            request, decision, request_seq, decision_seq, evidence_ids)
 
-        # On ALLOW: invoke the capability. We stamp the ExecutionResult
-        # with the same sequence number so the linkage is unambiguous.
-        # A timeout payload is an unsuccessful execution: the decision
-        # stays ALLOW (it was authorized and attempted).
-        result_seq: Optional[int] = None
+    def _execute_native(
+        self, stamped: ActionRequest, decision: PolicyDecision,
+        request_seq: int, decision_seq: int, evidence_ids: List[str],
+    ) -> BrokerResult:
         try:
             payload = execute_capability(self._workspace, stamped)
             if isinstance(payload, dict) and payload.get("timeout") is True:
                 execution = ExecutionResult(
-                    sequence=stamped.sequence,
-                    success=False,
-                    output="timeout",
-                    error=f"TimeoutExpired after "
-                          f"{payload.get('timeout_seconds')}s",
-                    evidence=payload,
-                )
+                    sequence=stamped.sequence, success=False, output="timeout",
+                    error=f"TimeoutExpired after {payload.get('timeout_seconds')}s",
+                    evidence=payload)
             else:
                 execution = ExecutionResult(
-                    sequence=stamped.sequence,
-                    success=True,
-                    output="ok",
-                    error=None,
-                    evidence=payload,
-                )
+                    sequence=stamped.sequence, success=True, output="ok",
+                    error=None, evidence=payload)
         except Exception as exc:
             execution = ExecutionResult(
-                sequence=stamped.sequence,
-                success=False,
-                output="",
-                error=f"{type(exc).__name__}:{exc}",
-                evidence={},
-            )
+                sequence=stamped.sequence, success=False, output="",
+                error=f"{type(exc).__name__}:{exc}", evidence={})
+        return self._finalize_generic_execution(
+            stamped, decision, request_seq, decision_seq, evidence_ids,
+            execution,
+        )
 
+    def _finalize_generic_execution(
+        self, stamped: ActionRequest, decision: PolicyDecision,
+        request_seq: int, decision_seq: int, evidence_ids: List[str],
+        execution: ExecutionResult,
+    ) -> BrokerResult:
         with self._lock:
             self.capability_invocations += 1
-            self.audit.append(
-                {"stage": "execution", **execution.to_dict()}
-            )
-
+            self.audit.append({"stage": "execution", **execution.to_dict()})
+        result_seq: Optional[int] = None
         if self._ledger is not None:
             result_seq = self._ledger.append_result(
-                request_seq=request_seq,
-                decision_seq=decision_seq,
-                result=execution,
-            )
+                request_seq=request_seq, decision_seq=decision_seq,
+                result=execution)
             exec_ev_id = digest_id({
-                "request_seq": request_seq,
-                "decision_seq": decision_seq,
-                "result_seq": result_seq,
-                "success": execution.success,
+                "request_seq": request_seq, "decision_seq": decision_seq,
+                "result_seq": result_seq, "success": execution.success,
             }, prefix="X")
-            exec_payload = {
-                "success": execution.success,
-                "output": execution.output,
-                "error": execution.error,
-                "evidence_keys": sorted(execution.evidence.keys()),
-                "request_seq": request_seq,
-                "decision_seq": decision_seq,
-                "result_seq": result_seq,
-            }
             self._ledger.append_evidence(
-                evidence_id=exec_ev_id,
-                producer="execution",
-                request_seq=request_seq,
-                decision_seq=decision_seq,
+                evidence_id=exec_ev_id, producer="execution",
+                request_seq=request_seq, decision_seq=decision_seq,
                 result_seq=result_seq,
-                payload=exec_payload,
-            )
+                payload={
+                    "success": execution.success,
+                    "output": execution.output,
+                    "error": execution.error,
+                    "evidence_keys": sorted(execution.evidence.keys()),
+                    "request_seq": request_seq,
+                    "decision_seq": decision_seq,
+                    "result_seq": result_seq,
+                })
             evidence_ids.append(exec_ev_id)
-
         return BrokerResult(
-            decision=decision,
-            execution=execution,
-            capability_invoked=True,
-            request_seq=request_seq,
-            decision_seq=decision_seq,
-            result_seq=result_seq,
-            evidence_ids=tuple(evidence_ids),
-        )
+            decision=decision, execution=execution, capability_invoked=True,
+            request_seq=request_seq, decision_seq=decision_seq,
+            result_seq=result_seq, evidence_ids=tuple(evidence_ids))
 
     # C1A out-of-process path ------------------------------------------------
 
@@ -643,7 +684,8 @@ class BOBBroker:
             ).hexdigest()[:16]
             result = mediator.invoke(
                 request=stamped, profile=profile,
-                invocation_id=invocation_id, run_id=run_id)
+                invocation_id=invocation_id, run_id=run_id,
+                decision=decision)
             data = result.to_dict()
             evidence: Dict[str, Any] = {
                 "network_result": data,
@@ -742,7 +784,8 @@ class BOBBroker:
                 ).hexdigest()[:16]
                 result = mediator.invoke(
                     request=stamped, profile=profile, spec=spec,
-                    invocation_id=invocation_id, run_id=run_id)
+                    invocation_id=invocation_id, run_id=run_id,
+                    decision=decision)
                 evidence: Dict[str, Any] = {
                     "telnet_result": result.to_dict(),
                     PROVIDER_UNTRUSTED: True,

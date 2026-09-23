@@ -35,10 +35,10 @@ capabilities, the independent probe, and sandboxed provider inspection.
 # 4. Standard deterministic hero demo
 PYTHONPATH=. python3 demos/authkit_hero.py
 
-# 5. Core test suite (209 tests, 0 failures)
+# 5. Core test suite (measured 2026-09-23: Ran 210, OK; command below)
 PYTHONPATH=. python3 -m unittest tests.test_seam_contracts tests.test_m2_boundary tests.test_m3_evidence tests.test_m4_verifier_falsifier tests.test_m5_replanner_runner tests.test_m6_quality_gate tests.test_m7_hero tests.test_m8_planner tests.test_m9_multi_replan tests.test_m10_1_runs tests.test_m10_2_metrics tests.test_m10_3_benchmark
 
-# 6. T3MP3ST real provider integration suite (30 tests, 0 failures)
+# 6. T3MP3ST real provider integration suite (measured 2026-09-23: Ran 30, OK; command below)
 PYTHONPATH=. python3 -m unittest tests.test_t3mp3st_integration
 
 # 7. Audit durable run evidence
@@ -48,7 +48,10 @@ python3 scripts/audit_runs.py --runs-root runs --output metrics.json
 Each run writes an isolated `runs/<run_id>/{evidence.jsonl,artifacts/}`
 (never `/tmp`, never appended across runs) and outputs the run ID,
 evidence path, and gate verdict. Fixture files self-restore on exit,
-ensuring `git status` remains clean.
+which is intended to leave `git status --short` empty at release time.
+Release condition: `git status --short` must print nothing. Measured
+2026-09-23 the tree is NOT clean (35 entries: 21 modified, 14 untracked;
+see report), so do not cut a release from this tree without cleaning it first.
 
 See [`CANONICAL_DEMO.md`](CANONICAL_DEMO.md) for full demo documentation.
 
@@ -163,17 +166,27 @@ RAPHAEL strictly enforces these foundational invariants across all layers:
 
 ## Status & Test Verification
 
-All counts verified by actual command execution:
+Measured 2026-09-23 on this tree (Python 3.14.4, WSL Ubuntu). Counts move
+as the tree moves, so each number below cites the exact command that
+produced it. Product-suite results are reported separately from repo-wide
+status.
 
-- **Full Governed BOB Suite (80 modules)**: **1165 tests, 0 failures** (Python 3.14.4).
-- **Core Seam & Gov-Loop Suite (12 modules)**: **209 tests, 0 failures**.
-- **C1A Provider & Authorization Suite (13 modules)**: **95 tests, 0 failures**.
-- **T3MP3ST Integration Suite**: **30 tests, 0 failures** (including real sandboxed provider execution).
-- **Isolation Substrate Suite**: **144 tests, 0 failures**.
+- **Repo-wide discovery (0 product failures)**: `python3 -m unittest discover -s tests -p "test_*.py"` reports **Ran 1443 tests: 0 failures, 18 errors, 1 skipped**. All 18 errors are pre-existing collection/import errors from legacy-substrate imports (`arena.*`, `orchestrator`) and one missing optional test dependency (`pytest`), outside the governed product path.
+- **Core Seam & Gov-Loop Suite (12 modules, passing)**: `PYTHONPATH=. python3 -m unittest tests.test_seam_contracts tests.test_m2_boundary tests.test_m3_evidence tests.test_m4_verifier_falsifier tests.test_m5_replanner_runner tests.test_m6_quality_gate tests.test_m7_hero tests.test_m8_planner tests.test_m9_multi_replan tests.test_m10_1_runs tests.test_m10_2_metrics tests.test_m10_3_benchmark` reports **Ran 210 tests: OK**.
+- **C1A Provider & Authorization Suite (13 modules, passing at measure time)**: `PYTHONPATH=. python3 -m unittest tests.test_c1a_authorization tests.test_c1a_end_to_end tests.test_c1a_evidence tests.test_c1a_falsification tests.test_c1a_gate tests.test_c1a_identity tests.test_c1a_launcher_contract tests.test_c1a_lifecycle tests.test_c1a_receipt tests.test_c1a_replay tests.test_c1a_security_invariants tests.test_c1a_timeout tests.test_c1a_transport` reports **Ran 109 tests: OK**. (The older "95 tests" claim is stale; including `tests.test_c1a_verification` as a 14th module gives Ran 114: OK.)
+- **T3MP3ST Integration Suite (passing at measure time)**: `PYTHONPATH=. python3 -m unittest tests.test_t3mp3st_integration` reports **Ran 30 tests: OK** (including real sandboxed provider execution).
+- **Isolation Substrate module (passing at measure time)**: `PYTHONPATH=. python3 -m unittest tests.test_isolation_substrate` reports **Ran 32 tests: OK** (`tests.test_isolation_probes` separately reports Ran 16: OK). The older "144 tests" claim is stale and is withdrawn.
+- **Repo scale (measure time)**: `git ls-files | wc -l` reports **67394** tracked files; `git ls-files 'raphael_ibm_bob/*.py' | wc -l` reports **93** product modules on disk-tracked set (plus untracked new product files); `git ls-files 'tests/*.py' | wc -l` reports **111** tracked test modules (117 `tests/test_*.py` files on disk, i.e. tracked plus new untracked). The older "80 modules / 1165 tests / 1183 entries" claims are stale and are withdrawn in favor of the numbers above.
 - **Canonical Demo (`./scripts/run_demo.sh`)**: Exits 0, `Gate: COMPLETE` (demands real sandboxed provider).
 - **Refusal Mode (`./scripts/run_demo.sh --refuse`)**: Exits 1, `Gate: REFUSE`.
 - **Mock Mode (`./scripts/run_demo.sh --mock`)**: Exits 0, `Gate: COMPLETE` (explicit inert test double).
-- **Legacy Root Discovery**: `python3 -m unittest discover -s tests -p "test_*.py"` reports **1183 test entries collected: 1165 governed pass + 18 legacy errors**, with zero governed failures. The **18 pre-existing collection/import errors** come from unadapted legacy modules that import the `arena` substrate (`ModuleNotFoundError`); the error set is byte-identical run-to-run. These modules are outside the governed BOB suite and test-isolated.
+
+### Release surface
+
+- **Active governed product**: `raphael_ibm_bob/` (stdlib-only Python). This is what ships: `pyproject.toml` (`[tool.setuptools.packages.find] include = ["raphael_ibm_bob*"]`) builds the wheel/sdist from ONLY `raphael_ibm_bob`, so installed artifacts contain no legacy residue.
+- **Legacy/research residue (in repo, NOT in the shipped package)**: `src/`, `arena/`, `cli/`, `evaluations/`, `benchmarks/`, `forge/`, exploit/payload reference material, and legacy test modules that import them. Present in the checkout and counted in `git ls-files`, excluded from the built distribution by the packaging include above.
+- **Generated artifacts (git-ignored, never released)**: `runs/`, `metrics.json`, `sessions/`, per-run evidence ledgers.
+- **Vendored / pinned components**: `provider/` bridge (`provider/t3mp3st_bridge.js`, pinned by SHA-256 digest), demo/probe scripts (`demos/`, `probes/`), fixture scenario (`fixtures/authkit/`).
 
 ---
 
@@ -192,7 +205,7 @@ probes/            auth_behavior_probe.py (independent oracle)
 fixtures/          Deterministic authkit scenario (login.py, session.py, store.py)
 scripts/           run_demo.sh (judge runner), audit_runs.py (metrics audit),
                    c1a_live_proof.py (controlled release gate)
-tests/             Comprehensive 80-module governed test suite (1165 tests)
+tests/             Governed tests (111 tracked test modules per `git ls-files 'tests/*.py'`; see Status above for measured counts)
 runs/              Durable per-run evidence ledgers (git-ignored)
 ```
 
@@ -202,7 +215,7 @@ runs/              Durable per-run evidence ledgers (git-ignored)
 
 1. **Live Proof Gate (Live proof is BLOCKED)**: In accordance with Controlled Release requirements, `LIVE_PROOF_AUTHORIZED = False` in [`scripts/c1a_live_proof.py`](file:///home/moiz/raphael-2.0-rbsv2r/scripts/c1a_live_proof.py). While real T3MP3ST executes locally in the bubblewrap sandbox (`provider_execution = VERIFIED`), formal remote M1/M2/M5 closure is marked **NOT VERIFIED** (seccomp `NOT_EXECUTED`).
 2. **Benchmark Scope**: Evaluated on the canonical deterministic `authkit` scenario; multi-repo generalization is not claimed.
-3. **Legacy Substrate**: The repository substrate includes earlier offensive research platform files in `src/` which are strictly isolated and not imported by the governed IBM BOB runtime.
+3. **Legacy Substrate**: The repository checkout contains earlier offensive research platform files in `src/` (plus `arena/`, `cli/`, `evaluations/`, etc.). They are NOT imported by the governed IBM BOB runtime, and they are NOT shipped: the wheel/sdist include ONLY `raphael_ibm_bob` (`pyproject.toml` packaging include). Isolation beyond that (no broader runtime or distribution claim) is not demonstrated here.
 4. **D5-7 Controlled VulnHub E2E (BLOCKED / OUT OF SCOPE FOR THIS RELEASE)**: no supported controlled VulnHub target/environment is present in this checkout or host. Legacy Stapler (VulnHub) material under `evaluations/campaign/` and `current-state/reports/` is historical evidence from a different lab host; the VM image and lab bridge (`icabr0`, `10.66.0.0/24`) are unavailable here, and the governed runtime has no network target adapter. No VulnHub execution, VM availability, reachable target IP, or kill chain is claimed.
 
 ---

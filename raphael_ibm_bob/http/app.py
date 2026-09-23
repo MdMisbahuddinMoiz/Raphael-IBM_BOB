@@ -29,6 +29,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from raphael_ibm_bob.harness.api import DEFAULT_MAX_TURNS
 from raphael_ibm_bob.http import errors
+from raphael_ibm_bob.http import security
 from raphael_ibm_bob.http.errors import ApiError
 
 MAX_BODY_BYTES = 1_048_576  # 1 MiB: bound request bodies.
@@ -273,7 +274,9 @@ def dispatch(request: Request, config: RaphaelHTTPConfig,
     try:
         return _dispatch(request, config, router)
     except ApiError as exc:
-        return error_response(exc)
+        return error_response(ApiError(
+            exc.status, exc.code,
+            security.scrub_paths(exc.message, config)))
     except Exception:  # never leak a stack trace to a client
         return error_response(ApiError(
             500, errors.INTERNAL_ERROR, "internal server error"))
@@ -282,11 +285,44 @@ def dispatch(request: Request, config: RaphaelHTTPConfig,
 def _dispatch(request: Request, config: RaphaelHTTPConfig,
               router: Optional[Router]):
     router = router or build_router()
+    # G7 bind boundary: a non-loopback server without a configured API
+    # key refuses everything except liveness (the process itself refuses
+    # to start in that state; this covers in-process callers too).
+    if (not config.is_loopback() and config.api_key is None
+            and _split_path(request.path) != ("health",)):
+        raise ApiError(401, errors.UNAUTHORIZED,
+                       "non-loopback bind requires a configured API key")
+    # H-4 Host boundary (DNS-rebinding guard); skipped when no Host
+    # header is present (in-process callers).
+    try:
+        security.check_host(request.headers, config)
+    except ValueError:
+        raise ApiError(403, errors.FORBIDDEN_HOST,
+                       "foreign Host header rejected") from None
     if _auth_required(config, request.path) and \
             not _authorized(request, config):
         raise ApiError(401, errors.UNAUTHORIZED,
                        "missing or invalid API key")
     handler, params = router.match(request.method, request.path)
+    # M-12 resource-ID boundary: strict allowlist + root containment
+    # before any handler (and any filesystem access) runs.
+    try:
+        security.check_path_params(params, config)
+    except ValueError as exc:
+        raise errors.bad_request(str(exc)) from None
+    # H-5 CSRF boundary: state-changing requests must prove same-origin
+    # via Origin/Referer when they carry one (browsers always do);
+    # headerless non-browser clients (curl/tests) pass through.
+    if request.method.upper() not in ("GET", "HEAD", "OPTIONS"):
+        try:
+            security.check_csrf(request.headers, config)
+        except ValueError as exc:
+            message = str(exc)
+            if "Origin" in message:
+                raise ApiError(403, errors.INVALID_ORIGIN,
+                               message) from None
+            raise ApiError(403, errors.CSRF_REJECTED,
+                           message) from None
     try:
         response = handler(request, params, config)
     except ApiError:
@@ -307,14 +343,19 @@ def _dispatch(request: Request, config: RaphaelHTTPConfig,
 
 def _not_found_from(exc: FileNotFoundError,
                     params: Dict[str, str]) -> ApiError:
-    message = str(exc) or "not found"
+    # Path-free messages: never echo the filesystem path from the
+    # exception (it embeds sessions_root/runs_root). Params were
+    # allowlist-validated before the handler ran, so echoing them is safe.
     if "session_id" in params:
-        return ApiError(404, errors.SESSION_NOT_FOUND, message)
+        return ApiError(404, errors.SESSION_NOT_FOUND,
+                        f"session not found: {params['session_id']}")
     if "run_id" in params:
-        return ApiError(404, errors.RUN_NOT_FOUND, message)
+        return ApiError(404, errors.RUN_NOT_FOUND,
+                        f"run not found: {params['run_id']}")
     if "workspace_id" in params:
-        return ApiError(404, errors.WORKSPACE_NOT_FOUND, message)
-    return ApiError(404, errors.NOT_FOUND, message)
+        return ApiError(404, errors.WORKSPACE_NOT_FOUND,
+                        "workspace not found")
+    return ApiError(404, errors.NOT_FOUND, "not found")
 
 
 def error_response(exc: ApiError) -> Response:
@@ -527,6 +568,7 @@ class HarnessHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = True
 
     def __init__(self, config: RaphaelHTTPConfig) -> None:
+        security.ensure_bind_allowed(config)
         super().__init__((config.host, config.port), HarnessRequestHandler)
         self.config = config
 
@@ -538,12 +580,13 @@ def create_server(config: RaphaelHTTPConfig) -> HarnessHTTPServer:
 
 def serve(config: RaphaelHTTPConfig) -> int:
     """Run the server until interrupted (inbound presentation only)."""
-    server = create_server(config)
+    try:
+        server = create_server(config)
+    except RuntimeError as exc:
+        print(f"raphael-harness: {exc}", file=sys.stderr)
+        return 2
     host, port = server.server_address[0], server.server_address[1]
     print(f"raphael-harness HTTP API listening on http://{host}:{port}")
-    if not config.is_loopback() and config.api_key is None:
-        print("warning: non-loopback bind without RAPHAEL_API_KEY; the "
-              "interface is unauthenticated", file=sys.stderr)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

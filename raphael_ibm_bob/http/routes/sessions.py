@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from raphael_ibm_bob.harness import api
+from raphael_ibm_bob.http import errors, security
 from raphael_ibm_bob.http import schemas
 from raphael_ibm_bob.http.routes._common import (
     body_object,
@@ -20,6 +21,10 @@ def create_session(request, params, config):
     workspace_root = body.get("workspace_root")
     if workspace_root is not None and not isinstance(workspace_root, str):
         raise errors.invalid_input("workspace_root must be a string")
+    try:
+        security.check_body_id(body, "session_id", "session_id")
+    except ValueError as exc:
+        raise errors.bad_request(str(exc)) from None
     session = api.create_session(
         mission=mission_from_body(request),
         workspace_root=Path(workspace_root) if workspace_root else None,

@@ -18,12 +18,13 @@ import hashlib
 import json
 import threading
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from raphael_ibm_bob.broker import BOBBroker
 from raphael_ibm_bob.contracts import (
     ActionRequest,
     Capability,
+    Decision,
     EvidenceReceipt,
     Finding,
     FindingState,
@@ -81,6 +82,14 @@ def resolve_plan_a_expected_substring(
         if isinstance(value, str) and value:
             return value
     return DEFAULT_CANDIDATE_EXPECTED_SUBSTRING
+
+
+@dataclass(frozen=True)
+class ProbeSpec:
+    capability: Capability
+    target: str
+    expected_substring: Optional[str] = None
+    purpose: str = "runner:independent-probe"
 
 
 @dataclass(frozen=True)
@@ -170,18 +179,21 @@ class Runner:
         challenger_capability: Capability = Capability.READ,
         challenge_specs: Optional[List[ChallengeSpec]] = None,
         verification_tests: Tuple[str, ...] = (),
-        regression_ok: bool = True,
-        behavior_probe_ok: bool = True,
+        probe_spec: Optional["ProbeSpec"] = None,
         max_replans: int = 1,
     ) -> RunnerOutcome:
         """Execute the bounded M5/M6/M9 control loop and return the gate's verdict.
 
-        M6: the Runner persists a `producer="regression"` evidence record
-        (when `regression_ok=True`) and a `producer="probe"` evidence
-        record (when `behavior_probe_ok=True`) so the QualityGate can
-        verify the source of these flags rather than trust caller
-        fabrication. If either flag is False, the Runner does NOT
-        persist the corresponding record and the gate will REFUSE.
+        M6/D12.1: the Runner does NOT accept caller regression/probe
+        booleans. `regression_ok` is derived from the actual exit status of
+        the declared `verification_tests` (RUN_TEST) executions, and a
+        `producer="regression"` record is persisted only when a real test
+        execution passed. `behavior_probe_ok` is derived from the governed
+        `probe_spec` observation (ActionRequest -> Policy -> Broker ->
+        Runtime -> observation); with no `probe_spec` it is False. Both
+        derived values are passed to the QualityGate, which independently
+        cross-checks the persisted records, so a caller cannot fabricate
+        completion.
         M9: each loop iteration operates on its own finding. Plan A is
         assessed as F1; when F1 is REFUTED and budget remains, the
         Replanner derives Plan B from F1's counter-evidence and the
@@ -203,19 +215,8 @@ class Runner:
         """
         # 1. Generate Plan A.
         plan_a = self._planner.plan_a(mission)
-        plan_a_step = plan_a.steps[0]
-        rt_a = self._runtime.submit(
-            ActionRequest(
-                sequence=plan_a_step.sequence,
-                requester=plan_a_step.requester,
-                capability=plan_a_step.capability,
-                target=plan_a_step.target,
-                purpose=plan_a_step.purpose,
-                plan_id=plan_a_step.plan_id,
-                finding_id=plan_a_step.finding_id,
-            ),
-            mission,
-        )
+        plan_a_results = self._submit_plan(plan_a, mission)
+        rt_a = plan_a_results[0]
 
         # 2. Register candidate Finding F1 for Plan A.
         finding = Finding(
@@ -273,18 +274,8 @@ class Runner:
             if not next_plan.steps:
                 break
             next_step = next_plan.steps[0]
-            rt_next = self._runtime.submit(
-                ActionRequest(
-                    sequence=next_step.sequence,
-                    requester=next_step.requester,
-                    capability=next_step.capability,
-                    target=next_step.target,
-                    purpose=next_step.purpose,
-                    plan_id=next_step.plan_id,
-                    finding_id=next_step.finding_id,
-                ),
-                mission,
-            )
+            next_plan_results = self._submit_plan(next_plan, mission)
+            rt_next = next_plan_results[0]
             plan_sequences.append(rt_next.request_seq)
             # A new claim gets a new finding identity, deterministically
             # derived from the new plan, superseding the refuted one.
@@ -321,12 +312,11 @@ class Runner:
                 requester="runner",
             )
 
-        # 6. Broker-mediated final verification tests (M9). Each target
-        # is submitted as RUN_TEST through Runtime -> Broker -> Policy
-        # so the gate can satisfy its required-test condition from real
-        # persisted evidence rather than caller assertions.
+        regression_ok = False
+        regression_seq: Optional[int] = None
+        test_runs: List[Tuple[Any, Any, bool]] = []
         for test_target in verification_tests:
-            self._runtime.submit(
+            rt_test = self._runtime.submit(
                 ActionRequest(
                     sequence=0,
                     requester="runner",
@@ -336,12 +326,88 @@ class Runner:
                 ),
                 mission,
             )
+            execution = rt_test.execution
+            passed = bool(
+                execution is not None
+                and execution.success
+                and (execution.evidence or {}).get("returncode") == 0)
+            test_runs.append((test_target, rt_test, passed))
+        regression_ok = bool(test_runs) and all(p for _, _, p in test_runs)
+        if regression_ok:
+            test_target, rt_test, _passed = test_runs[-1]
+            payload = {
+                "kind": "regression",
+                "mission_id": mission.mission_id,
+                "result": "passed",
+                "test": test_target,
+                "returncode": 0,
+                "request_seq": rt_test.request_seq,
+                "result_seq": rt_test.result_seq,
+                "source": "runner:final-verification",
+            }
+            regression_seq = self._ledger.append_evidence(
+                evidence_id=digest_id(payload, prefix="RG"),
+                producer="regression",
+                request_seq=rt_test.request_seq,
+                decision_seq=rt_test.decision_seq,
+                result_seq=rt_test.result_seq,
+                payload=payload,
+            )
 
-        # 7. Persist regression / probe proof records (M6 anti-bypass).
-        regression_seq = self._persist_regression_proof(regression_ok, mission)
-        probe_seq = self._persist_probe_proof(behavior_probe_ok, mission)
+        probe_ok = False
+        probe_seq: Optional[int] = None
+        effective_probe = probe_spec
+        if effective_probe is None:
+            effective_probe = ProbeSpec(
+                capability=Capability.READ,
+                target=candidate_target,
+                expected_substring=resolve_plan_a_expected_substring(
+                    mission, candidate_expected_substring),
+            )
+        if effective_probe is not None:
+            rt_probe = self._runtime.submit(
+                ActionRequest(
+                    sequence=0,
+                    requester="runner",
+                    capability=effective_probe.capability,
+                    target=effective_probe.target,
+                    purpose=effective_probe.purpose,
+                ),
+                mission,
+            )
+            probe_execution = rt_probe.execution
+            probe_allowed = (
+                rt_probe.broker_result.decision.decision is Decision.ALLOW)
+            observed = (json.dumps(probe_execution.evidence, sort_keys=True)
+                        if probe_execution is not None else "")
+            observation_matched = bool(
+                probe_execution is not None
+                and probe_execution.success
+                and (effective_probe.expected_substring is None
+                     or effective_probe.expected_substring in observed))
+            probe_ok = bool(probe_allowed and observation_matched)
+            if probe_ok:
+                payload = {
+                    "kind": "probe",
+                    "mission_id": mission.mission_id,
+                    "result": "passed",
+                    "allowed": True,
+                    "invariant": effective_probe.expected_substring,
+                    "capability": effective_probe.capability.value,
+                    "target": effective_probe.target,
+                    "request_seq": rt_probe.request_seq,
+                    "result_seq": rt_probe.result_seq,
+                    "source": "runner:independent-probe",
+                }
+                probe_seq = self._ledger.append_evidence(
+                    evidence_id=digest_id(payload, prefix="PB"),
+                    producer="probe",
+                    request_seq=rt_probe.request_seq,
+                    decision_seq=rt_probe.decision_seq,
+                    result_seq=rt_probe.result_seq,
+                    payload=payload,
+                )
 
-        # 8. Delegate to QualityGate.
         latest = [
             self._store.get(f.finding_id) or f for f in findings
         ]
@@ -349,7 +415,7 @@ class Runner:
             mission=mission,
             findings=list(self._store.all()),
             regression_ok=regression_ok,
-            behavior_probe_ok=behavior_probe_ok,
+            behavior_probe_ok=probe_ok,
         ))
 
         return RunnerOutcome(
@@ -367,6 +433,9 @@ class Runner:
             regression_record_seq=regression_seq,
             probe_record_seq=probe_seq,
         )
+
+    def _submit_plan(self, plan: Plan, mission: Mission) -> list:
+        return [self._runtime.submit(step, mission) for step in plan.steps]
 
     @staticmethod
     def _challenge_spec(
@@ -425,52 +494,9 @@ class Runner:
             mission_scope=mission.scope,
         )
 
-    def _persist_regression_proof(
-        self, regression_ok: bool, mission: Mission
-    ) -> Optional[int]:
-        """Persist a producer='regression' evidence record iff regression_ok."""
-        if not regression_ok:
-            return None
-        payload = {
-            "kind": "regression",
-            "mission_id": mission.mission_id,
-            "result": "passed",
-        }
-        ev_id = digest_id(payload, prefix="RG")
-        return self._ledger.append_evidence(
-            evidence_id=ev_id,
-            producer="regression",
-            request_seq=0,
-            decision_seq=0,
-            result_seq=None,
-            payload=payload,
-        )
-
-    def _persist_probe_proof(
-        self, behavior_probe_ok: bool, mission: Mission
-    ) -> Optional[int]:
-        """Persist a producer='probe' evidence record iff behavior_probe_ok."""
-        if not behavior_probe_ok:
-            return None
-        payload = {
-            "kind": "probe",
-            "mission_id": mission.mission_id,
-            "result": "passed",
-            "allowed": True,
-        }
-        ev_id = digest_id(payload, prefix="PB")
-        return self._ledger.append_evidence(
-            evidence_id=ev_id,
-            producer="probe",
-            request_seq=0,
-            decision_seq=0,
-            result_seq=None,
-            payload=payload,
-        )
-
-
 __all__ = [
     "DEFAULT_CANDIDATE_EXPECTED_SUBSTRING",
+    "ProbeSpec",
     "Runner",
     "Planner",
     "RunnerOutcome",

@@ -21,7 +21,7 @@ from raphael_ibm_bob import (
     Workspace,
 )
 from raphael_ibm_bob.broker import BOBBroker
-from raphael_ibm_bob.evidence_ledger import EvidenceLedger
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger, latest_allowed_success
 from raphael_ibm_bob.falsifier import ChallengeSpec, Falsifier
 from raphael_ibm_bob.finding import FindingStore
 from raphael_ibm_bob.harness.model import ModelContext
@@ -357,15 +357,18 @@ class ExistingAuthoritiesRemain(unittest.TestCase):
             sequence=0, requester="m14", capability=Capability.RUN_TEST,
             target="src/test_ok.py", purpose="required-test"), _mission())
         from raphael_ibm_bob.evidence_ledger import digest_id
+        req_seq, dec_seq, res_seq = latest_allowed_success(ledger)
         for producer, payload in (
                 ("probe", {"kind": "probe", "result": "passed",
-                           "allowed": True}),
-                ("regression", {"kind": "regression",
-                                "result": "passed"})):
+                           "allowed": True, "request_seq": req_seq,
+                           "result_seq": res_seq}),
+                ("regression", {"kind": "regression", "result": "passed",
+                                "request_seq": req_seq,
+                                "result_seq": res_seq})):
             ledger.append_evidence(
                 evidence_id=digest_id(payload, prefix=producer[:2].upper()),
-                producer=producer, request_seq=0, decision_seq=0,
-                result_seq=None, payload=payload)
+                producer=producer, request_seq=req_seq, decision_seq=dec_seq,
+                result_seq=res_seq, payload=payload)
         ok = gate.evaluate(GateInputs(
             mission=_mission(), findings=list(store.all()),
             regression_ok=True, behavior_probe_ok=True))

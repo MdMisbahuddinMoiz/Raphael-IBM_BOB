@@ -69,30 +69,41 @@ class FindingStore:
     # --- registration ------------------------------------------------------
 
     def register(self, finding: Finding) -> Finding:
-        """Register a new finding in UNVERIFIED state (or whatever state
-        the caller supplies, validated against the lifecycle)."""
+        """Register a NEW finding. The initial state MUST be UNVERIFIED.
+
+        Terminal states are reachable only through :meth:`transition`, the
+        sole lifecycle authority, so a caller cannot mint an already-VERIFIED
+        finding. The durable FindingRecord is appended before the in-memory
+        entry is published, so ledger and memory cannot diverge on failure.
+        """
         if not finding.finding_id:
             raise ValueError("Finding.finding_id is required")
+        if finding.state is not FindingState.UNVERIFIED:
+            raise InvalidTransitionError(
+                "register requires an UNVERIFIED finding, got "
+                f"{finding.state.value!r}; use transition() to change state"
+            )
         with self._lock:
             if finding.finding_id in self._findings:
-                raise ValueError(f"finding already registered: {finding.finding_id}")
+                raise ValueError(
+                    f"finding already registered: {finding.finding_id}")
+            # Persist the initial FindingRecord with prev_state=None.
+            self._ledger.append_finding(
+                finding_id=finding.finding_id,
+                state=finding.state.value,
+                prev_state=None,
+                summary=finding.summary,
+                target=finding.target,
+                evidence_seqs=tuple(int(s) for s in finding.evidence_ids),
+                payload={
+                    "summary": finding.summary,
+                    "target": finding.target,
+                    "evidence_ids": list(finding.evidence_ids),
+                    "supersedes": finding.supersedes,
+                    "kind": "initial",
+                },
+            )
             self._findings[finding.finding_id] = finding
-        # Persist the initial FindingRecord with prev_state=None.
-        seq = self._ledger.append_finding(
-            finding_id=finding.finding_id,
-            state=finding.state.value,
-            prev_state=None,
-            summary=finding.summary,
-            target=finding.target,
-            evidence_seqs=tuple(int(s) for s in finding.evidence_ids),
-            payload={
-                "summary": finding.summary,
-                "target": finding.target,
-                "evidence_ids": list(finding.evidence_ids),
-                "supersedes": finding.supersedes,
-                "kind": "initial",
-            },
-        )
         return finding
 
     # --- lookup ------------------------------------------------------------
@@ -154,28 +165,32 @@ class FindingStore:
                 # lifecycle transition (it gates independent verification).
                 mission_id=current.mission_id,
             )
+
+            payload = {
+                "summary": updated.summary,
+                "target": updated.target,
+                "evidence_seqs": list(evidence_seqs),
+                "additional_evidence_ids": list(additional_evidence_ids or []),
+                "supersedes": updated.supersedes,
+                "kind": "transition",
+            }
+            if extra_payload:
+                payload.update(extra_payload)
+
+            # Durability before visibility: the transition is only published
+            # in memory once the ledger append succeeds, and the lock is held
+            # across both so concurrent transitions cannot interleave the
+            # ledger order against the in-memory order.
+            seq = self._ledger.append_finding(
+                finding_id=finding_id,
+                state=new_state.value,
+                prev_state=prev.value,
+                summary=updated.summary,
+                target=updated.target,
+                evidence_seqs=tuple(int(s) for s in evidence_seqs),
+                payload=payload,
+            )
             self._findings[finding_id] = updated
-
-        payload = {
-            "summary": updated.summary,
-            "target": updated.target,
-            "evidence_seqs": list(evidence_seqs),
-            "additional_evidence_ids": list(additional_evidence_ids or []),
-            "supersedes": updated.supersedes,
-            "kind": "transition",
-        }
-        if extra_payload:
-            payload.update(extra_payload)
-
-        seq = self._ledger.append_finding(
-            finding_id=finding_id,
-            state=new_state.value,
-            prev_state=prev.value,
-            summary=updated.summary,
-            target=updated.target,
-            evidence_seqs=tuple(int(s) for s in evidence_seqs),
-            payload=payload,
-        )
 
         return TransitionResult(
             finding=updated,

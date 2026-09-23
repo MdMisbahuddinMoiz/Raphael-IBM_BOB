@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from raphael_ibm_bob.harness import api
 from raphael_ibm_bob.harness.providers import ProviderConfigError
-from raphael_ibm_bob.http import errors, schemas
+from raphael_ibm_bob.http import errors, schemas, security
 from raphael_ibm_bob.http.errors import ApiError
 from raphael_ibm_bob.http.routes._common import (
     body_object,
@@ -17,6 +17,10 @@ def list_runs(request, params, config):
 
 
 def _load_session(config, session_id):
+    try:
+        security.check_resource_id(session_id, "session_id")
+    except ValueError as exc:
+        raise errors.bad_request(str(exc)) from None
     try:
         return api.get_session(session_id, config.sessions_root)
     except FileNotFoundError:

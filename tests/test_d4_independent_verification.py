@@ -81,12 +81,19 @@ class _Base(unittest.TestCase):
         store = FindingStore(stack.ledger)
         finding = Finding(
             finding_id=finding_id,
-            state=state,
+            state=FindingState.UNVERIFIED,
             summary="d4 candidate",
             target=str(target if target is not None else stack.fixture),
             mission_id=mission_id,
         )
         store.register(finding)
+        if state is FindingState.VERIFIED:
+            store.transition(finding_id, FindingState.VERIFIED)
+        elif state is FindingState.REFUTED:
+            store.transition(finding_id, FindingState.REFUTED)
+        elif state is FindingState.SUPERSEDED:
+            store.transition(finding_id, FindingState.VERIFIED)
+            store.transition(finding_id, FindingState.SUPERSEDED)
         return store, store.get(finding_id)
 
     def _request(self, stack, *, purpose="verify", finding=None, original=None,
@@ -552,7 +559,8 @@ class ProviderAuthority(_Base):
 class FalsificationD4(_Base):
     # Test 20
     def test_valid_independent_falsification_refutes(self):
-        stack = self._stack()
+        provider = CountingInertProvider()
+        stack = self._stack(provider=provider)
         _, original = self._original(stack)
         store, finding = self._finding(stack)
         verify_request = build_verification_request(
@@ -568,10 +576,10 @@ class FalsificationD4(_Base):
             mission=stack.mission, finding=current,
             original_execution=verified.verification_execution,
             ledger=stack.ledger, purpose="falsify")
+        provider._result_hash = "different-hash"
         falsifier = C1AFalsifier(stack.runtime, stack.ledger, store)
         result = falsifier.challenge_independent(
-            falsify_request, stack.mission,
-            expected_result_hash="different-hash")
+            falsify_request, stack.mission)
         self.assertIs(result.classification,
                       FalsificationClassification.DISPROVED)
         self.assertTrue(result.transition_applied)

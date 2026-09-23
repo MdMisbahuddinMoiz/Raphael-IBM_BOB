@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from raphael_ibm_bob.harness import api
-from raphael_ibm_bob.http import errors, schemas
+from raphael_ibm_bob.http import errors, schemas, security
 
 
 def get_workspace(request, params, config):
@@ -14,6 +14,10 @@ def get_workspace(request, params, config):
     executes anything: there is deliberately no execution endpoint.
     """
     raw = params["workspace_id"]
+    try:
+        security.check_workspace_id(raw)
+    except ValueError as exc:
+        raise errors.bad_request(str(exc)) from None
     root = Path(raw)
     if not root.is_dir():
         raise errors.not_found(

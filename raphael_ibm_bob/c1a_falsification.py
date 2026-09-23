@@ -31,6 +31,8 @@ from raphael_ibm_bob.c1a_verification import (
     VerificationRequestError,
     VerificationInProgressError,
     _safe_observation,
+    _read_original_result_hash,
+    _read_verified_result_hash,
     evaluate_independence,
     execution_ref_from_runtime_result,
     validate_lineage,
@@ -164,7 +166,13 @@ class C1AFalsifier:
                 FalsificationOutcome.INCONCLUSIVE,
                 "challenge-not-successful", evidence_ids, False)
 
-        if not detect_contradiction(expected_result_hash, observed_hash):
+        authoritative_hash = _read_verified_result_hash(
+            self._ledger, finding.finding_id)
+        effective_hash = (authoritative_hash
+                          if authoritative_hash is not None
+                          else expected_result_hash)
+
+        if not detect_contradiction(effective_hash, observed_hash):
             return C1AFalsificationResult(
                 FalsificationOutcome.NO_COUNTEREXAMPLE,
                 "no-contradiction-observed", evidence_ids, False)
@@ -172,7 +180,7 @@ class C1AFalsifier:
         counter_id = digest_id({
             "finding_id": finding.finding_id,
             "observed_hash": observed_hash,
-            "expected_hash": expected_result_hash,
+            "expected_hash": effective_hash,
             "kind": "c1a-counterexample",
         }, prefix="C")
         self._ledger.append_evidence(
@@ -185,7 +193,7 @@ class C1AFalsifier:
                 "kind": "c1a-counterexample",
                 "finding_id": finding.finding_id,
                 "target": target,
-                "expected_hash": expected_result_hash,
+                "expected_hash": effective_hash,
                 "observed_hash": observed_hash,
                 "detail": "result-hash-contradiction",
             },
@@ -332,13 +340,18 @@ class C1AFalsifier:
             ledger=self._ledger,
         )
         observed_hash = provider_result.get("result_hash")
+        authoritative_hash = _read_original_result_hash(
+            self._ledger, original_execution=request.original_execution)
+        effective_hash = (authoritative_hash
+                          if authoritative_hash is not None
+                          else expected_result_hash)
         if not independence.all_passed or not lineage.valid:
             classification = FalsificationClassification.INSUFFICIENT
         elif not allowed or execution is None or not execution.success:
             classification = FalsificationClassification.INCONCLUSIVE
-        elif expected_result_hash is None:
+        elif effective_hash is None:
             classification = FalsificationClassification.INCONCLUSIVE
-        elif observed_hash is not None and observed_hash != expected_result_hash:
+        elif observed_hash is not None and observed_hash != effective_hash:
             classification = FalsificationClassification.DISPROVED
         else:
             classification = FalsificationClassification.NOT_DISPROVED

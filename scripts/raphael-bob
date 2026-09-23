@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# raphael-bob — start the RAPHAEL x IBM BOB HTTP server.
+#
+# Usage:
+#   raphael-bob                       # 127.0.0.1:8787
+#   raphael-bob --port 8080           # override the port
+#   raphael-bob --host 0.0.0.0        # bind elsewhere
+#   raphael-bob --help                # server options
+#
+# Environment overrides (read by the server):
+#   RAPHAEL_HTTP_HOST / RAPHAEL_HTTP_PORT
+#   RAPHAEL_HTTP_RUNS_ROOT / RAPHAEL_HTTP_SESSIONS_ROOT
+#   RAPHAEL_OPENVPN_BIN (default /usr/sbin/openvpn)
+#
+# This is a thin launcher only: it adds the repository to PYTHONPATH and
+# delegates to the existing module entrypoint
+# (`python3 -m raphael_ibm_bob.http`). It adds no server logic, no routes,
+# and no second execution path.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
+export RAPHAEL_OPENVPN_BIN="${RAPHAEL_OPENVPN_BIN:-/usr/sbin/openvpn}"
+
+ARGS=("$@")
+
+# Determine the effective host/port (CLI overrides env, like argparse does).
+HOST="${RAPHAEL_HTTP_HOST:-127.0.0.1}"
+PORT="${RAPHAEL_HTTP_PORT:-8787}"
+want_help=0
+i=0
+while [ "$i" -lt "${#ARGS[@]}" ]; do
+  a="${ARGS[$i]}"
+  case "$a" in
+    -h|--help) want_help=1 ;;
+    --host)  HOST="${ARGS[$((i+1))]:-$HOST}"; i=$((i+1)) ;;
+    --host=*) HOST="${a#*=}" ;;
+    --port)  PORT="${ARGS[$((i+1))]:-$PORT}"; i=$((i+1)) ;;
+    --port=*) PORT="${a#*=}" ;;
+  esac
+  i=$((i+1))
+done
+
+# Friendlier failure than a raw traceback when the port is already taken.
+if [ "$want_help" -eq 0 ] && python3 - "$HOST" "$PORT" <<'PY'
+import socket, sys
+host, port = sys.argv[1], int(sys.argv[2])
+probe = socket.socket()
+probe.settimeout(1.0)
+try:
+    probe.connect(("127.0.0.1" if host == "0.0.0.0" else host, port))
+    sys.exit(0)          # something is listening -> in use
+except OSError:
+    sys.exit(1)          # free
+finally:
+    probe.close()
+PY
+then
+  cat >&2 <<EOF
+raphael-bob: http://${HOST}:${PORT} is already in use.
+
+The server may already be running. Check with:
+  curl -s http://127.0.0.1:${PORT}/mode
+
+Start on another port instead:
+  raphael-bob --port $((PORT + 1))
+
+Or stop the existing one:
+  pkill -f raphael_ibm_bob.http
+EOF
+  exit 2
+fi
+
+exec python3 -m raphael_ibm_bob.http "${ARGS[@]}"

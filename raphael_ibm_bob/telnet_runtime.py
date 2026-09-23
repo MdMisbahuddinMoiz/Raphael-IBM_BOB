@@ -40,6 +40,7 @@ from raphael_ibm_bob.contracts import (
 from raphael_ibm_bob.evidence_ledger import EvidenceLedger, digest_id
 from raphael_ibm_bob.finding import FindingStore, InvalidTransitionError
 from raphael_ibm_bob.network_scope import NetworkScopeError, parse_telnet_target
+from raphael_ibm_bob.network_runtime import _decision_allows
 from raphael_ibm_bob.target_profile import TargetProfile
 
 TELNET_CAPABILITY_ID = Capability.NETWORK_TELNET_SESSION.value
@@ -122,6 +123,8 @@ def extract_flag_pattern(text: object, pattern: object) -> Optional[str]:
         return None
     if not isinstance(pattern, str) or pattern == "":
         return None
+    if len(pattern) > 200:
+        return None
     try:
         rx = re.compile(pattern)
     except re.error:
@@ -143,6 +146,8 @@ def extract_candidates(text: object, pattern: object) -> List[str]:
     if not isinstance(text, str) or not text:
         return []
     if not isinstance(pattern, str) or pattern == "":
+        return []
+    if len(pattern) > 200:
         return []
     try:
         rx = re.compile(pattern)
@@ -553,8 +558,8 @@ class TelnetMediator:
 
     def invoke(self, *, request: ActionRequest, profile: TargetProfile,
                spec: TelnetSessionSpec, invocation_id: str,
-               run_id: str) -> TelnetResult:
-        """Validate scope + commands, then perform exactly one session."""
+               run_id: str, decision: Any = None) -> TelnetResult:
+        """Validate scope + commands + Policy decision, then run one session."""
         try:
             target = parse_telnet_target(request.target)
         except NetworkScopeError as exc:
@@ -578,17 +583,10 @@ class TelnetMediator:
             return self._fail(TelnetState.DENIED, profile, spec, invocation_id,
                               run_id, error="timeout-invalid", target=target)
 
-        identity = {
-            "run_id": run_id, "mission_id": profile.mission_id,
-            "invocation_id": invocation_id,
-            "capability_id": TELNET_CAPABILITY_ID,
-            "target_id": profile.target_id, "host": target.host,
-            "port": target.port, "protocol": "telnet", "command": command,
-        }
-        expected = self._binding_hash(identity)
-        if not hmac.compare_digest(expected, self._binding_hash(identity)):
+        if not _decision_allows(decision, request):
             return self._fail(TelnetState.DENIED, profile, spec, invocation_id,
-                              run_id, error="binding-invalid", target=target)
+                              run_id, error="authorization-not-allow",
+                              target=target)
 
         try:
             self.replay_guard.register(run_id, invocation_id)

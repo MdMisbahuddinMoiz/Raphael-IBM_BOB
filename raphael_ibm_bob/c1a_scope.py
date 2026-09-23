@@ -83,6 +83,13 @@ def scope_contains(scope: str, target: str) -> bool:
     An empty/whitespace scope means "no scope constraint" (True), matching
     the existing Policy/QualityGate convention that an unset scope does not
     restrict the mission. All other inputs fail closed.
+
+    Containment requires the scope and the target to share absoluteness
+    (both absolute, or both relative) and then be a COMPONENT-boundary
+    prefix. The former absolute-target/relative-scope component-SUFFIX
+    fallback was removed: it admitted an unrelated absolute path
+    (``/ws/evil/src/x`` under scope ``src``) and is an intra-workspace
+    scope escape. Mixed absoluteness now fails closed.
     """
     if scope is None:
         return True
@@ -95,13 +102,11 @@ def scope_contains(scope: str, target: str) -> bool:
         return False
     if not scope_parts:
         return True
-    if len(target_parts) >= len(scope_parts):
-        if target_parts[:len(scope_parts)] == scope_parts:
-            return True
-        if target_abs and not scope_abs:
-            # Absolute target, relative scope: component-suffix match.
-            return target_parts[-len(scope_parts):] == scope_parts
-    return False
+    if scope_abs != target_abs:
+        return False
+    if len(target_parts) < len(scope_parts):
+        return False
+    return target_parts[:len(scope_parts)] == scope_parts
 
 
 __all__ = ["ScopePathError", "canonical_parts", "within_root", "scope_contains"]

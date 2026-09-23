@@ -26,6 +26,7 @@ from urllib.parse import urlsplit
 from raphael_ibm_bob.broker import BOBBroker
 from raphael_ibm_bob.contracts import (
     ActionRequest, Capability, Decision, Finding, FindingState, Mission,
+    PolicyDecision,
 )
 from raphael_ibm_bob.evidence_ledger import (
     EvidenceLedger, create_run_dir, digest_id,
@@ -340,12 +341,19 @@ class PolicyNetwork(_GovCase):
 # mediator
 # ---------------------------------------------------------------------------
 
+def _allow(request):
+    return PolicyDecision(
+        sequence=request.sequence, decision=Decision.ALLOW, reason="ok",
+        capability=request.capability, target=request.target)
+
+
 class Mediator(_GovCase):
     def _invoke(self, port, path="/flag", method="GET", mediator=None):
         s = self._stack(self._profile(port), mediator=mediator)
+        req = self._net_request(f"http://127.0.0.1:{port}{path}", method)
         return s["mediator"].invoke(
-            request=self._net_request(f"http://127.0.0.1:{port}{path}", method),
-            profile=s["store"].current(), invocation_id="NET-test", run_id="run-1")
+            request=req, profile=s["store"].current(),
+            invocation_id="NET-test", run_id="run-1", decision=_allow(req))
 
     def test_success_and_flag(self):
         with http_fixture() as port:
@@ -408,10 +416,10 @@ class Mediator(_GovCase):
     def test_invalid_scheme_denied(self):
         with http_fixture() as port:
             s = self._stack(self._profile(port))
+            req = self._net_request("ftp://127.0.0.1/flag")
             r = s["mediator"].invoke(
-                request=self._net_request("ftp://127.0.0.1/flag"),
-                profile=s["store"].current(), invocation_id="NET-x",
-                run_id="run-1")
+                request=req, profile=s["store"].current(),
+                invocation_id="NET-x", run_id="run-1", decision=_allow(req))
             self.assertIs(r.state, NetworkState.DENIED)
 
 
@@ -537,10 +545,32 @@ class QualityGate(_GovCase):
             self._mission())
 
     def _persist(self, s, producer, payload):
-        s["ledger"].append_evidence(
-            evidence_id=digest_id(payload, prefix=producer[:1].upper()),
-            producer=producer, request_seq=0, decision_seq=0,
-            result_seq=None, payload=payload)
+        ledger = s["ledger"]
+        records = ledger.all_records()
+        decisions = {r.get("request_seq"): r.get("decision") for r in records
+                     if r.get("kind") == "decision"}
+        results = {r.get("request_seq"): r for r in records
+                   if r.get("kind") == "result"}
+        req_seq = None
+        for r in records:
+            if r.get("kind") != "request":
+                continue
+            seq = r.get("seq")
+            if (decisions.get(seq) == "allow"
+                    and results.get(seq, {}).get("success") is True):
+                req_seq = seq
+        dec_seq = 0
+        res_seq = None
+        if req_seq is not None:
+            decs = [r for r in records if r.get("kind") == "decision"
+                    and r.get("request_seq") == req_seq]
+            dec_seq = decs[-1].get("seq") if decs else 0
+            res_seq = (results.get(req_seq) or {}).get("seq")
+        bound = {**payload, "request_seq": req_seq, "result_seq": res_seq}
+        ledger.append_evidence(
+            evidence_id=digest_id(bound, prefix=producer[:1].upper()),
+            producer=producer, request_seq=req_seq, decision_seq=dec_seq,
+            result_seq=res_seq, payload=bound)
 
     def test_complete_happy_path(self):
         with http_fixture() as port:
@@ -602,9 +632,10 @@ class QualityGate(_GovCase):
                 self._mission())
             self._run_test(s)
             s["findings"].register(Finding(
-                finding_id="F-v", state=FindingState.VERIFIED,
+                finding_id="F-v", state=FindingState.UNVERIFIED,
                 summary="v", target=f"http://127.0.0.1:{port}/flag",
                 mission_id="M-d9"))
+            s["findings"].transition("F-v", FindingState.VERIFIED)
             self._persist(s, "regression",
                           {"kind": "regression", "mission_id": "M-d9",
                            "result": "passed"})
@@ -622,9 +653,10 @@ class QualityGate(_GovCase):
                 self._mission())
             self._run_test(s)
             s["findings"].register(Finding(
-                finding_id="F-v", state=FindingState.VERIFIED,
+                finding_id="F-v", state=FindingState.UNVERIFIED,
                 summary="v", target=f"http://127.0.0.1:{port}/flag",
                 mission_id="M-d9"))
+            s["findings"].transition("F-v", FindingState.VERIFIED)
             self._persist(s, "regression",
                           {"kind": "regression", "mission_id": "M-d9",
                            "result": "passed"})

@@ -12,8 +12,7 @@ this file (see the M12 report for the exact hash).
 
 ## Repository
 
-- [x] **VERIFIED** — working tree clean (`git status --short` empty
-  after verification; fixtures restored by every run).
+- [ ] **MEASURABLE CONDITION** — release requires `git status --short` to print nothing (empty working tree; fixtures restored by every run). Measured 2026-09-23 the tree is NOT clean: `git status --short | wc -l` reports **35** entries (21 modified including `pyproject.toml`, `raphael_ibm_bob/*`, `tests/*`; 14 untracked including `.omo/`, new `raphael_ibm_bob/capability_*` modules, new tests, `reports/`, `scripts/raphael-bob`). Do NOT mark this box VERIFIED until the command prints empty at release time.
 - [x] **VERIFIED** — final SHA recorded in the M12 report; milestone
   commits present and not rewritten.
 - [x] **VERIFIED** — no generated artifacts committed: `runs/*`
@@ -23,13 +22,8 @@ this file (see the M12 report for the exact hash).
 
 ## Functional Verification
 
-- [x] **VERIFIED** — comprehensive governed BOB test suite: **1165 tests,
-  0 failures** (80 governed modules executed via standard library
-  unittest; Python 3.14.4). The unrestricted discovery command
-  separately reports 18 pre-existing collection/import errors from the
-  legacy `arena` substrate (1183 collected = 1165 pass + 18 errors).
-- [x] **VERIFIED** — core seam suite: **209 tests, 0 failures**
-  (12-module explicit unittest command).
+- [ ] **MEASURED 2026-09-23 (Python 3.14.4)** — repo-wide discovery has 0 product failures: `python3 -m unittest discover -s tests -p "test_*.py"` reports **Ran 1443: 0 failures, 18 errors, 1 skipped**. All 18 errors are legacy-substrate collection/import errors (`arena.*`, `orchestrator`) plus one missing optional dependency (`pytest`), outside the governed product path.
+- [ ] **MEASURED 2026-09-23 (passing)** — core seam suite: the 12-module explicit unittest command reports **Ran 210: OK**. This **test-count discrepancy** between the old README claims ("209 tests, 0 failures" / "1165 tests, 0 failures") and the measured values is recorded here; the stale numbers are replaced with the measured ones.
 - [x] **VERIFIED** — canonical judge demo (`./scripts/run_demo.sh`):
   exit 0, `Gate: COMPLETE` (13 stages executed end-to-end).
 - [x] **VERIFIED** — canonical refusal demo (`./scripts/run_demo.sh --refuse`):
@@ -134,13 +128,7 @@ this file (see the M12 report for the exact hash).
   T3MP3ST provider executes in the sandbox when its compiled checkout is
   present (`provider_execution = VERIFIED`, local); M1/M2/M5 are **not**
   claimed. See `docs/integration/c1a-release-gate.md`.
-- [x] **VERIFIED** — test counts reconciled from actual execution:
-  the earlier test-count discrepancy is resolved; 209 tests on the
-  12-module core seam list; **1165 tests across all 80 governed BOB
-  modules** in the tree (0 failures); **1183 discovered = 1165 governed
-  pass + 18 legacy errors**, with the 18 legacy `arena`
-  collection/import errors byte-identical run-to-run and outside the
-  governed suite. All test numbers match actual execution evidence.
+- [ ] **SUPERSEDED by measurement 2026-09-23** — the earlier reconciliation ("209 tests on the 12-module core seam list; 1165 tests across all 80 governed BOB modules, 0 failures; 1183 discovered = 1165 governed pass + 18 legacy errors") no longer holds. Current measurement: discovery **Ran 1411: FAILED (failures=1, errors=18, skipped=1)**; core 12-module list **Ran 210: FAILED (failures=1)** (`test_m6_quality_gate` probe-accounting failure); C1A 13-module list **Ran 109: OK**; `test_t3mp3st_integration` **Ran 30: OK**; `test_isolation_substrate` **Ran 32: OK**. Reconcile again from actual execution before release.
 
 ## D5 Status Matrix
 

@@ -22,7 +22,7 @@ from raphael_ibm_bob.finding import FindingStore
 from raphael_ibm_bob.policy import BOBPolicy
 from raphael_ibm_bob.quality_gate import BOBQualityGate, GateInputs
 from raphael_ibm_bob.replanner import Replanner
-from raphael_ibm_bob.runner import Runner
+from raphael_ibm_bob.runner import ProbeSpec, Runner
 from raphael_ibm_bob.runtime import BOBRuntime
 from raphael_ibm_bob.verifier import Verifier
 
@@ -125,6 +125,10 @@ class PositiveComplete(unittest.TestCase):
             h.mission,
             challenger_target="src/fixed.py",
             challenger_forbidden_substring="THIS-FRAGMENT-DOES-NOT-EXIST",
+            verification_tests=("src/test_smoke.py",),
+            probe_spec=ProbeSpec(
+                capability=Capability.READ, target="src/fixed.py",
+                expected_substring="OK"),
         )
         self.assertEqual(outcome.finding.state, FindingState.VERIFIED)
         self.assertEqual(outcome.gate_verdict, GateVerdict.COMPLETE)
@@ -142,7 +146,10 @@ class IndependentProbeFailure(unittest.TestCase):
             h.mission,
             challenger_target="src/fixed.py",
             challenger_forbidden_substring="THIS-FRAGMENT-DOES-NOT-EXIST",
-            behavior_probe_ok=False,
+            verification_tests=("src/test_smoke.py",),
+            probe_spec=ProbeSpec(
+                capability=Capability.READ, target="src/fixed.py",
+                expected_substring="THIS-PROBE-OBSERVATION-NEVER-APPEARS"),
         )
         self.assertEqual(outcome.gate_verdict, GateVerdict.REFUSE)
         self.assertIn("D:independent-behavior-probe",
@@ -169,7 +176,7 @@ class MissingEvidenceRefuses(unittest.TestCase):
         falsifier = Falsifier(runtime, ledger, store)
         replanner = Replanner(store, ledger)
         runner = Runner(runtime, ledger, store, verifier, falsifier, replanner, gate)
-        outcome = runner.run(_mission(), regression_ok=True, behavior_probe_ok=True)
+        outcome = runner.run(_mission())
         self.assertEqual(outcome.gate_verdict, GateVerdict.REFUSE)
 
 
@@ -373,6 +380,10 @@ class FullControlLoop(unittest.TestCase):
                     forbidden_substring="THIS-FRAGMENT-DOES-NOT-EXIST",
                 ),
             ],
+            verification_tests=("src/test_smoke.py",),
+            probe_spec=ProbeSpec(
+                capability=Capability.READ, target="src/fixed.py",
+                expected_substring="OK"),
         )
         self.assertGreater(outcome.plan_a_step_runtime_seq, 0)
         self.assertIsNotNone(outcome.plan_b)
@@ -390,17 +401,8 @@ class FullControlLoop(unittest.TestCase):
                          if r.get("kind") == "evidence"
                          and r.get("producer") == "replanner"]
         self.assertEqual(len(replanner_evs), 1)
-        # Without RUN_TEST the default run returned REFUSE.
-        self.assertEqual(outcome.gate_verdict, GateVerdict.REFUSE)
-        # Inject a passing RUN_TEST and re-evaluate.
-        _submit_test(h)
-        final = h.gate.evaluate(GateInputs(
-            mission=h.mission, findings=list(h.store.all()),
-            regression_ok=True, behavior_probe_ok=True,
-        ))
-        self.assertEqual(final.verdict, GateVerdict.COMPLETE)
-        # Final gate decision persisted.
-        self.assertEqual(len(h.ledger.gate_decisions()), 2)
+        self.assertEqual(outcome.gate_verdict, GateVerdict.COMPLETE)
+        self.assertEqual(len(h.ledger.gate_decisions()), 1)
         last = h.ledger.gate_decisions()[-1]
         self.assertEqual(last.get("decision"), "complete")
 
@@ -499,7 +501,7 @@ class RequiredTestSemantics(unittest.TestCase):
 
     def test_allowed_breadth_with_regression_record_passes_c(self):
         h = _harness(self)
-        h.runtime.submit(ActionRequest(
+        rt = h.runtime.submit(ActionRequest(
             sequence=0, requester="runner",
             capability=Capability.READ, target="src/hello.txt",
             purpose="probe",
@@ -508,8 +510,11 @@ class RequiredTestSemantics(unittest.TestCase):
         h.ledger.append_evidence(
             evidence_id="RG-test-breadth-ok",
             producer="regression",
-            request_seq=0, decision_seq=0, result_seq=None,
-            payload={"kind": "regression", "result": "passed"},
+            request_seq=rt.request_seq, decision_seq=rt.decision_seq,
+            result_seq=rt.result_seq,
+            payload={"kind": "regression", "result": "passed",
+                     "request_seq": rt.request_seq,
+                     "result_seq": rt.result_seq},
         )
         evaluation = _evaluate_clean(h)
         self.assertIn("C:regression", evaluation.passed)

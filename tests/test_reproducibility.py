@@ -60,19 +60,19 @@ class ImportAndLayout(unittest.TestCase):
         data = tomllib.loads((ROOT / "pyproject.toml").read_text("utf-8"))
         find = data["tool"]["setuptools"]["packages"]["find"]
         self.assertIn(".", find["where"])
-        self.assertIn("src", find["where"])
         self.assertIs(find.get("namespaces"), False)
+        self.assertEqual(find.get("include"), ["raphael_ibm_bob*"])
         package_dir = data["tool"]["setuptools"]["package-dir"]
         self.assertEqual(package_dir.get("raphael_ibm_bob"),
                          "raphael_ibm_bob")
-        # Physical discovery under the declared roots includes the package.
         from setuptools import find_packages
-        discovered = set()
-        for where in find["where"]:
-            discovered |= set(find_packages(where=str(ROOT / where)))
+        discovered = set(find_packages(where=".", include=["raphael_ibm_bob*"]))
         self.assertIn("raphael_ibm_bob", discovered)
         self.assertIn("raphael_ibm_bob.http", discovered)
-        self.assertIn("orchestrator", discovered)
+        # The legacy offensive substrate must NOT be part of the distribution.
+        self.assertNotIn("orchestrator", discovered)
+        self.assertNotIn("agent", discovered)
+        self.assertNotIn("arena", discovered)
 
 
 if __name__ == "__main__":

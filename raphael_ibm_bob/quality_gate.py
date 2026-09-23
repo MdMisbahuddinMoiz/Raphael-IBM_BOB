@@ -57,6 +57,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
+from urllib.parse import urlsplit
 
 from raphael_ibm_bob.contracts import (
     Finding,
@@ -107,8 +108,7 @@ class GateEvaluation:
     finding_refs: Tuple[str, ...]
 
 
-def _network_host_in_scope(capability: str, scope: object,
-                           target_url: object) -> bool:
+def _network_host_in_scope(scope: object, target_url: object) -> bool:
     """Host-in-scope check for a network capability (HTTP or Telnet).
 
     Uses the capability-appropriate parser so Telnet targets are validated
@@ -116,13 +116,45 @@ def _network_host_in_scope(capability: str, scope: object,
     share the exact/CIDR host scope algebra.
     """
     try:
-        if capability == "network_telnet_session":
+        scheme = urlsplit(str(target_url)).scheme.lower()
+        if scheme == "telnet":
             parsed = parse_telnet_target(target_url)
-        else:
+        elif scheme in {"http", "https"}:
             parsed = parse_http_target(target_url)
+        else:
+            return False
     except NetworkScopeError:
         return False
     return host_in_scope(scope, parsed.host)
+
+
+def _authoritative_findings(finding_records, caller_findings, mission):
+    """Latest state per finding_id from the ledger, else the caller list.
+
+    When the ledger contains FindingRecords the gate derives its current
+    finding state from them (latest record per finding_id wins), so a
+    caller passing ``findings=[]`` cannot satisfy condition G. With no
+    ledger finding records the caller list is used, preserving
+    zero-ledger/legacy behaviour (a legitimate zero-finding mission still
+    completes).
+    """
+    if not finding_records:
+        return list(caller_findings)
+    latest = {}
+    for record in sorted(finding_records, key=lambda r: r.get("seq", 0)):
+        finding_id = record.get("finding_id")
+        if not finding_id:
+            continue
+        try:
+            state = FindingState(record.get("state"))
+        except ValueError:
+            continue
+        latest[finding_id] = Finding(
+            finding_id=finding_id, state=state,
+            summary=record.get("summary", ""),
+            target=record.get("target", ""),
+            evidence_ids=[], mission_id=mission.mission_id)
+    return list(latest.values())
 
 
 class BOBQualityGate:
@@ -172,6 +204,28 @@ class BOBQualityGate:
         if not isinstance(evidence, dict):
             return False
         return evidence.get("returncode") == 0
+
+    @staticmethod
+    def _causally_bound(record, decisions_by_request, results_by_request) -> bool:
+        """True iff a probe/regression record is tied to a real execution.
+
+        The record's request_seq must reference an existing request whose
+        Policy decision is ALLOW and whose ExecutionResult reports success.
+        A fabricated probe/regression record with no such chain fails, so
+        condition C/D cannot be satisfied by a bare injected record.
+        """
+        payload = record.get("payload") or {}
+        req_seq = record.get("request_seq")
+        if req_seq is None:
+            req_seq = payload.get("request_seq")
+        if req_seq is None:
+            return False
+        if decisions_by_request.get(req_seq) != "allow":
+            return False
+        result = results_by_request.get(req_seq)
+        if result is None:
+            return False
+        return result.get("success") is True
 
     # --- main entry point ---------------------------------------------------
 
@@ -264,17 +318,23 @@ class BOBQualityGate:
             r.get("capability") for r in request_records
             if decisions_by_request.get(r.get("seq")) == "allow"
         }
-        if (inputs.regression_ok and regression_records
+        bound_regressions = [
+            r for r in regression_records
+            if self._causally_bound(r, decisions_by_request,
+                                    results_by_request)
+        ]
+        if (inputs.regression_ok and bound_regressions
                 and len(allowed_caps) >= 2):
             passed.append("C:regression")
         else:
             failed.append("C:regression")
             if not inputs.regression_ok:
                 reasons.append("regression_ok=False")
-            elif not regression_records:
+            elif not bound_regressions:
                 reasons.append(
                     "regression_ok=True but no producer='regression' "
-                    "evidence record in the ledger"
+                    "evidence record in the ledger (or it is not causally "
+                    "bound to an ALLOWed successful execution)"
                 )
             else:
                 reasons.append(
@@ -288,13 +348,15 @@ class BOBQualityGate:
         probe_records = [
             r for r in evidence_records if r.get("producer") == "probe"
         ]
-        probe_success = any(
-            r.get("payload", {}).get("allowed") is True
-            for r in probe_records
-        )
-        if inputs.behavior_probe_ok and probe_success:
+        bound_probes = [
+            r for r in probe_records
+            if r.get("payload", {}).get("allowed") is True
+            and self._causally_bound(r, decisions_by_request,
+                                     results_by_request)
+        ]
+        if inputs.behavior_probe_ok and bound_probes:
             passed.append("D:independent-behavior-probe")
-            for r in probe_records:
+            for r in bound_probes:
                 eid = r.get("evidence_id", "")
                 if eid:
                     evidence_refs.append(eid)
@@ -317,16 +379,13 @@ class BOBQualityGate:
         scope_ok = True
         for r in request_records:
             tgt = r.get("target") or ""
-            cap = r.get("capability")
-            # D9/D12: network targets (HTTP or Telnet) are checked against
-            # the mission-bound TargetProfile scope (host semantics), not
-            # path containment. Same rule, applied to both network caps.
-            if cap in ("network_http_request", "network_telnet_session"):
+            scheme = urlsplit(tgt).scheme.lower()
+            if scheme in {"http", "https", "telnet"}:
                 store = (self._target_store if self._target_store is not None
                          else get_target_store())
                 profile = store.get_target(inputs.mission.mission_id)
                 if profile is None or not _network_host_in_scope(
-                        cap, profile.scope, tgt):
+                        profile.scope, tgt):
                     scope_ok = False
                     reasons.append(
                         f"network scope violation: target '{tgt}' is not in "
@@ -382,7 +441,9 @@ class BOBQualityGate:
         # - REFUTED findings must have a subsequent replan evidence record
         #   OR must be superseded.
         bad_findings: List[Finding] = []
-        for f in inputs.findings:
+        authoritative_findings = _authoritative_findings(
+            finding_records, inputs.findings, inputs.mission)
+        for f in authoritative_findings:
             if f.state is FindingState.UNVERIFIED:
                 bad_findings.append(f)
                 reasons.append(

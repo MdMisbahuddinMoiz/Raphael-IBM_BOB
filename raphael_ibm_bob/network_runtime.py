@@ -105,6 +105,30 @@ def method_from_purpose(purpose: object, default: str = "GET") -> str:
     return default
 
 
+def _decision_allows(decision: Any, request: ActionRequest) -> bool:
+    """True iff a Policy ALLOW decision authorizes this exact request.
+
+    Enforces the invariant the mediator depends on: the execution must be
+    authorised by the PolicyDecision the Broker obtained for THIS request —
+    an ALLOW whose capability/target/sequence match the stamped request. A
+    missing, DENY, or mismatched decision means no execution.
+    """
+    if decision is None:
+        return False
+    value = getattr(decision, "decision", None)
+    if str(getattr(value, "value", value)).lower() != "allow":
+        return False
+    capability = getattr(decision, "capability", None)
+    if str(getattr(capability, "value", capability)) != request.capability.value:
+        return False
+    if getattr(decision, "target", None) != request.target:
+        return False
+    seq = getattr(decision, "sequence", None)
+    if seq is not None and seq != request.sequence:
+        return False
+    return True
+
+
 @dataclass(frozen=True)
 class NetworkResult:
     """Closed, bounded outcome of one governed network request."""
@@ -275,8 +299,9 @@ class NetworkMediator:
     # --- invocation ------------------------------------------------------
 
     def invoke(self, *, request: ActionRequest, profile: TargetProfile,
-               invocation_id: str, run_id: str) -> NetworkResult:
-        """Validate scope, then perform exactly one bounded request."""
+               invocation_id: str, run_id: str,
+               decision: Any = None) -> NetworkResult:
+        """Validate scope + the Policy decision, then run one request."""
         try:
             target = parse_http_target(request.target)
         except NetworkScopeError as exc:
@@ -291,13 +316,9 @@ class NetworkMediator:
             return self._fail(NetworkState.DENIED, profile, invocation_id,
                               error=f"method-not-allowed:{method}",
                               target=target, method=method)
-        identity = self._identity(request=request, profile=profile,
-                                  invocation_id=invocation_id, run_id=run_id,
-                                  method=method, target=target)
-        expected = self._binding_hash(identity)
-        if not hmac.compare_digest(expected, self._binding_hash(identity)):
+        if not _decision_allows(decision, request):
             return self._fail(NetworkState.DENIED, profile, invocation_id,
-                              error="binding-invalid", target=target,
+                              error="authorization-not-allow", target=target,
                               method=method)
 
         try:

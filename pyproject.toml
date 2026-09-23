@@ -26,17 +26,16 @@ dependencies = [
     "cryptography>=42.0.0",
 ]
 
+[project.scripts]
+raphael-bob = "raphael_ibm_bob.http.app:main"
+
 [tool.setuptools.packages.find]
-where = ["src", "."]
+where = ["."]
 namespaces = false
-include = ["orchestrator*", "agent*", "raphael*", "arena*", "config*", "benchmarks*", "raphael_ibm_bob*"]
+include = ["raphael_ibm_bob*"]
 
 [tool.setuptools.package-dir]
-"" = "src"
-# Governed package lives at the repository root (not under src/).
 "raphael_ibm_bob" = "raphael_ibm_bob"
-# Root-level package otherwise discovered via the root entry above.
-"configs" = "configs"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -17,13 +17,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from raphael_ibm_bob.broker import BOBBroker
+from raphael_ibm_bob import capability_bootstrap
+from raphael_ibm_bob.capability_registry import (
+    CapabilityDescriptor,
+    CapabilityRegistry,
+)
 from raphael_ibm_bob.contracts import Mission
 from raphael_ibm_bob.evidence_ledger import EvidenceLedger, create_run_dir
 from raphael_ibm_bob.falsifier import Falsifier
 from raphael_ibm_bob.finding import FindingStore
 from raphael_ibm_bob.harness.model import ModelAdapter, ModelContext
 from raphael_ibm_bob.harness.session import RaphaelSession, save_session
-from raphael_ibm_bob.planner import Planner
+from raphael_ibm_bob.d14_planner import Planner
 from raphael_ibm_bob.policy import BOBPolicy
 from raphael_ibm_bob.quality_gate import BOBQualityGate
 from raphael_ibm_bob.replanner import Replanner
@@ -131,6 +136,35 @@ def find_run_dir(runs_root: Path, run_id: str) -> Path:
     return run_dir
 
 
+def _register_production_read(registry: CapabilityRegistry) -> None:
+    """Declare the existing governed READ capability for D14 file missions."""
+    if registry.has("READ"):
+        return
+    registry.register(
+        CapabilityDescriptor(
+            capability_id="READ",
+            protocol="file",
+            description="Governed workspace read capability.",
+            prerequisites=frozenset(),
+            authorization_scope="workspace",
+            evidence_schema="read_v1",
+            execution_adapter="raphael_ibm_bob.capabilities",
+            verifier_binding="raphael_ibm_bob.verifier",
+            falsifier_binding="raphael_ibm_bob.falsifier",
+            mission_types=frozenset({"legacy_read"}),
+        ),
+        capability_bootstrap.InertAdapter(),
+    )
+
+
+def _mission_type(mission: Mission) -> str:
+    """Choose a declared network mission type or the existing READ type."""
+    declared = mission.problem.get("mission_type")
+    if isinstance(declared, str) and declared:
+        return declared
+    return "legacy_read" if "symptom_target" in mission.problem else "web_enum"
+
+
 def start_run(session: RaphaelSession, mission: Mission,
               workspace_root: Path, *, runs_root: Path,
               sessions_root: Optional[Path] = None,
@@ -167,13 +201,18 @@ def start_run(session: RaphaelSession, mission: Mission,
         policy = BOBPolicy(workspace)
         broker = BOBBroker(policy, workspace, ledger=ledger)
         runtime = BOBRuntime(broker)
+        registry = capability_bootstrap.register_default(CapabilityRegistry())
+        _register_production_read(registry)
+        capability_bootstrap.bind_governed_adapters(registry, runtime, mission)
         store = FindingStore(ledger)
         verifier = Verifier(runtime, ledger, store)
         falsifier = Falsifier(runtime, ledger, store)
         replanner = Replanner(store, ledger)
         gate = BOBQualityGate(ledger)
         runner = Runner(runtime, ledger, store, verifier, falsifier,
-                        replanner, gate, planner=Planner())
+                        replanner, gate,
+                        planner=Planner(registry=registry,
+                                        mission_type=_mission_type(mission)))
         if model is not None:
             context = ModelContext(
                 mission=mission, findings=[],

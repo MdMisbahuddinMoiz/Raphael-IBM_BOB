@@ -42,6 +42,7 @@ from raphael_ibm_bob import (
 )
 from raphael_ibm_bob.broker import BOBBroker, BrokerResult
 from raphael_ibm_bob.capabilities import execute_capability, CAPABILITY_DISPATCH
+from raphael_ibm_bob.evidence_ledger import EvidenceLedger
 from raphael_ibm_bob.policy import BOBPolicy
 from raphael_ibm_bob.runtime import BOBRuntime, RuntimeResult
 from raphael_ibm_bob.workspace import Workspace
@@ -398,6 +399,8 @@ class BoundaryTestNoBypass(unittest.TestCase):
     def test_behavioral_no_bypass_for_out_of_scope_write(self):
         root = _workspace_path()
         self.addCleanup(_teardown, root)
+        ledger_dir = Path(tempfile.mkdtemp(prefix="raphael_ibm_bob_m2_ledger_"))
+        self.addCleanup(_teardown, ledger_dir)
         workspace = Workspace(root)
         mission = Mission(
             mission_id="M-strict",
@@ -405,15 +408,90 @@ class BoundaryTestNoBypass(unittest.TestCase):
             scope="src/nonexistent/",
             criteria=[],
         )
-        h = _Harness(workspace, mission)
-        result = h.runtime.submit(
-            h.request(
-                Capability.WRITE,
-                "src/authkit/store.py",
+        ledger = EvidenceLedger(ledger_dir)
+        self.addCleanup(ledger.close)
+        policy = BOBPolicy(workspace)
+        broker = BOBBroker(policy, workspace, ledger=ledger)
+        runtime = BOBRuntime(broker)
+        target = root / "src" / "authkit" / "store.py"
+        before = target.read_text(encoding="utf-8")
+        invocations_before = broker.capability_invocations
+
+        result = runtime.submit(
+            ActionRequest(
+                sequence=0,
+                requester="agent",
+                capability=Capability.WRITE,
+                target="src/authkit/store.py",
                 purpose="content=MUTATED",
             ),
             mission,
         )
+
+        self.assertEqual(result.broker_result.decision.decision, Decision.DENY)
+        self.assertFalse(result.broker_result.capability_invoked)
+        self.assertEqual(broker.capability_invocations, invocations_before)
+        self.assertIsNone(result.execution)
+        self.assertIsNone(result.broker_result.result_seq)
+        self.assertIsNone(result.broker_result.execution)
+
+        records = ledger.all_records()
+        self.assertTrue(records, "expected the denied request to be recorded")
+        self.assertEqual(
+            [r for r in records if r.get("kind") == "result"], [],
+            "DENY must produce no ExecutionResult record",
+        )
+        self.assertEqual(
+            [r for r in records if r.get("producer") == "execution"], [],
+            "DENY must produce no execution evidence",
+        )
+
+        after = target.read_text(encoding="utf-8")
+        self.assertEqual(before, after)
+        self.assertNotIn("MUTATED", after)
+
+        stages = [e["stage"] for e in broker.audit]
+        self.assertIn("decision", stages)
+        self.assertNotIn("execution", stages)
+
+    def test_mutation_guard_allow_does_invoke_and_record(self):
+        """The same instrumentation as the DENY test: on ALLOW the Broker DOES
+        invoke and DOES record a result. If a future regression made the Broker
+        invoke after DENY, the assertions in the test above would fail."""
+        root = _workspace_path()
+        self.addCleanup(_teardown, root)
+        ledger_dir = Path(tempfile.mkdtemp(prefix="raphael_ibm_bob_m2_ledger_"))
+        self.addCleanup(_teardown, ledger_dir)
+        workspace = Workspace(root)
+        mission = _mission()
+        ledger = EvidenceLedger(ledger_dir)
+        self.addCleanup(ledger.close)
+        broker = BOBBroker(BOBPolicy(workspace), workspace, ledger=ledger)
+        runtime = BOBRuntime(broker)
+        invocations_before = broker.capability_invocations
+
+        result = runtime.submit(
+            ActionRequest(
+                sequence=0,
+                requester="agent",
+                capability=Capability.WRITE,
+                target="src/authkit/allowed.txt",
+                purpose="content=ok",
+            ),
+            mission,
+        )
+
+        self.assertEqual(result.broker_result.decision.decision, Decision.ALLOW)
+        self.assertTrue(result.broker_result.capability_invoked)
+        self.assertEqual(broker.capability_invocations, invocations_before + 1)
+        self.assertIsNotNone(result.execution)
+        self.assertIsNotNone(result.broker_result.result_seq)
+        records = ledger.all_records()
+        self.assertTrue([r for r in records if r.get("kind") == "result"])
+        self.assertTrue([r for r in records if r.get("producer") == "execution"])
+        self.assertEqual(
+            [e["stage"] for e in broker.audit][-1], "execution")
+
     def test_structural_only_broker_invokes_execute_capability(self):
         proc = subprocess.run(
             ["grep", "-rln", "--include=*.py",

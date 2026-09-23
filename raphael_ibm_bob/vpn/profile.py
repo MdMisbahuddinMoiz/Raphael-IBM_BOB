@@ -80,6 +80,9 @@ def validate_profile(text: object) -> str:
             continue
         if not line or line.startswith("#") or line.startswith(";"):
             continue
+        if line.startswith("-"):
+            raise ProfileError(
+                "profile contains a command-line option token")
         opening = _BLOCK_OPEN_RE.match(line)
         if opening:
             name = opening.group(1).lower()

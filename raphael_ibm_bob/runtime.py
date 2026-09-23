@@ -32,7 +32,6 @@ from typing import Optional, Tuple
 from raphael_ibm_bob.broker import BOBBroker, BrokerResult
 from raphael_ibm_bob.contracts import (
     ActionRequest,
-    Capability,
     ExecutionResult,
     Mission,
 )
@@ -89,12 +88,6 @@ class BOBRuntime:
             raise ValueError("ActionRequest.target is required")
         if not request.purpose:
             raise ValueError("ActionRequest.purpose is required")
-        if not isinstance(request.capability, Capability):
-            raise TypeError(
-                f"ActionRequest.capability must be a Capability enum, got "
-                f"{type(request.capability).__name__}"
-            )
-
         broker_result = self._broker.submit(request, mission)
         return RuntimeResult(
             broker_result=broker_result,

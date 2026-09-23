@@ -54,13 +54,14 @@ class Falsification(unittest.TestCase):
         return store, store.get("F-c1a")
 
     def test_contradiction_refutes(self):
-        stack = make_stack(provider=CountingInertProvider(), with_ledger=True)
+        provider = CountingInertProvider()
+        stack = make_stack(provider=provider, with_ledger=True)
         self.addCleanup(cleanup, stack.root)
         store, finding = self._verified_finding(stack)
+        provider._result_hash = "different-hash"
         falsifier = C1AFalsifier(stack.runtime, stack.ledger, store)
         result = falsifier.challenge(
-            finding, stack.mission, alternate_target=str(stack.other),
-            expected_result_hash="different-hash")
+            finding, stack.mission, alternate_target=str(stack.other))
         self.assertIs(result.outcome, FalsificationOutcome.REFUTED)
         self.assertTrue(result.transition_applied)
         self.assertIs(store.get("F-c1a").state, FindingState.REFUTED)
@@ -81,11 +82,12 @@ class Falsification(unittest.TestCase):
         self.addCleanup(cleanup, stack.root)
         store = FindingStore(stack.ledger)
         finding = store.register(Finding(
-            finding_id="F-c1a", state=FindingState.VERIFIED,
+            finding_id="F-c1a", state=FindingState.UNVERIFIED,
             summary="c1a", target=str(stack.fixture), evidence_ids=[]))
+        store.transition("F-c1a", FindingState.VERIFIED)
         falsifier = C1AFalsifier(stack.runtime, stack.ledger, store)
         result = falsifier.challenge(
-            finding, stack.mission, expected_result_hash="x")
+            store.get("F-c1a"), stack.mission, expected_result_hash="x")
         self.assertIs(result.outcome, FalsificationOutcome.INCONCLUSIVE)
 
     def test_unverified_finding_not_challenged(self):

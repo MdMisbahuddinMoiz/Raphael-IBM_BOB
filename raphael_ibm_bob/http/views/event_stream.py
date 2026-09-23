@@ -28,6 +28,18 @@ DEFAULT_POLL_SECONDS = 0.25
 DEFAULT_HEARTBEAT_SECONDS = 10.0
 DEFAULT_MAX_SECONDS = 300.0
 
+#: Hard caps (M-14): connection lifetime can never exceed
+#: ABSOLUTE_MAX_SECONDS no matter what the caller requests; a single
+#: connection replays at most MAX_REPLAY_EVENTS past events (older
+#: history stays in the persisted ledger and remains pageable via the
+#: JSON events API); and at most MAX_FRAMES_PER_POLL frames are pumped
+#: per poll iteration so per-read buffer growth is bounded. Streaming
+#: itself is unchanged: the client still receives every new event live
+#: until the terminal event or the lifetime cap.
+ABSOLUTE_MAX_SECONDS = 300.0
+MAX_REPLAY_EVENTS = 10_000
+MAX_FRAMES_PER_POLL = 1_000
+
 
 def _fmt_ts(ts: Any) -> Optional[str]:
     try:
@@ -217,11 +229,17 @@ def iter_frames(run_id: str, *, runs_root,
     """Yield SSE frames for a run until terminal, timeout, or stop.
 
     Deterministic ordering; resumable via `after` (last seen cursor).
-    Bounded by `max_seconds`; a heartbeat keeps idle connections alive.
+    Bounded by `max_seconds` capped at ABSOLUTE_MAX_SECONDS, with at
+    most MAX_REPLAY_EVENTS replayed past events and MAX_FRAMES_PER_POLL
+    frames per poll; a heartbeat keeps idle connections alive.
     """
+    max_seconds = min(float(max_seconds), ABSOLUTE_MAX_SECONDS)
     started = clock()
     last_beat = started
-    sent = max(0, int(after or 0))
+    try:
+        sent = max(0, int(after or 0))
+    except (TypeError, ValueError):
+        sent = 0
     yield b"retry: 3000\n\n"
     while clock() - started < max_seconds:
         try:
@@ -233,10 +251,13 @@ def iter_frames(run_id: str, *, runs_root,
             return
         ts_by_seq = {r.get("seq"): r.get("ts") for r in records}
         total = len(events)
-        for index in range(sent + 1, total + 1):
+        if sent < total - MAX_REPLAY_EVENTS:
+            sent = total - MAX_REPLAY_EVENTS
+        for index in range(sent + 1,
+                           min(total + 1, sent + 1 + MAX_FRAMES_PER_POLL)):
             yield event_frame(index, events[index - 1], run_id, ts_by_seq)
         if total > sent:
-            sent = total
+            sent = min(total, sent + MAX_FRAMES_PER_POLL)
         if run.is_terminal() and sent >= total:
             yield end_frame(run_id, run.state, sent)
             return
@@ -248,10 +269,13 @@ def iter_frames(run_id: str, *, runs_root,
 
 
 __all__ = [
+    "ABSOLUTE_MAX_SECONDS",
     "DEFAULT_HEARTBEAT_SECONDS",
     "DEFAULT_MAX_SECONDS",
     "DEFAULT_POLL_SECONDS",
     "LIVE_JS",
+    "MAX_FRAMES_PER_POLL",
+    "MAX_REPLAY_EVENTS",
     "SSE_EVENT",
     "STREAM_END",
     "STREAM_ERROR",

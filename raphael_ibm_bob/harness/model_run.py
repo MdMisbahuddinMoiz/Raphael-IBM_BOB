@@ -157,20 +157,48 @@ def _workspace_files(workspace_root: Path, mission: Mission,
     return tuple(files)
 
 
+def _latest_bound_execution(ledger: EvidenceLedger):
+    records = ledger.all_records()
+    decisions = {r.get("request_seq"): r.get("decision") for r in records
+                 if r.get("kind") == "decision"}
+    results = {r.get("request_seq"): r for r in records
+               if r.get("kind") == "result"}
+    req_seq = None
+    for r in records:
+        if r.get("kind") != "request":
+            continue
+        seq = r.get("seq")
+        if (decisions.get(seq) == "allow"
+                and results.get(seq, {}).get("success") is True):
+            req_seq = seq
+    if req_seq is None:
+        return 0, 0, None
+    decs = [r for r in records if r.get("kind") == "decision"
+            and r.get("request_seq") == req_seq]
+    dec_seq = decs[-1].get("seq") if decs else 0
+    res_seq = (results.get(req_seq) or {}).get("seq")
+    return req_seq, dec_seq, res_seq
+
+
 def _persist_proof(ledger: EvidenceLedger, kind: str, ok: bool) -> None:
+    req_seq, dec_seq, res_seq = (0, 0, None)
+    if ok:
+        req_seq, dec_seq, res_seq = _latest_bound_execution(ledger)
     if kind == "probe":
         payload = {"kind": "probe",
                    "result": "passed" if ok else "failed",
-                   "allowed": ok}
+                   "allowed": ok, "request_seq": req_seq,
+                   "result_seq": res_seq}
         prefix = "PB"
     else:
         payload = {"kind": "regression",
-                   "result": "passed" if ok else "failed"}
+                   "result": "passed" if ok else "failed",
+                   "request_seq": req_seq, "result_seq": res_seq}
         prefix = "RG"
     ledger.append_evidence(
         evidence_id=digest_id(payload, prefix=prefix),
-        producer=kind, request_seq=0, decision_seq=0,
-        result_seq=None, payload=payload)
+        producer=kind, request_seq=req_seq, decision_seq=dec_seq,
+        result_seq=res_seq, payload=payload)
 
 
 def passing_run_tests(ledger: EvidenceLedger) -> bool:

@@ -18,8 +18,10 @@ from raphael_ibm_bob.broker import BOBBroker
 from raphael_ibm_bob.contracts import (
     ActionRequest,
     Capability,
+    Decision,
     FindingState,
     Mission,
+    PolicyDecision,
 )
 from raphael_ibm_bob.evidence_ledger import EvidenceLedger, create_run_dir
 from raphael_ibm_bob.finding import FindingStore
@@ -346,6 +348,12 @@ class Authorization(_Base):
 # mediator bounds + replay
 # ---------------------------------------------------------------------------
 
+def _allow(request):
+    return PolicyDecision(
+        sequence=request.sequence, decision=Decision.ALLOW, reason="ok",
+        capability=request.capability, target=request.target)
+
+
 class MediatorBounds(_Base):
     def test_replay_prevention(self):
         mission = self.mission()
@@ -358,10 +366,12 @@ class MediatorBounds(_Base):
                             target=f"telnet://{HOST}:23", purpose="telnet-session",
                             timeout_seconds=5)
         a = mediator.invoke(request=req, profile=profile, spec=spec,
-                            invocation_id="TEL-1", run_id="run-1")
+                            invocation_id="TEL-1", run_id="run-1",
+                            decision=_allow(req))
         self.assertEqual(a.state, TelnetState.SUCCESS)
         b = mediator.invoke(request=req, profile=profile, spec=spec,
-                            invocation_id="TEL-1", run_id="run-1")
+                            invocation_id="TEL-1", run_id="run-1",
+                            decision=_allow(req))
         self.assertEqual(b.state, TelnetState.DENIED)
         self.assertIn("replay", b.error)
 
@@ -379,7 +389,8 @@ class MediatorBounds(_Base):
                             capability=Capability.NETWORK_TELNET_SESSION,
                             target=f"telnet://{HOST}:23", purpose="telnet-session")
         out = mediator.invoke(request=req, profile=profile, spec=zero,
-                              invocation_id="TEL-T", run_id="run-1")
+                              invocation_id="TEL-T", run_id="run-1",
+                              decision=_allow(req))
         self.assertEqual(out.state, TelnetState.DENIED)
         self.assertEqual(out.error, "timeout-invalid")
 
@@ -402,7 +413,8 @@ class MediatorBounds(_Base):
                             target=f"telnet://{HOST}:23", purpose="telnet-session",
                             timeout_seconds=5)
         mediator.invoke(request=req, profile=profile, spec=spec,
-                        invocation_id="TEL-B", run_id="run-1")
+                        invocation_id="TEL-B", run_id="run-1",
+                        decision=_allow(req))
         self.assertEqual(calls[0]["max_bytes"], 1234)
         self.assertEqual(calls[0]["password"], "")   # blank, explicit usage
 

@@ -28,7 +28,9 @@ from raphael_ibm_bob import (
 )
 from raphael_ibm_bob.broker import BOBBroker
 from raphael_ibm_bob.contracts import ActionRequest, EvidenceReceipt
-from raphael_ibm_bob.evidence_ledger import EvidenceLedger, digest_id
+from raphael_ibm_bob.evidence_ledger import (
+    EvidenceLedger, digest_id, latest_allowed_success,
+)
 from raphael_ibm_bob.falsifier import ChallengeSpec, Falsifier
 from raphael_ibm_bob.finding import FindingStore
 from raphael_ibm_bob.harness.loop import drive_turns
@@ -316,14 +318,16 @@ class TestGGate(unittest.TestCase):
             capability=Capability.RUN_TEST,
             target="src/test_ok.py", purpose="model:verify"),
             stack.mission)
+        req_seq, dec_seq, res_seq = latest_allowed_success(stack.ledger)
         for producer, allowed in (("probe", True), ("regression", None)):
-            payload = {"kind": producer, "result": "passed"}
+            payload = {"kind": producer, "result": "passed",
+                       "request_seq": req_seq, "result_seq": res_seq}
             if allowed is not None:
                 payload["allowed"] = allowed
             stack.ledger.append_evidence(
                 evidence_id=digest_id(payload, prefix="T"),
-                producer=producer, request_seq=0, decision_seq=0,
-                result_seq=None, payload=payload)
+                producer=producer, request_seq=req_seq, decision_seq=dec_seq,
+                result_seq=res_seq, payload=payload)
         evaluation = stack.gate.evaluate(GateInputs(
             mission=stack.mission,
             findings=list(stack.store.all()),

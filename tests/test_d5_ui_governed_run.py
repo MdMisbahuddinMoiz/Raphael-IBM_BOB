@@ -222,9 +222,7 @@ class PositiveGovernedRun(_GovernedRunCase):
         run = api.get_run(run_id, self.runs)
         self.assertEqual(run.gate_verdict, "refuse")
         gate = api.get_gate(run_id, self.runs)
-        self.assertTrue(
-            any("RUN_TEST" in reason for reason in gate.get("reasons", [])),
-            msg=gate.get("reasons"))
+        self.assertIn("B:required-tests", gate.get("checks", []))
 
     def test_F_out_of_scope_target_still_denied(self):
         session = self._session()

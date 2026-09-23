@@ -31,8 +31,9 @@ Legacy semantics:
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from raphael_ibm_bob.contracts import (
     ActionRequest,
@@ -40,6 +41,7 @@ from raphael_ibm_bob.contracts import (
     Decision,
     Mission,
     PolicyDecision,
+    capability_id,
 )
 from raphael_ibm_bob.c1a_scope import scope_contains, within_root
 from raphael_ibm_bob.network_runtime import ALLOWED_METHODS, method_from_purpose
@@ -57,27 +59,55 @@ from raphael_ibm_bob.target_profile import get_target_store
 from raphael_ibm_bob.workspace import Workspace
 
 
+@dataclass(frozen=True)
+class PolicyCapabilityMetadata:
+    scope: str = "path"
+    authorizer: Callable[[ActionRequest, Mission, Path | None], PolicyDecision] | None = None
+
+
 class BOBPolicy:
     """MVP Policy. Fail-closed. Pure (no side effects)."""
 
     def __init__(self, workspace: Workspace, target_store=None):
         self._workspace = workspace
         self._target_store = target_store
+        self._metadata: dict[str, PolicyCapabilityMetadata] = {}
+        self._register_builtin_metadata()
+
+    def register_capability(
+        self, capability_id_value: str, metadata: PolicyCapabilityMetadata,
+    ) -> None:
+        if not capability_id_value:
+            raise ValueError("capability_id is required")
+        self._metadata[capability_id_value] = metadata
+
+    def _register_builtin_metadata(self) -> None:
+        self._metadata = {
+            Capability.READ.value: PolicyCapabilityMetadata(
+                authorizer=self._authorize_read),
+            Capability.LIST.value: PolicyCapabilityMetadata(
+                authorizer=self._authorize_list),
+            Capability.SEARCH.value: PolicyCapabilityMetadata(
+                authorizer=self._authorize_search),
+            Capability.WRITE.value: PolicyCapabilityMetadata(
+                authorizer=self._authorize_write),
+            Capability.RUN_TEST.value: PolicyCapabilityMetadata(
+                authorizer=self._authorize_run_test),
+            Capability.C1A_STATIC_FILE_INSPECT.value: PolicyCapabilityMetadata(
+                authorizer=self._consult_c1a),
+            Capability.NETWORK_HTTP_REQUEST.value: PolicyCapabilityMetadata(
+                scope="network", authorizer=self._consult_network),
+            Capability.NETWORK_TELNET_SESSION.value: PolicyCapabilityMetadata(
+                scope="network", authorizer=self._consult_telnet),
+        }
 
     def consult(self, request: ActionRequest, mission: Mission) -> PolicyDecision:
-        # 1. Capability must be in the MVP allow-list.
-        if request.capability not in {
-            Capability.READ,
-            Capability.LIST,
-            Capability.SEARCH,
-            Capability.WRITE,
-            Capability.RUN_TEST,
-            Capability.C1A_STATIC_FILE_INSPECT,
-            Capability.NETWORK_HTTP_REQUEST,
-            Capability.NETWORK_TELNET_SESSION,
-        }:
-            cap_str = getattr(request.capability, "value", str(request.capability))
-            return self._deny(request, f"capability-not-allowed:{cap_str}")
+        metadata = self._metadata.get(capability_id(request.capability))
+        if metadata is None:
+            return self._deny(
+                request,
+                f"capability-not-allowed:{capability_id(request.capability)}",
+            )
 
         # 2. Target must be a non-empty string.
         if not request.target or not isinstance(request.target, str):
@@ -86,15 +116,17 @@ class BOBPolicy:
         # 2b. Network capability: authorize against the mission-bound
         # TargetProfile (URL targets are not workspace paths; the network
         # scope algebra replaces path containment).
-        if request.capability == Capability.NETWORK_HTTP_REQUEST:
-            return self._consult_network(request, mission)
+        if metadata.scope == "network":
+            if metadata.authorizer is None:
+                return self._deny(request, "capability-policy-metadata-invalid")
+            return metadata.authorizer(request, mission, None)
 
-        # D12: governed Telnet session. Authorized against the same
-        # mission-bound TargetProfile (protocol "telnet") with the same
-        # exact host/port matching; the declared command must additionally
-        # pass the fail-closed allow-list for its role.
-        if request.capability == Capability.NETWORK_TELNET_SESSION:
-            return self._consult_telnet(request, mission)
+        if metadata.scope == "mission":
+            if mission.scope and not scope_contains(mission.scope, request.target):
+                return self._deny(request, "scope-mismatch")
+            if metadata.authorizer is None:
+                return self._allow(request)
+            return metadata.authorizer(request, mission, None)
 
         # 3. Workspace containment check.
         try:
@@ -115,56 +147,14 @@ class BOBPolicy:
         if mission.scope and not scope_contains(mission.scope, request.target):
             return self._deny(request, "scope-mismatch")
 
-        # 5. Capability-specific invariants.
-        if request.capability == Capability.C1A_STATIC_FILE_INSPECT:
-            return self._consult_c1a(request, resolved)
-        if request.capability == Capability.READ:
-            if resolved is None:
-                return self._deny(request, "read-target-missing")
-            if not resolved.is_file():
-                return self._deny(request, "read-target-not-file")
+        if metadata.authorizer is None:
             return self._allow(request)
+        return metadata.authorizer(request, mission, resolved)
 
-        if request.capability == Capability.LIST:
-            if resolved is None:
-                return self._deny(request, "list-target-missing")
-            if not resolved.is_dir():
-                return self._deny(request, "list-target-not-directory")
-            return self._allow(request)
-
-        if request.capability == Capability.SEARCH:
-            if resolved is None:
-                return self._deny(request, "search-target-missing")
-            if not resolved.is_dir():
-                return self._deny(request, "search-target-not-directory")
-            return self._allow(request)
-
-        if request.capability == Capability.WRITE:
-            # WRITE allows the target to not yet exist; its parent must.
-            assert resolved is not None  # workspace.resolve did not raise
-            if resolved.exists() and resolved.is_dir():
-                return self._deny(request, "write-target-is-directory")
-            parent = resolved.parent
-            if not parent.is_dir():
-                return self._deny(request, "write-parent-missing")
-            return self._allow(request)
-
-        if request.capability == Capability.RUN_TEST:
-            if resolved is None:
-                return self._deny(request, "run_test-target-missing")
-            if not resolved.is_file():
-                return self._deny(request, "run_test-target-not-file")
-            name = resolved.name
-            if not (name.startswith("test_") and name.endswith(".py")) and \
-               not (name.endswith("_test.py")):
-                return self._deny(request, "run_test-name-pattern")
-            return self._allow(request)
-
-        # Unreachable: capability allow-list is exhaustive above.
-        return self._deny(request, f"unhandled-capability:{request.capability.value}")
-
-    def _consult_network(self, request: ActionRequest,
-                         mission: Mission) -> PolicyDecision:
+    def _consult_network(
+        self, request: ActionRequest, mission: Mission,
+        _resolved: Path | None = None,
+    ) -> PolicyDecision:
         """D9 network authorization (fail closed).
 
         The URL must be a valid http(s) target whose host/port/protocol are
@@ -197,8 +187,10 @@ class BOBPolicy:
             return self._deny(request, "network-timeout-invalid")
         return self._allow(request)
 
-    def _consult_telnet(self, request: ActionRequest,
-                        mission: Mission) -> PolicyDecision:
+    def _consult_telnet(
+        self, request: ActionRequest, mission: Mission,
+        _resolved: Path | None = None,
+    ) -> PolicyDecision:
         """D12 Telnet authorization (fail closed).
 
         The ``telnet://host:port`` target must be exactly authorized by the
@@ -234,7 +226,10 @@ class BOBPolicy:
             return self._deny(request, f"telnet-command-rejected:{why}")
         return self._allow(request)
 
-    def _consult_c1a(self, request: ActionRequest, resolved) -> PolicyDecision:
+    def _consult_c1a(
+        self, request: ActionRequest, _mission: Mission,
+        resolved: Path | None,
+    ) -> PolicyDecision:
         """C1A-specific authorization (fail closed).
 
         The target must resolve to an existing regular file inside the
@@ -254,6 +249,62 @@ class BOBPolicy:
                 or isinstance(request.timeout_seconds, bool)
                 or request.timeout_seconds <= 0):
             return self._deny(request, "c1a-timeout-required")
+        return self._allow(request)
+
+    def _authorize_read(
+        self, request: ActionRequest, _mission: Mission,
+        resolved: Path | None,
+    ) -> PolicyDecision:
+        if resolved is None:
+            return self._deny(request, "read-target-missing")
+        if not resolved.is_file():
+            return self._deny(request, "read-target-not-file")
+        return self._allow(request)
+
+    def _authorize_list(
+        self, request: ActionRequest, _mission: Mission,
+        resolved: Path | None,
+    ) -> PolicyDecision:
+        if resolved is None:
+            return self._deny(request, "list-target-missing")
+        if not resolved.is_dir():
+            return self._deny(request, "list-target-not-directory")
+        return self._allow(request)
+
+    def _authorize_search(
+        self, request: ActionRequest, _mission: Mission,
+        resolved: Path | None,
+    ) -> PolicyDecision:
+        if resolved is None:
+            return self._deny(request, "search-target-missing")
+        if not resolved.is_dir():
+            return self._deny(request, "search-target-not-directory")
+        return self._allow(request)
+
+    def _authorize_write(
+        self, request: ActionRequest, _mission: Mission,
+        resolved: Path | None,
+    ) -> PolicyDecision:
+        if resolved is None:
+            return self._deny(request, "write-target-unresolved")
+        if resolved.exists() and resolved.is_dir():
+            return self._deny(request, "write-target-is-directory")
+        if not resolved.parent.is_dir():
+            return self._deny(request, "write-parent-missing")
+        return self._allow(request)
+
+    def _authorize_run_test(
+        self, request: ActionRequest, _mission: Mission,
+        resolved: Path | None,
+    ) -> PolicyDecision:
+        if resolved is None:
+            return self._deny(request, "run_test-target-missing")
+        if not resolved.is_file():
+            return self._deny(request, "run_test-target-not-file")
+        name = resolved.name
+        if not ((name.startswith("test_") and name.endswith(".py"))
+                or name.endswith("_test.py")):
+            return self._deny(request, "run_test-name-pattern")
         return self._allow(request)
 
     # Helpers -----------------------------------------------------------------
@@ -279,4 +330,4 @@ class BOBPolicy:
         )
 
 
-__all__ = ["BOBPolicy"]
+__all__ = ["BOBPolicy", "PolicyCapabilityMetadata"]

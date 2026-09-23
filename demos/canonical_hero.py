@@ -79,6 +79,7 @@ from raphael_ibm_bob.evidence_ledger import (
     append_run_provenance,
     create_run_dir,
     digest_id,
+    latest_allowed_success,
 )
 from raphael_ibm_bob.falsifier import ChallengeSpec, Falsifier
 from raphael_ibm_bob.finding import FindingStore
@@ -252,31 +253,40 @@ def check_prerequisites() -> List[PrereqStatus]:
 
 
 def _persist_probe_proof(ledger: EvidenceLedger, ok: bool) -> int:
+    req_seq, dec_seq, res_seq = (0, 0, None)
+    if ok:
+        req_seq, dec_seq, res_seq = latest_allowed_success(ledger)
     payload = {
         "kind": "probe",
         "result": "passed" if ok else "failed",
         "allowed": ok,
+        "request_seq": req_seq,
+        "result_seq": res_seq,
     }
     ev_id = digest_id(payload, prefix="PB")
     return ledger.append_evidence(
         evidence_id=ev_id,
         producer="probe",
-        request_seq=0,
-        decision_seq=0,
-        result_seq=None,
+        request_seq=req_seq,
+        decision_seq=dec_seq,
+        result_seq=res_seq,
         payload=payload,
     )
 
 
 def _persist_regression_proof(ledger: EvidenceLedger, ok: bool) -> int:
-    payload = {"kind": "regression", "result": "passed" if ok else "failed"}
+    req_seq, dec_seq, res_seq = (0, 0, None)
+    if ok:
+        req_seq, dec_seq, res_seq = latest_allowed_success(ledger)
+    payload = {"kind": "regression", "result": "passed" if ok else "failed",
+               "request_seq": req_seq, "result_seq": res_seq}
     ev_id = digest_id(payload, prefix="RG")
     return ledger.append_evidence(
         evidence_id=ev_id,
         producer="regression",
-        request_seq=0,
-        decision_seq=0,
-        result_seq=None,
+        request_seq=req_seq,
+        decision_seq=dec_seq,
+        result_seq=res_seq,
         payload=payload,
     )
 

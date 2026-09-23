@@ -42,6 +42,18 @@ M4 additions:
 M6 additions:
     - `RecordKind.GATE = "gate"` + GateRecord for the QualityGate
       decision (COMPLETE / REFUSE + checks + reasons + evidence refs).
+
+G16 seal semantics (HONEST, UNKEYED):
+    The per-record `digest` is a plain UNKEYED SHA-256 over the canonical
+    stored payload. It is an integrity seal against accidental edits,
+    partial writes, and third-party file tampering — NOT an authenticity
+    proof against an attacker holding write access (who could recompute
+    the digest, same caveat as documented in `seal.py`). No secrets are
+    created, stored, or committed. Read-back (`get` / `by_sequence` /
+    `all`) returns the STORED payload and fail-closed verifies the seal:
+    a record whose stored payload no longer matches its stored digest
+    raises ValueError instead of returning forged content. Use
+    `verify_record` for a non-raising check.
 """
 from __future__ import annotations
 
@@ -112,6 +124,43 @@ def digest_id(payload: Dict[str, Any], prefix: str = "E") -> str:
     """Compute a deterministic SHA-256 digest identifier over a canonical payload."""
     h = hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
     return f"{prefix}-{h[:16]}"
+
+
+def verify_record(record: Dict[str, Any]) -> bool:
+    """Recompute a stored record's seal over its STORED payload.
+
+    Honest semantics: the seal is UNKEYED SHA-256 integrity (see module
+    docstring), not authenticity. Returns True iff the record verifies:
+
+    - ``evidence`` records: ``digest`` MUST equal
+      ``sha256(canonical(stored payload))``. A payload edit, digest edit,
+      or missing field returns False.
+    - ``finding`` / ``gate`` records: the digest attests the build-time
+      transition payload, which is NOT persisted in the row, so content
+      cannot be recomputed from stored fields. This is a well-formedness
+      presence check only (64 hex chars); tamper-evidence for these rows
+      comes from the append-only file plus the hash chain in `seal.py`.
+      This limitation is stated here so no authenticity is overclaimed.
+    - ``request`` / ``decision`` / ``result`` records carry no digest and
+      make no seal claim; they return True (chain-level sealing via
+      `seal.py` still applies).
+    """
+    kind = record.get("kind")
+    if kind == RecordKind.EVIDENCE.value:
+        payload = record.get("payload")
+        digest = record.get("digest")
+        if not isinstance(payload, dict) or not isinstance(digest, str):
+            return False
+        expected = hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
+        return expected == digest
+    if kind in (RecordKind.FINDING.value, RecordKind.GATE.value):
+        digest = record.get("digest")
+        return (
+            isinstance(digest, str)
+            and len(digest) == 64
+            and all(c in "0123456789abcdef" for c in digest)
+        )
+    return True
 
 
 # -----------------------------------------------------------------------------
@@ -688,40 +737,81 @@ class EvidenceLedger:
         return ev_id
 
     def get(self, evidence_id: str) -> Optional[EvidenceReceipt]:
+        """Return the STORED authenticated payload for `evidence_id`.
+
+        Invariant: read-back reproduces exactly the payload persisted at
+        append time. The stored digest is recomputed over the stored
+        payload first; on mismatch this raises ValueError (fail-closed)
+        instead of returning unforged content. Returns None only when no
+        record carries that id.
+        """
         for rec in self._reader.by_evidence_id(evidence_id):
+            if not verify_record(rec):
+                raise ValueError(
+                    f"evidence digest mismatch for {evidence_id!r}: "
+                    "stored payload fails seal verification"
+                )
+            payload = rec.get("payload")
+            if not isinstance(payload, dict):
+                raise ValueError(
+                    f"evidence record for {evidence_id!r} has no stored payload"
+                )
             return EvidenceReceipt(
                 evidence_id=evidence_id,
                 sequence=rec.get("seq", 0),
                 producer=rec.get("producer", ""),
-                payload={k: v for k, v in rec.items() if k not in {
-                    "kind", "seq", "ts", "evidence_id", "producer",
-                    "request_seq", "decision_seq", "result_seq", "digest",
-                }},
+                payload=dict(payload),
             )
         return None
+
+    def verify(self, evidence_id: str) -> bool:
+        """Non-raising seal check: False when missing or tampered."""
+        for rec in self._reader.by_evidence_id(evidence_id):
+            return verify_record(rec)
+        return False
 
     def by_sequence(self, sequence: int) -> List[EvidenceReceipt]:
         out: List[EvidenceReceipt] = []
         for rec in self._reader.by_kind(RecordKind.EVIDENCE.value):
             if rec.get("seq") == sequence:
+                if not verify_record(rec):
+                    raise ValueError(
+                        f"evidence digest mismatch at seq {sequence}: "
+                        "stored payload fails seal verification"
+                    )
+                payload = rec.get("payload")
+                if not isinstance(payload, dict):
+                    raise ValueError(
+                        f"evidence record at seq {sequence} has no stored payload"
+                    )
                 out.append(EvidenceReceipt(
                     evidence_id=rec.get("evidence_id", ""),
                     sequence=rec.get("seq", 0),
                     producer=rec.get("producer", ""),
-                    payload={},
+                    payload=dict(payload),
                 ))
         return out
 
     def all(self) -> List[EvidenceReceipt]:
-        return [
-            EvidenceReceipt(
+        out: List[EvidenceReceipt] = []
+        for rec in self._reader.by_kind(RecordKind.EVIDENCE.value):
+            if not verify_record(rec):
+                raise ValueError(
+                    f"evidence digest mismatch at seq {rec.get('seq')}: "
+                    "stored payload fails seal verification"
+                )
+            payload = rec.get("payload")
+            if not isinstance(payload, dict):
+                raise ValueError(
+                    f"evidence record at seq {rec.get('seq')} has no stored payload"
+                )
+            out.append(EvidenceReceipt(
                 evidence_id=rec.get("evidence_id", ""),
                 sequence=rec.get("seq", 0),
                 producer=rec.get("producer", ""),
-                payload={},
-            )
-            for rec in self._reader.by_kind(RecordKind.EVIDENCE.value)
-        ]
+                payload=dict(payload),
+            ))
+        return out
 
     # --- M3 record append helpers -----------------------------------------
 
@@ -836,6 +926,36 @@ class EvidenceLedger:
         return self._reader.by_kind(kind)
 
 
+def latest_allowed_success(
+        ledger: "EvidenceLedger") -> Tuple[int, int, Optional[int]]:
+    """(request_seq, decision_seq, result_seq) of the latest ALLOWed success.
+
+    Shared provenance helper: locates the newest request whose Policy
+    decision is ALLOW and whose ExecutionResult reports success, so callers
+    can bind probe/regression evidence to a real execution.
+    """
+    records = ledger.all_records()
+    decisions = {r.get("request_seq"): r.get("decision") for r in records
+                 if r.get("kind") == "decision"}
+    results = {r.get("request_seq"): r for r in records
+               if r.get("kind") == "result"}
+    req_seq = None
+    for r in records:
+        if r.get("kind") != "request":
+            continue
+        seq = r.get("seq")
+        if (decisions.get(seq) == "allow"
+                and results.get(seq, {}).get("success") is True):
+            req_seq = seq
+    if req_seq is None:
+        return 0, 0, None
+    decs = [r for r in records if r.get("kind") == "decision"
+            and r.get("request_seq") == req_seq]
+    dec_seq = decs[-1].get("seq") if decs else 0
+    res_seq = (results.get(req_seq) or {}).get("seq")
+    return req_seq, dec_seq, res_seq
+
+
 __all__ = [
     "RecordKind",
     "RequestRecord",
@@ -846,6 +966,8 @@ __all__ = [
     "GateRecord",
     "Record",
     "digest_id",
+    "verify_record",
+    "latest_allowed_success",
     "generate_run_id",
     "create_run_dir",
     "append_run_provenance",

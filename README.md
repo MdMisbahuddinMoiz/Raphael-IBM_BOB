@@ -1,4 +1,4 @@
-# Raphael-IBM_BOB — Evidence-Driven AI Control Loop (IBM BOB MVP)
+# Raphael 2.0 (Raphael-IBM_BOB) — Governed Autonomous Security-Assessment Agent
 
 RAPHAEL IBM BOB is a governed agentic execution system: it plans against a
 mission, acts only through a mediated boundary (Runtime → Broker →
@@ -13,6 +13,10 @@ Mission → Plan A → Runtime → Broker → Policy → Evidence → Finding
 → Plan B / Plan C → Independent verification → QualityGate
 → COMPLETE / REFUSE
 ```
+
+> **Raphael 2.0** — *Generic governed autonomous security-assessment agent for authorized/CTF targets.*
+> Milestones: **D13** capability fabric → **D14** autonomous planner / world-state → **D15** generic capability registry + adapter bridge → **D16** verification + replanning → **D17** adversarial hardening → **D18** final release candidate.
+> Full release documentation: [`docs/FINAL_RELEASE.md`](docs/FINAL_RELEASE.md).
 
 ---
 
@@ -49,9 +53,9 @@ Each run writes an isolated `runs/<run_id>/{evidence.jsonl,artifacts/}`
 (never `/tmp`, never appended across runs) and outputs the run ID,
 evidence path, and gate verdict. Fixture files self-restore on exit,
 which is intended to leave `git status --short` empty at release time.
-Release condition: `git status --short` must print nothing. Measured
-2026-09-23 the tree is NOT clean (35 entries: 21 modified, 14 untracked;
-see report), so do not cut a release from this tree without cleaning it first.
+Raphael 2.0.0 is committed and pushed (commit `d5dc6748a`, tag `v2.0.0`); the
+only remaining untracked items are non-product local files (ignored tooling
+state and editor scratch), so `git status --short` is clean of product changes.
 
 See [`CANONICAL_DEMO.md`](CANONICAL_DEMO.md) for full demo documentation.
 
@@ -90,9 +94,12 @@ capabilities, and an independent `producer="probe"` record with `allowed=true`.
 service did not answer, so no probe proof exists). Raphael records the failure
 and refuses — it never converts failure into `COMPLETE`.
 
-**Current limitations.** The only network capability is `NETWORK_HTTP_REQUEST`
-(HTTP GET/HEAD); there is no shell, SMB, Telnet, privilege escalation, port
-scanning, or arbitrary HTTP method. The validated Breakout run reaches
+**Capability surface (Raphael 2.0).** Two governed network capabilities are
+executable: `NETWORK_HTTP_REQUEST` (HTTP GET/HEAD) and `NETWORK_TELNET_SESSION`
+(D12). D15 additionally declares SSH / SMB / TLS / DNS / generic-service
+observation capabilities as **descriptor-only** registry metadata (execution
+fails closed until an approved adapter exists). There is no shell, privilege
+escalation, port scanning, or arbitrary HTTP method. The validated Breakout run reaches
 `COMPLETE` without capturing a flag: Breakout does not serve its root flag over
 HTTP, so condition G is satisfied as "no unresolved/refuted/invalid findings".
 It is **not** a claim that Raphael solved Breakout.
@@ -119,7 +126,7 @@ RAPHAEL strictly enforces these foundational invariants across all layers:
 
 ### 2. Fail-Closed Policy
 [`BOBPolicy`](file:///home/moiz/raphael-2.0-rbsv2r/raphael_ibm_bob/policy.py) enforces:
-- An explicit capability allow-list: `READ`, `LIST`, `SEARCH`, `WRITE`, `RUN_TEST`, `C1A_STATIC_FILE_INSPECT`.
+- A capability authorization policy that is now **data-driven** (`PolicyCapabilityMetadata`); built-in entries cover `READ`, `LIST`, `SEARCH`, `WRITE`, `RUN_TEST`, `C1A_STATIC_FILE_INSPECT`, `NETWORK_HTTP_REQUEST`, and `NETWORK_TELNET_SESSION`, and further capabilities are registered as metadata rather than new code branches.
 - Strict workspace path containment (preventing traversal and path escaping).
 - Mission-scope containment via canonical path resolution in [`c1a_scope.py`](file:///home/moiz/raphael-2.0-rbsv2r/raphael_ibm_bob/c1a_scope.py).
 - Capability invariants (e.g. `RUN_TEST` only allows test files matching `test_*.py` or `*_test.py`).
@@ -171,7 +178,7 @@ as the tree moves, so each number below cites the exact command that
 produced it. Product-suite results are reported separately from repo-wide
 status.
 
-- **Repo-wide discovery (0 product failures)**: `python3 -m unittest discover -s tests -p "test_*.py"` reports **Ran 1443 tests: 0 failures, 18 errors, 1 skipped**. All 18 errors are pre-existing collection/import errors from legacy-substrate imports (`arena.*`, `orchestrator`) and one missing optional test dependency (`pytest`), outside the governed product path.
+- **Repo-wide discovery (0 product failures)**: `python3 -m unittest discover -s tests -p "test_*.py"` reports **Ran 1572 tests: 0 failures, 18 errors, 1 skipped, 4 expected failures**. All 18 errors are pre-existing collection/import errors from legacy-substrate imports (`arena.*`, `orchestrator`) and one missing optional test dependency (`pytest`), outside the governed product path.
 - **Core Seam & Gov-Loop Suite (12 modules, passing)**: `PYTHONPATH=. python3 -m unittest tests.test_seam_contracts tests.test_m2_boundary tests.test_m3_evidence tests.test_m4_verifier_falsifier tests.test_m5_replanner_runner tests.test_m6_quality_gate tests.test_m7_hero tests.test_m8_planner tests.test_m9_multi_replan tests.test_m10_1_runs tests.test_m10_2_metrics tests.test_m10_3_benchmark` reports **Ran 210 tests: OK**.
 - **C1A Provider & Authorization Suite (13 modules, passing at measure time)**: `PYTHONPATH=. python3 -m unittest tests.test_c1a_authorization tests.test_c1a_end_to_end tests.test_c1a_evidence tests.test_c1a_falsification tests.test_c1a_gate tests.test_c1a_identity tests.test_c1a_launcher_contract tests.test_c1a_lifecycle tests.test_c1a_receipt tests.test_c1a_replay tests.test_c1a_security_invariants tests.test_c1a_timeout tests.test_c1a_transport` reports **Ran 109 tests: OK**. (The older "95 tests" claim is stale; including `tests.test_c1a_verification` as a 14th module gives Ran 114: OK.)
 - **T3MP3ST Integration Suite (passing at measure time)**: `PYTHONPATH=. python3 -m unittest tests.test_t3mp3st_integration` reports **Ran 30 tests: OK** (including real sandboxed provider execution).
@@ -185,6 +192,7 @@ status.
 
 - **Active governed product**: `raphael_ibm_bob/` (stdlib-only Python). This is what ships: `pyproject.toml` (`[tool.setuptools.packages.find] include = ["raphael_ibm_bob*"]`) builds the wheel/sdist from ONLY `raphael_ibm_bob`, so installed artifacts contain no legacy residue.
 - **Legacy/research residue (in repo, NOT in the shipped package)**: `src/`, `arena/`, `cli/`, `evaluations/`, `benchmarks/`, `forge/`, exploit/payload reference material, and legacy test modules that import them. Present in the checkout and counted in `git ls-files`, excluded from the built distribution by the packaging include above.
+- **Raphael 2.0 modules (D13–D18)**: capability fabric (`capability_registry`/`capability_prerequisites`/`capability_selector`/`capability_bootstrap`), `observation_model`, `target_service_model`, `credential_provenance`; the autonomous layer (`d14_planner`/`d14_world_state`/`d14_replan`/`d14_stop`/`d14_loop`/`d14_state_codec`/`d14_ledger_view`); the generic bridge (`d15_capability_catalogue`, `d15_observation`) and `d16_autonomous` — all under `raphael_ibm_bob/` and shipped in the wheel/sdist. Documentation: `docs/D13_CAPABILITY_FABRIC.md`, `docs/D15_CAPABILITY_EXPANSION.md`, `docs/D16_AUTONOMOUS_VERIFICATION_REPLANNING.md`, `docs/D17_ADVERSARIAL_HARDENING.md`, `docs/FINAL_RELEASE.md`.
 - **Generated artifacts (git-ignored, never released)**: `runs/`, `metrics.json`, `sessions/`, per-run evidence ledgers.
 - **Vendored / pinned components**: `provider/` bridge (`provider/t3mp3st_bridge.js`, pinned by SHA-256 digest), demo/probe scripts (`demos/`, `probes/`), fixture scenario (`fixtures/authkit/`).
 
@@ -217,6 +225,7 @@ runs/              Durable per-run evidence ledgers (git-ignored)
 2. **Benchmark Scope**: Evaluated on the canonical deterministic `authkit` scenario; multi-repo generalization is not claimed.
 3. **Legacy Substrate**: The repository checkout contains earlier offensive research platform files in `src/` (plus `arena/`, `cli/`, `evaluations/`, etc.). They are NOT imported by the governed IBM BOB runtime, and they are NOT shipped: the wheel/sdist include ONLY `raphael_ibm_bob` (`pyproject.toml` packaging include). Isolation beyond that (no broader runtime or distribution claim) is not demonstrated here.
 4. **D5-7 Controlled VulnHub E2E (BLOCKED / OUT OF SCOPE FOR THIS RELEASE)**: no supported controlled VulnHub target/environment is present in this checkout or host. Legacy Stapler (VulnHub) material under `evaluations/campaign/` and `current-state/reports/` is historical evidence from a different lab host; the VM image and lab bridge (`icabr0`, `10.66.0.0/24`) are unavailable here, and the governed runtime has no network target adapter. No VulnHub execution, VM availability, reachable target IP, or kill chain is claimed.
+5. **Autonomous-loop observation binding (D17 documented residual)**: the shipped `AutonomousLoop` folds observations through `reduce_world_state` (the weaker reducer) rather than `reduce_state_transition` (the stricter one), so an observation's *content* (`capability_id` / target / injected service) and stale `source_seq` are not bound to the execution evidence it cites. Impact is bounded — every action is re-authorized by Policy and no authorization widening was found — but it is a real wiring gap, marked by four `@unittest.expectedFailure` tests in `tests/test_d17_hardening.py`, and it is intentionally **not** hidden by patching the frozen D14 reducer.
 
 ---
 
